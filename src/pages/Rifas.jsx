@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   MagnifyingGlassIcon,
   PlusIcon,
@@ -6,61 +6,21 @@ import {
   PencilSquareIcon,
   TrophyIcon,
 } from "@heroicons/react/24/outline";
+import { supabase } from "../api/supabaseClient";
+import { NavLink } from "react-router-dom";
 
-const raffles = [
-  {
-    id: 1,
-    title: "Premio en efectivo $500",
-    description: "Transferencia directa de efectivo a tu cuenta - sin cadenas",
-    price: "$500",
-    ticketPrice: "$3 por boleto",
-    ticketsSold: 145,
-    ticketsTotal: 500,
-    date: "Jan 15, 2024",
-    players: 145,
-    featured: true,
-    status: "Activo",
-    statusColor: "bg-green-500",
-    statusText: "Activo",
-    icon: <TrophyIcon className="w-10 h-10 text-purple-400 mx-auto" />,
-  },
-  {
-    id: 2,
-    title: "iPhone 15 Pro Max",
-    description:
-      "iPhone 15 Pro Max con 256GB de almacenamiento en Titanium Blue",
-    price: "$1,200",
-    ticketPrice: "$8 por boleto",
-    ticketsSold: 89,
-    ticketsTotal: 300,
-    date: "Jan 12, 2024",
-    players: 89,
-    featured: false,
-    status: "Activo",
-    statusColor: "bg-green-500",
-    statusText: "Activo",
-    icon: <TrophyIcon className="w-10 h-10 text-purple-400 mx-auto" />,
-  },
-  {
-    id: 3,
-    title: "Premio en efectivo $500",
-    description: "Transferencia directa de efectivo a tu cuenta - sin cadenas",
-    price: "$500",
-    ticketPrice: "$3 por boleto",
-    ticketsSold: 234,
-    ticketsTotal: 250,
-    date: "Jan 10, 2024",
-    players: 234,
-    featured: false,
-    status: "Finalizando",
-    statusColor: "bg-orange-400",
-    statusText: "Finalizando",
-    icon: <TrophyIcon className="w-10 h-10 text-purple-400 mx-auto" />,
-  },
-];
-
-export default function Rifas() {
+export function Rifas() {
   const [search, setSearch] = useState("");
+  const [raffles, setRaffles] = useState([]);
+
+  const fetchRaffles = async () => {
+    const { data, error } = await supabase.from("rifas").select("*");
+    if (!error) setRaffles(data);
+  };
+
+  useEffect(() => {
+    fetchRaffles();
+  }, []);
 
   return (
     <div>
@@ -71,10 +31,10 @@ export default function Rifas() {
             Gestiona tus rifas y ve su rendimiento.
           </p>
         </div>
-        <button className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors">
+        <NavLink to="/rifas/nueva-rifa" className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors">
           <PlusIcon className="w-5 h-5" />
-          <span className="font-medium">Crear Rifa</span>
-        </button>
+          Crear Rifa
+        </NavLink>
       </div>
 
       {/* Filtros y buscador */}
@@ -100,7 +60,7 @@ export default function Rifas() {
       {/* Cards de rifas */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
         {raffles
-          .filter((r) => r.title.toLowerCase().includes(search.toLowerCase()))
+          .filter((r) => r.nombre.toLowerCase().includes(search.toLowerCase()))
           .map((raffle) => (
             <div
               key={raffle.id}
@@ -108,41 +68,41 @@ export default function Rifas() {
             >
               {/* Featured badge y estado */}
               <div className="flex justify-between items-start px-4 pt-4">
-                {raffle.featured && (
+                {raffle.estado === "activa" && (
                   <span className="bg-yellow-400/90 text-yellow-900 text-xs font-bold px-3 py-1 rounded-full shadow">
-                    Destacada
+                    Activa
                   </span>
                 )}
                 <span
-                  className={`ml-auto px-3 py-1 rounded-full text-xs font-semibold text-white ${raffle.statusColor}`}
+                  className={`ml-auto px-3 py-1 rounded-full text-xs font-semibold text-white ${raffle.estado === "activa" ? "bg-green-400/90 text-green-900" : "bg-red-400/90 text-red-900"}`}
                 >
-                  {raffle.statusText}
+                  {raffle.estado === "activa" ? "Activa" : "Inactiva"}
                 </span>
               </div>
               {/* Icono */}
               <div className="flex-1 flex items-center justify-center py-8">
-                {raffle.icon}
+                {raffle.icon  || <TrophyIcon className="w-16 h-16 text-[#d54ff9]" />}
               </div>
               {/* Info */}
               <div className="px-6 pb-6">
                 <h2 className="text-white font-bold text-lg mb-1">
-                  {raffle.title}
+                  {raffle.nombre}
                 </h2>
                 <p className="text-gray-400 text-sm mb-3">
-                  {raffle.description}
+                  {raffle.descripcion}
                 </p>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-green-400 font-bold text-xl">
-                    {raffle.price}
+                    {raffle.precio_ticket}
                   </span>
                   <span className="text-gray-400 text-xs">
-                    {raffle.ticketPrice}
+                    {raffle.total_tickets}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
                   <span>Tickets Vendidos</span>
                   <span>
-                    {raffle.ticketsSold} / {raffle.ticketsTotal}
+                    {raffle.ticketsSold} / {raffle.total_tickets}
                   </span>
                 </div>
                 {/* Barra de progreso */}
@@ -151,7 +111,7 @@ export default function Rifas() {
                     className="bg-[#7c3bed] h-2 rounded-full transition-all"
                     style={{
                       width: `${
-                        (raffle.ticketsSold / raffle.ticketsTotal) * 100
+                        (raffle.ticketsSold / raffle.total_tickets) * 100
                       }%`,
                     }}
                   />
@@ -159,7 +119,7 @@ export default function Rifas() {
                 <div className="flex items-center justify-between text-xs text-gray-400">
                   <span>
                     <span className="mr-1">📅</span>
-                    {new Date(raffle.date).toLocaleDateString("es-ES", {
+                    {new Date(raffle.fecha_inicio).toLocaleDateString("es-ES", {
                       day: "2-digit",
                       month: "2-digit",
                       year: "numeric",
@@ -167,7 +127,7 @@ export default function Rifas() {
                   </span>
                   <span>
                     <span className="mr-1">👥</span>
-                    {raffle.players} jugadores
+                    {raffle.total_tickets} jugadores
                   </span>
                 </div>
                 {/* Botones */}

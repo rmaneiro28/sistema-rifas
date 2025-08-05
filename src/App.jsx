@@ -2,8 +2,8 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
-import {Rifas} from './pages/Rifas';
-import Usuarios from './pages/Usuarios';
+import { Rifas} from './pages/Rifas';
+import {Usuarios} from './pages/Usuarios';
 import Tickets from './pages/Tickets';
 import Login from './pages/Login';
 import { RecentRaffles } from "./components/RecentRaffles";
@@ -12,6 +12,8 @@ import { StatsCards } from "./components/StatsCards";
 import { PlusIcon } from '@heroicons/react/24/outline';
 import './App.css';
 import { PrivateRoute } from "./components/PrivateRoute";
+import NotFound from './pages/NotFound';
+import { NuevaRifa } from "./pages/NuevaRifa";
 
 // Dashboard page layout
 function Dashboard() {
@@ -107,6 +109,17 @@ function App() {
             </PrivateRoute>
           }
         />
+        <Route
+          path="/rifas/nueva-rifa"
+          element={
+            <PrivateRoute>
+              <MainLayout>
+                <NuevaRifa />
+              </MainLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>
   );
