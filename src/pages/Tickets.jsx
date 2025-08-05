@@ -25,7 +25,7 @@ function Tickets() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-[#d54ff9] text-3xl font-bold mb-1">Tickets</h1>
+          <h1 className="bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent text-3xl font-bold mb-1">Tickets</h1>
           <p className="text-gray-400">
             Track all ticket sales and manage entries.
           </p>

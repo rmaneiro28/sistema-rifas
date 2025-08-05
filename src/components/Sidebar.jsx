@@ -19,7 +19,7 @@ const Sidebar = () => {
     window.location.href = '/login';
   }
   return (
-    <div className="w-64 h-screen bg-[#131620] text-white flex flex-col p-4 border-r border-r-[#1f2937] justify-between" id="sidebar">
+    <aside className="w-64 h-screen bg-[#131620] text-white flex flex-col p-4 border-r border-r-[#1f2937] justify-between" id="sidebar">
       {/* Premium Section */}
       <div>
         <div className="">
@@ -47,15 +47,15 @@ const Sidebar = () => {
             </NavLink>
             <NavLink to="/rifas" className={({ isActive }) => isActive ? "flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-[#7c3bed] text-white" : "flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-400 hover:bg-gray-700/30 transition-colors"}>
               <TicketIcon className="w-5 h-5" />
-              <span className="text-sm">Raffles</span>
+              <span className="text-sm">Rifas</span>
             </NavLink>
             <NavLink to="/tickets" className={({ isActive }) => isActive ? "flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-[#7c3bed] text-white" : "flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-400 hover:bg-gray-700/30 transition-colors"}>
               <CreditCardIcon className="w-5 h-5" />
               <span className="text-sm">Tickets</span>
             </NavLink>
-            <NavLink to="/players" className={({ isActive }) => isActive ? "flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-[#7c3bed] text-white" : "flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-400 hover:bg-gray-700/30 transition-colors"}>
+            <NavLink to="/jugadores" className={({ isActive }) => isActive ? "flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-[#7c3bed] text-white" : "flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-400 hover:bg-gray-700/30 transition-colors"}>
               <UsersIcon className="w-5 h-5" />
-              <span className="text-sm">Players</span>
+              <span className="text-sm">Jugadores</span>
             </NavLink>
           </nav>
         </div>
@@ -66,13 +66,13 @@ const Sidebar = () => {
             Admin
           </div>
           <nav className="space-y-1">
-            <NavLink to="/analytics" className={({ isActive }) => isActive ? "flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-[#7c3bed] text-white" : "flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-400 hover:bg-gray-700/30 transition-colors"}>
+            <NavLink to="/estadisticas" className={({ isActive }) => isActive ? "flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-[#7c3bed] text-white" : "flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-400 hover:bg-gray-700/30 transition-colors"}>
               <ChartBarIcon className="w-5 h-5" />
-              <span className="text-sm">Analytics</span>
+              <span className="text-sm">Estadísticas</span>
             </NavLink>
-            <NavLink to="/settings" className={({ isActive }) => isActive ? "flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-[#7c3bed] text-white" : "flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-400 hover:bg-gray-700/30 transition-colors"}>
+            <NavLink to="/configuraciones" className={({ isActive }) => isActive ? "flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-[#7c3bed] text-white" : "flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-400 hover:bg-gray-700/30 transition-colors"}>
               <CogIcon className="w-5 h-5" />
-              <span className="text-sm">Settings</span>
+              <span className="text-sm">Configuración</span>
             </NavLink>
           </nav>
         </div>
@@ -84,12 +84,12 @@ const Sidebar = () => {
           <span className="text-sm tracking-wider">Rifas JoCar</span>
           <span className="text-xs text-gray-400 tracking-wider">Socopó</span>          
         </div>
-        <button className="flex items-center space-x-3 cursor-pointer px-3 py-2.5 rounded-lg w-full duration-300 ease-in-out hover:bg-[#7c3bed]/30 text-gray-400 hover:text-white transition-colors">
-          <UserIcon  onClick={() => handleLogout()}  className="w-5 h-5" />
+        <button onClick={() => handleLogout()} className="flex items-center space-x-3 cursor-pointer px-3 py-2.5 rounded-lg w-full duration-300 ease-in-out hover:bg-[#7c3bed]/30 text-gray-400 hover:text-white transition-colors">
+          <UserIcon className="w-5 h-5" />
           <span className="text-sm">Log Out</span>
         </button>
       </div>
-    </div>
+    </aside>
   )
 }
 
