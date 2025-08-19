@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../api/supabaseClient";
 import RifaForm from "../components/RifaForm";
+import { toast } from "sonner";
 
 export function NuevaRifa() {
   const navigate = useNavigate();
@@ -12,10 +13,11 @@ export function NuevaRifa() {
     const { error } = await supabase.from("rifas").insert([form]);
     setLoading(false);
     if (!error) {
+      toast.success("Rifa creada con éxito");
       resetForm();
       navigate("/rifas"); // Redirige a la lista de rifas tras crear
     } else {
-      alert("Error al guardar la rifa");
+      toast.error("Error al guardar la rifa");
     }
   };
 

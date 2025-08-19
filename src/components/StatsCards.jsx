@@ -1,36 +1,43 @@
 import { TrophyIcon, TicketIcon, UsersIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline'
+import { useState, useEffect } from 'react';
+import { supabase } from '../api/supabaseClient';
 
 export const StatsCards = () => {
-  const stats = [
-    {
-      title: "Active Raffles",
-      value: "12",
-      change: "+20% from last month",
-      icon: TrophyIcon,
-      iconColor: "text-purple-400"
-    },
-    {
-      title: "Total Tickets Sold",
-      value: "1,847",
-      change: "+15% from last month",
-      icon: TicketIcon,
-      iconColor: "text-green-400"
-    },
-    {
-      title: "Registered Players",
-      value: "524",
-      change: "+8% from last month",
-      icon: UsersIcon,
-      iconColor: "text-yellow-400"
-    },
-    {
-      title: "Revenue",
-      value: "$12,439",
-      change: "+32% from last month",
-      icon: CurrencyDollarIcon,
-      iconColor: "text-green-400"
-    }
-  ]
+  const [stats, setStats] = useState([
+    { title: 'Total Raffles', value: 0, icon: TrophyIcon, iconColor: 'text-purple-400' },
+    { title: 'Tickets Sold', value: 0, icon: TicketIcon, iconColor: 'text-blue-400' },
+    { title: 'Total Players', value: 0, icon: UsersIcon, iconColor: 'text-green-400' },
+    { title: 'Total Revenue', value: 'S/.0.00', icon: CurrencyDollarIcon, iconColor: 'text-yellow-400' },
+  ]);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      const { count: raffleCount } = await supabase.from('vw_rifas').select('*', { count: 'exact' });
+      const { count: playerCount } = await supabase.from('vw_jugadores').select('*', { count: 'exact' });
+      const { data: tickets, error } = await supabase.from('vw_tickets').select('*');
+
+      if (error) {
+        console.error("Error fetching tickets for stats", error);
+        return;
+      }
+      console.log(tickets);
+      console.log(raffleCount);
+
+      const ticketCount = tickets.length;
+      const totalRevenue = tickets.reduce((total, ticket) => total + ticket.precio_ticket_rifa, 0);
+
+
+      setStats([
+        { title: 'Total Raffles', value: raffleCount, icon: TrophyIcon, iconColor: 'text-purple-400' },
+        { title: 'Tickets Sold', value: ticketCount, icon: TicketIcon, iconColor: 'text-blue-400' },
+        { title: 'Total Players', value: playerCount, icon: UsersIcon, iconColor: 'text-green-400' },
+        { title: 'Total Revenue', value: `$${totalRevenue.toFixed(2)}`, icon: CurrencyDollarIcon, iconColor: 'text-yellow-400' },
+      ]);
+    };
+
+    fetchStats();
+  }, []);
+
 
   return (
     <div className="grid  md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -42,7 +49,6 @@ export const StatsCards = () => {
           </div>
           <div className="space-y-2">
             <p className="text-white text-2xl font-bold">{stat.value}</p>
-            <p className="text-green-400 text-sm">{stat.change}</p>
           </div>
         </div>
       ))}

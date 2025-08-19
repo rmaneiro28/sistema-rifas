@@ -12,26 +12,38 @@ import { NavLink } from "react-router-dom";
 export function Rifas() {
   const [search, setSearch] = useState("");
   const [raffles, setRaffles] = useState([]);
+  const [filter, setFilter] = useState("all"); // all, featured
 
   const fetchRaffles = async () => {
-    const { data, error } = await supabase.from("rifas").select("*");
+    let query = supabase.from("vw_rifas").select("*");
+
+    if (filter === "featured") {
+      query = query.eq("destacada", true);
+    }
+
+    const { data, error } = await query;
     if (!error) setRaffles(data);
   };
 
   useEffect(() => {
     fetchRaffles();
-  }, []);
+  }, [filter]);
 
+  const handleFilterChange = (newFilter) => {
+    setFilter(newFilter);
+  };
+
+  console.log(raffles);
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent text-3xl font-bold mb-1">Rifas</h1>
+          <h1 className="bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent font-bold mb-1 ">Rifas</h1>
           <p className="text-gray-400">
             Gestiona tus rifas y ve su rendimiento.
           </p>
         </div>
-        <NavLink to="/rifas/nueva-rifa" className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors">
+        <NavLink to="/rifas/nueva-rifa" className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white text-sm px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors">
           <PlusIcon className="w-5 h-5" />
           Crear Rifa
         </NavLink>
@@ -49,10 +61,14 @@ export function Rifas() {
             className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#181c24] border border-[#23283a] text-white focus:outline-none focus:border-[#7c3bed] transition"
           />
         </div>
-        <button className="px-4 py-2 rounded-lg bg-[#23283a] text-white border border-[#7c3bed] text-xs font-semibold">
+        <button
+          onClick={() => handleFilterChange("all")}
+          className={`px-4 py-2 rounded-lg text-xs font-semibold ${filter === "all" ? "bg-[#7c3bed] text-white" : "bg-[#23283a] text-white border border-[#7c3bed]"}`}>
           Todos
         </button>
-        <button className="px-4 py-2 rounded-lg bg-[#23283a] text-white border border-[#d54ff9] text-xs font-semibold">
+        <button
+          onClick={() => handleFilterChange("featured")}
+          className={`px-4 py-2 rounded-lg text-xs font-semibold ${filter === "featured" ? "bg-[#d54ff9] text-white" : "bg-[#23283a] text-white border border-[#d54ff9]"}`}>
           Destacadas
         </button>
       </div>
@@ -62,8 +78,9 @@ export function Rifas() {
         {raffles
           .filter((r) => r.nombre.toLowerCase().includes(search.toLowerCase()))
           .map((raffle) => (
-            <div
-              key={raffle.id}
+            <NavLink
+              to={`/detalle-rifa/${raffle.id_rifa}`}
+              key={raffle.id_rifa}
               className="bg-[#181c24] border border-[#23283a] rounded-xl overflow-hidden shadow-lg flex flex-col"
             >
               {/* Featured badge y estado */}
@@ -73,15 +90,11 @@ export function Rifas() {
                     Activa
                   </span>
                 )}
-                <span
-                  className={`ml-auto px-3 py-1 rounded-full text-xs font-semibold text-white ${raffle.estado === "activa" ? "bg-green-400/90 text-green-900" : "bg-red-400/90 text-red-900"}`}
-                >
-                  {raffle.estado === "activa" ? "Activa" : "Inactiva"}
-                </span>
+
               </div>
               {/* Icono */}
               <div className="flex-1 flex items-center justify-center py-8">
-                {raffle.icon  || <TrophyIcon className="w-16 h-16 text-[#d54ff9]" />}
+                {raffle.icon || <TrophyIcon className="w-16 h-16 text-[#d54ff9]" />}
               </div>
               {/* Info */}
               <div className="px-6 pb-6">
@@ -93,16 +106,16 @@ export function Rifas() {
                 </p>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-green-400 font-bold text-xl">
-                    {raffle.precio_ticket}
+                    ${raffle.precio_ticket}
                   </span>
                   <span className="text-gray-400 text-xs">
-                    {raffle.total_tickets}
+                    {raffle.total_tickets} boletos
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
                   <span>Tickets Vendidos</span>
                   <span>
-                    {raffle.ticketsSold} / {raffle.total_tickets}
+                    {raffle.tickets_vendidos ?? 0} / {raffle.total_tickets}
                   </span>
                 </div>
                 {/* Barra de progreso */}
@@ -110,24 +123,27 @@ export function Rifas() {
                   <div
                     className="bg-[#7c3bed] h-2 rounded-full transition-all"
                     style={{
-                      width: `${
-                        (raffle.ticketsSold / raffle.total_tickets) * 100
-                      }%`,
+                      width: `${((raffle.tickets_vendidos ?? 0) / raffle.total_tickets) * 100
+                        }%`,
                     }}
                   />
                 </div>
                 <div className="flex items-center justify-between text-xs text-gray-400">
                   <span>
                     <span className="mr-1">📅</span>
-                    {new Date(raffle.fecha_inicio).toLocaleDateString("es-ES", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                    })}
+                    {raffle.fecha_inicio
+                      ? new Date(raffle.fecha_inicio).toLocaleDateString("es-ES", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      })
+                      : ""}
                   </span>
                   <span>
-                    <span className="mr-1">👥</span>
-                    {raffle.total_tickets} jugadores
+                    <span className="mr-1">🏆</span>
+                    {raffle.valor_premio
+                      ? `$${new Intl.NumberFormat().format(raffle.valor_premio)}`
+                      : ""}
                   </span>
                 </div>
                 {/* Botones */}
@@ -140,7 +156,7 @@ export function Rifas() {
                   </button>
                 </div>
               </div>
-            </div>
+            </NavLink>
           ))}
       </div>
     </div>
