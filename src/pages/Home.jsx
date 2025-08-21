@@ -27,7 +27,7 @@ const Home = () => {
 
       // Fetch total players
       const { data: jugadores, error: jugadoresError } = await supabase
-        .from("jugadores")
+        .from("t_jugadores")
         .select("id", { count: "exact" });
 
       if (jugadoresError) {

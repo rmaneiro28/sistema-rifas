@@ -7,9 +7,9 @@ export const RecentRaffles = ({ raffles = [] }) => {
     <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6">
       <div className="flex items-center space-x-2 mb-6">
         <TrophyIcon className="w-5 h-5 text-purple-400" />
-        <h2 className="text-white text-lg font-semibold">Recent Raffles</h2>
+        <h2 className="text-white text-lg font-semibold">Rifas recientes</h2>
       </div>
-      <p className="text-gray-400 text-sm mb-6">Your latest raffle activities</p>
+      <p className="text-gray-400 text-sm mb-6">Tus últimas actividades de rifa</p>
 
       <div className="space-y-4">
         {raffles.length > 0 ? (
@@ -29,7 +29,7 @@ export const RecentRaffles = ({ raffles = [] }) => {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-green-400 font-semibold text-lg">{raffle.price}</p>
+                <p className="text-green-400 font-semibold text-lg">${raffle.price}</p>
                 <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium text-white ${raffle.statusColor}`}>
                   {raffle.status}
                 </span>
@@ -37,7 +37,7 @@ export const RecentRaffles = ({ raffles = [] }) => {
             </div>
           ))
         ) : (
-          <p className="text-gray-400">No recent raffles.</p>
+          <p className="text-gray-400">No hay rifas recientes</p>
         )}
       </div>
     </div>

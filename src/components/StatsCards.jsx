@@ -4,10 +4,10 @@ import { supabase } from '../api/supabaseClient';
 
 export const StatsCards = () => {
   const [stats, setStats] = useState([
-    { title: 'Total Raffles', value: 0, icon: TrophyIcon, iconColor: 'text-purple-400' },
-    { title: 'Tickets Sold', value: 0, icon: TicketIcon, iconColor: 'text-blue-400' },
-    { title: 'Total Players', value: 0, icon: UsersIcon, iconColor: 'text-green-400' },
-    { title: 'Total Revenue', value: 'S/.0.00', icon: CurrencyDollarIcon, iconColor: 'text-yellow-400' },
+    { title: 'Total de rifas', value: 0, icon: TrophyIcon, iconColor: 'text-purple-400' },
+    { title: 'Tickets vendidos', value: 0, icon: TicketIcon, iconColor: 'text-blue-400' },
+    { title: 'Total de jugadores', value: 0, icon: UsersIcon, iconColor: 'text-green-400' },
+    { title: 'Total de ingresos', value: '$ 0,00', icon: CurrencyDollarIcon, iconColor: 'text-yellow-400' },
   ]);
 
   useEffect(() => {
@@ -24,14 +24,14 @@ export const StatsCards = () => {
       console.log(raffleCount);
 
       const ticketCount = tickets.length;
-      const totalRevenue = tickets.reduce((total, ticket) => total + ticket.precio_ticket_rifa, 0);
+      const totalRevenue = tickets.reduce((total, ticket) => total + ticket.precio_ticket, 0);
 
 
       setStats([
-        { title: 'Total Raffles', value: raffleCount, icon: TrophyIcon, iconColor: 'text-purple-400' },
-        { title: 'Tickets Sold', value: ticketCount, icon: TicketIcon, iconColor: 'text-blue-400' },
-        { title: 'Total Players', value: playerCount, icon: UsersIcon, iconColor: 'text-green-400' },
-        { title: 'Total Revenue', value: `$${totalRevenue.toFixed(2)}`, icon: CurrencyDollarIcon, iconColor: 'text-yellow-400' },
+        { title: 'Total Rifas', value: raffleCount, icon: TrophyIcon, iconColor: 'text-purple-400' },
+        { title: 'Tickets vendidos', value: ticketCount, icon: TicketIcon, iconColor: 'text-blue-400' },
+        { title: 'Total Jugadores', value: playerCount, icon: UsersIcon, iconColor: 'text-green-400' },
+        { title: 'Total Ingresos', value: `$${totalRevenue.toFixed(2)}`, icon: CurrencyDollarIcon, iconColor: 'text-yellow-400' },
       ]);
     };
 

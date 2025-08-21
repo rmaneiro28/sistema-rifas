@@ -22,7 +22,6 @@ export default function Login() {
       toast.error(error.message);
     } else {
       toast.success("Login successful!");
-      localStorage.setItem("token", data.session.access_token);
       navigate("/");
     }
   };
@@ -75,11 +74,10 @@ export default function Login() {
     }
   };
 
-  // Si ya está autenticado, redirige al dashboard
-  if (localStorage.getItem("token")) {
-    navigate("/");
-    return null;
-  }
+  // The PrivateRoute component now handles redirection if already authenticated.
+  // This component should only be rendered if the user is not authenticated.
+  // Therefore, no local storage check is needed here.
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#181c24]">
       <div className="bg-[#20232e] rounded-2xl shadow-2xl p-10 w-full max-w-md border border-[#23283a]">

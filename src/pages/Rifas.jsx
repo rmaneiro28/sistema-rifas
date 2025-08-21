@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import { supabase } from "../api/supabaseClient";
+import { NavLink, useNavigate } from "react-router-dom";
+
+
 import {
   MagnifyingGlassIcon,
   PlusIcon,
@@ -6,8 +10,7 @@ import {
   PencilSquareIcon,
   TrophyIcon,
 } from "@heroicons/react/24/outline";
-import { supabase } from "../api/supabaseClient";
-import { NavLink } from "react-router-dom";
+import { toast } from "sonner";
 
 export function Rifas() {
   const [search, setSearch] = useState("");
@@ -33,18 +36,35 @@ export function Rifas() {
     setFilter(newFilter);
   };
 
-  console.log(raffles);
+  const handleDeleteRaffle = async (id) => {
+    const { error } = await supabase.from("t_rifas").delete().eq("id_rifa", id);
+    if (!error) {
+      // Agrega una modal de confirmación
+      const confirmacion = window.confirm("¿Estás seguro de que deseas eliminar esta rifa?");
+      if (confirmacion) {
+        toast.success("Rifa eliminada con éxito");
+        fetchRaffles();
+      }
+    } else {
+      toast.error("Error al eliminar la rifa");
+    }
+  };
+  const navigate = useNavigate();
+  const handleEditRaffle = (id) => {
+    navigate(`/rifas/editar/${id}`);
+  };
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex mb-6 max-sm:flex-col min-md:flex-row min-md:items-center min-md:justify-between gap-4">
         <div>
-          <h1 className="bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent font-bold mb-1 ">Rifas</h1>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent">Rifas</h1>
           <p className="text-gray-400">
             Gestiona tus rifas y ve su rendimiento.
           </p>
         </div>
         <NavLink to="/rifas/nueva-rifa" className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white text-sm px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors">
-          <PlusIcon className="w-5 h-5" />
+          <PlusIcon className="w-5 h-5 inline-block mr-2" />
           Crear Rifa
         </NavLink>
       </div>
@@ -78,26 +98,24 @@ export function Rifas() {
         {raffles
           .filter((r) => r.nombre.toLowerCase().includes(search.toLowerCase()))
           .map((raffle) => (
-            <NavLink
-              to={`/detalle-rifa/${raffle.id_rifa}`}
+            <div
               key={raffle.id_rifa}
-              className="bg-[#181c24] border border-[#23283a] rounded-xl overflow-hidden shadow-lg flex flex-col"
+              className="bg-[#181c24] border border-[#23283a] rounded-xl overflow-hidden shadow-lg flex flex-col justify-start"
             >
-              {/* Featured badge y estado */}
-              <div className="flex justify-between items-start px-4 pt-4">
-                {raffle.estado === "activa" && (
-                  <span className="bg-yellow-400/90 text-yellow-900 text-xs font-bold px-3 py-1 rounded-full shadow">
-                    Activa
-                  </span>
-                )}
+              <NavLink to={`/detalle-rifa/${raffle.id_rifa}`} className="relative">
+                <img src={raffle.imagen_url} alt={raffle.nombre} title={raffle.nombre} className="w-full h-48 object-cover" />
+                {/* Featured badge y estado */}
+                <div className="flex absolute top-4 left-4 justify-between items-start ">
+                  {raffle.estado === "activa" && (
+                    <span className="bg-yellow-400/90 text-yellow-900 text-xs font-bold px-3 py-1 rounded-full shadow">
+                      Activa
+                    </span>
+                  )}
+                </div>
+              </NavLink>
 
-              </div>
-              {/* Icono */}
-              <div className="flex-1 flex items-center justify-center py-8">
-                {raffle.icon || <TrophyIcon className="w-16 h-16 text-[#d54ff9]" />}
-              </div>
               {/* Info */}
-              <div className="px-6 pb-6">
+              <div className="px-6 py-6">
                 <h2 className="text-white font-bold text-lg mb-1">
                   {raffle.nombre}
                 </h2>
@@ -148,16 +166,21 @@ export function Rifas() {
                 </div>
                 {/* Botones */}
                 <div className="flex gap-2 mt-4">
-                  <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-[#7c3bed] text-[#7c3bed] hover:bg-[#7c3bed]/10 transition">
+                  <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-[#7c3bed] text-[#7c3bed] hover:bg-[#7c3bed]/10 transition" onClick={() => handleEditRaffle(raffle.id_rifa)}>
                     <PencilSquareIcon className="w-4 h-4" /> Editar
                   </button>
-                  <button className="flex items-center justify-center px-3 py-2 rounded-lg border border-[#d54ff9] text-[#d54ff9] hover:bg-[#d54ff9]/10 transition">
+                  <button className="flex items-center justify-center px-3 py-2 rounded-lg border border-[#d54ff9] text-[#d54ff9] hover:bg-[#d54ff9]/10 transition" onClick={() => handleDeleteRaffle(raffle.id_rifa)}>
                     <TrashIcon className="w-4 h-4" /> Eliminar
                   </button>
                 </div>
               </div>
-            </NavLink>
+            </div>
           ))}
+        {raffles.length === 0 && (
+          <div className="text-gray-400 ">
+            No se encontraron rifas.
+          </div>
+        )}
       </div>
     </div>
   );

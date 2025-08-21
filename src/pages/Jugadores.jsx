@@ -1,8 +1,8 @@
-import { MagnifyingGlassIcon, TrophyIcon, TicketIcon, CalendarIcon } from "@heroicons/react/24/outline";
+import { MagnifyingGlassIcon, TrophyIcon, TicketIcon, CalendarIcon, ExclamationTriangleIcon, XMarkIcon, UserIcon, StarIcon } from "@heroicons/react/24/outline";
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import { supabase } from "../api/supabaseClient";
 import JugadorFormModal from "../components/JugadorFormModal";
+import { PlusIcon } from "@heroicons/react/16/solid";
 const STATUS_BADGES = {
   vip: { label: "VIP", color: "bg-[#a21caf] text-white" },
   active: { label: "ACTIVE", color: "bg-[#23283a] text-white" },
@@ -65,190 +65,478 @@ export function Jugadores() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editPlayer, setEditPlayer] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState({ open: false, player: null });
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [showPlayerModal, setShowPlayerModal] = useState(false);
+  const [isPlayerModalAnimating, setIsPlayerModalAnimating] = useState(false);
 
   // Crear o actualizar jugador
-const handleSavePlayer = async (data) => {
-  setLoading(true);
-  if (editPlayer) {
-    // Editar
+  const handleSavePlayer = async (data) => {
+    setLoading(true);
+    if (editPlayer) {
+      // Editar
+      const { error } = await supabase
+        .from("t_jugadores")
+        .update(data)
+        .eq("id", editPlayer.id);
+      if (!error) {
+        setPlayers(players.map(j => (j.id === editPlayer.id ? { ...j, ...data } : j)));
+      }
+    } else {
+      // Crear
+      const { data: newJugador, error } = await supabase
+        .from("t_jugadores")
+        .insert([data])
+        .select()
+        .single();
+      if (!error && newJugador) {
+        setPlayers([newJugador, ...players]);
+      }
+    }
+    setModalOpen(false);
+    setEditPlayer(null);
+    setLoading(false);
+  };
+  // Eliminar jugador
+  const handleDeletePlayer = async () => {
+    if (!confirmDelete.player) return;
+    setLoading(true);
     const { error } = await supabase
-      .from("jugadores")
-      .update(data)
-      .eq("id", editPlayer.id);
+      .from("t_jugadores")
+      .delete()
+      .eq("id", confirmDelete.player.id);
     if (!error) {
-      setPlayers(players.map(j => (j.id === editPlayer.id ? { ...j, ...data } : j)));
+      setPlayers(players.filter(j => j.id !== confirmDelete.player.id));
     }
-  } else {
-    // Crear
-    const { data: newJugador, error } = await supabase
-      .from("jugadores")
-      .insert([data])
-      .select()
-      .single();
-    if (!error && newJugador) {
-      setPlayers([newJugador, ...players]);
-    }
-  }
-  setModalOpen(false);
-  setEditPlayer(null);
-  setLoading(false);
-};
-// Eliminar jugador
-const handleDeletePlayer = async () => {
-  if (!confirmDelete.player) return;
-  setLoading(true);
-  const { error } = await supabase
-    .from("jugadores")
-    .delete()
-    .eq("id", confirmDelete.player.id);
-  if (!error) {
-    setPlayers(players.filter(j => j.id !== confirmDelete.player.id));
-  }
-  setConfirmDelete({ open: false, player: null });
-  setLoading(false);
-};
+    setConfirmDelete({ open: false, player: null });
+    setLoading(false);
+  };
+
+  // Funciones para manejar el panel de detalles del jugador
+  const handlePlayerClick = (player) => {
+    setSelectedPlayer(player);
+    setShowPlayerModal(true);
+    // Pequeño delay para que la animación se vea suave
+    setTimeout(() => setIsPlayerModalAnimating(true), 10);
+  };
+
+  const closePlayerModal = () => {
+    setIsPlayerModalAnimating(false);
+    // Esperar a que termine la animación antes de cerrar
+    setTimeout(() => {
+      setShowPlayerModal(false);
+      setSelectedPlayer(null);
+    }, 300);
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div>
+      <div className="flex mb-6 max-sm:flex-col min-md:flex-row min-md:items-center min-md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent">Players</h1>
-          <p className="text-gray-400 mt-1">Manage your community and track player activity.</p>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent">Jugadores</h1>
+          <p className="text-gray-400">Administra tu comunidad y rastrea la actividad de los jugadores.</p>
         </div>
+        <button
+          onClick={() => {
+            setEditPlayer(null);
+            setModalOpen(true);
+          }}
+          className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white text-sm px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors">
+          <PlusIcon className="w-5 h-5 inline-block mr-2" />Nuevo Jugador</button>
       </div>
 
       {/* Filtros y búsqueda */}
-      <div className="flex gap-4 items-center flex-wrap justify-between">
-        <div className="flex gap-2">
-          <div className="relative flex-1 max-w-xs pl-10 pr-4 py-2 rounded-lg bg-[#181c24] border border-[#23283a] text-white focus:outline-none focus:border-[#7c3bed] transition">
-            <input
-              type="text"
-              placeholder="Search players..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full pr-4 rounded-lg bg-[#181c24] text-white focus:outline-none focus:border-[#7c3bed] transition"
-            />
-            <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => handleFilter("all")} className={ isActive === "all" ? "px-4 py-2 rounded-lg bg-[#7c3bed] text-white border border-[#23283a] text-xs font-semibold" : "px-4 py-2 rounded-lg bg-[#23283a] text-white border border-[#d54ff9] text-xs font-semibold"}>
-              Todos
-            </button>
-            <button onClick={() => handleFilter("vip")} className={ isActive === "vip" ? "px-4 py-2 rounded-lg bg-[#7c3bed] text-white border border-[#23283a] text-xs font-semibold" : "px-4 py-2 rounded-lg bg-[#23283a] text-white border border-[#d54ff9] text-xs font-semibold"}>
-              Destacados
-            </button>
-            <button onClick={() => handleFilter("active")} className={ isActive === "active" ? "px-4 py-2 rounded-lg bg-[#7c3bed] text-white border border-[#23283a] text-xs font-semibold" : "px-4 py-2 rounded-lg bg-[#23283a] text-white border border-[#d54ff9] text-xs font-semibold"}>
-              Activos
-            </button>
-            <button onClick={() => handleFilter("winner")} className={ isActive === "winner" ? "px-4 py-2 rounded-lg bg-[#7c3bed] text-white border border-[#23283a] text-xs font-semibold" : "px-4 py-2 rounded-lg bg-[#23283a] text-white border border-[#d54ff9] text-xs font-semibold"}>
-              Ganadores
-            </button>
-          </div>
+      <div className="max-md:flex-col flex items-center  gap-4 mb-8">
+        <div className="relative flex-1 min-md:max-w-xs max-md:w-full">
+          <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Buscar jugadores..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#181c24] border border-[#23283a] text-white focus:outline-none focus:border-[#7c3bed] transition"
+          />
         </div>
-        <Link to="/jugadores/nuevo-jugador">
-          <button className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-6 py-2 rounded-lg font-semibold transition">Nuevo Jugador</button>
-        </Link>
+        <div className=" flex gap-2 max-w-full ">
+          <button onClick={() => handleFilter("all")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "all" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
+            Todos
+          </button>
+          <button onClick={() => handleFilter("vip")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "vip" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
+            Destacados
+          </button>
+          <button onClick={() => handleFilter("active")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "active" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
+            Activos
+          </button>
+          <button onClick={() => handleFilter("winner")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "winner" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
+            Ganadores
+          </button>
+        </div>
       </div>
-      
+
       {loading && <div className="text-white py-8 text-center">Cargando jugadores...</div>}
 
-      {/* Tarjetas de jugadores */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {filteredPlayers.map((player) => (
-          <div key={player.id} className="bg-[#141821] border border-[#23283a] p-6 rounded-xl shadow-md flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-tr from-[#7c3bed] to-[#d54ff9] rounded-full flex items-center justify-center text-xl font-bold text-white">
-                  {player.nombre.charAt(0)}
+      {/* Lista de jugadores */}
+      <div className="bg-[#141821] border border-[#23283a] rounded-xl overflow-hidden">
+        {/* Header de la tabla */}
+        <div className="bg-[#0f131b] px-6 py-4 border-b border-[#23283a]">
+          <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <div className="col-span-4">Jugador</div>
+            <div className="col-span-2 text-center">Tickets</div>
+            <div className="col-span-2 text-center">Gastado</div>
+            <div className="col-span-2 text-center">Estado</div>
+            <div className="col-span-2 text-center">Acciones</div>
+          </div>
+        </div>
+
+        {/* Lista de jugadores */}
+        <div className="divide-y divide-[#23283a]">
+          {filteredPlayers.map((player) => (
+            <div
+              key={player.id}
+              onClick={() => handlePlayerClick(player)}
+              className="px-6 py-4 hover:bg-[#1a1f2e] transition-colors cursor-pointer"
+            >
+              <div className="grid grid-cols-12 gap-4 items-center">
+                {/* Información del jugador */}
+                <div className="col-span-4 flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-tr from-[#7c3bed] to-[#d54ff9] rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+                    {player.nombre.charAt(0)}{player.apellido?.charAt(0) || ''}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-white truncate">
+                      {player.nombre} {player.apellido}
+                    </h3>
+                    <p className="text-sm text-gray-400 truncate">{player.email}</p>
+                    {/* Números favoritos compactos */}
+                    {Array.isArray(player.numeros_favoritos) && player.numeros_favoritos.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {player.numeros_favoritos.slice(0, 3).map((num, i) => (
+                          <span key={i} className="inline-block bg-[#7c3bed]/20 text-[#7c3bed] px-1.5 py-0.5 rounded text-xs font-mono">
+                            {num}
+                          </span>
+                        ))}
+                        {player.numeros_favoritos.length > 3 && (
+                          <span className="text-xs text-gray-500">+{player.numeros_favoritos.length - 3}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-bold text-white">{player.nombre}</h3>
-                  <p className="text-xs text-gray-400">{player.email}</p>
+
+                {/* Tickets comprados */}
+                <div className="col-span-2 text-center">
+                  <div className="flex items-center justify-center space-x-1">
+                    <TicketIcon className="w-4 h-4 text-[#7c3bed]" />
+                    <span className="text-white font-semibold">{player.total_tickets_comprados || 0}</span>
+                  </div>
+                </div>
+
+                {/* Total gastado */}
+                <div className="col-span-2 text-center">
+                  <div className="flex items-center justify-center space-x-1">
+                    <TrophyIcon className="w-4 h-4 text-[#16a249]" />
+                    <span className="text-white font-semibold">${player.monto_total_gastado || 0}</span>
+                  </div>
+                </div>
+
+                {/* Estado */}
+                <div className="col-span-2 text-center">
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${STATUS_BADGES[player.status]?.color || "bg-gray-700 text-white"}`}>
+                    {STATUS_BADGES[player.status]?.label || 'Activo'}
+                  </span>
+                </div>
+
+                {/* Acciones */}
+                <div className="col-span-2 flex items-center justify-center space-x-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditPlayer(player);
+                      setModalOpen(true);
+                    }}
+                    className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                    title="Editar jugador"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmDelete({ open: true, player });
+                    }}
+                    className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                    title="Eliminar jugador"
+                  >
+                    Eliminar
+                  </button>
                 </div>
               </div>
-              <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${STATUS_BADGES[player.status]?.color || "bg-gray-700 text-white"}`}>
-                {STATUS_BADGES[player.status]?.label}
-              </span>
             </div>
-            <div className="grid grid-cols-2 gap-3 mt-2">
-              <div className="bg-[#141a24] border border-[#23283a] rounded-lg p-3 flex flex-col items-center">
-                <TicketIcon className="w-5 h-5 text-[#7c3bed]" />
-                <span className="text-white font-bold text-lg">{player.tickets_comprados}</span>
-                <span className="text-xs text-gray-400">Tickets</span>
-              </div>
-              <div className="bg-[#141a24] border border-[#23283a] rounded-lg p-3 flex flex-col items-center">
-                <TrophyIcon className="w-5 h-5 text-[#16a249]" />
-                <span className="text-white font-bold text-lg">${player.total_gastado}</span>
-                <span className="text-xs text-gray-400">Spent</span>
-              </div>
+          ))}
+        </div>
+
+        {/* Estado vacío */}
+        {filteredPlayers.length === 0 && !loading && (
+          <div className="px-6 py-12 text-center">
+            <div className="w-16 h-16 bg-[#23283a] rounded-full flex items-center justify-center mx-auto mb-4">
+              <MagnifyingGlassIcon className="w-8 h-8 text-gray-400" />
             </div>
-            <div className="flex items-center gap-2 text-xs text-gray-400 mt-2">
-              <span className="flex items-center gap-1">
-                <CalendarIcon className="w-4 h-4 text-gray-400" />
-                Joined {player.fecha_nacimiento}
-              </span>
-            </div>  
-            <div className="text-xs text-gray-400 mt-1">
-              # Favorite Numbers:
-              <div className="flex flex-wrap gap-1 mt-1">
-              {Array.isArray(player.numeros_favoritos) ? player.numeros_favoritos.map((num, i) => (
-                  <span key={i} className="inline-block bg-[#23283a] text-white px-2 py-0.5 rounded-md font-mono text-xs">{num}</span>
-                )) : null}
+            <h3 className="text-white text-lg font-semibold mb-2">No se encontraron jugadores</h3>
+            <p className="text-gray-400 text-sm">
+              {search ? `No hay jugadores que coincidan con "${search}"` : "No hay jugadores registrados"}
+            </p>
+          </div>
+        )}
+      </div>
+      <JugadorFormModal
+        isOpen={modalOpen}
+        onClose={() => { setModalOpen(false); setEditPlayer(null); }}
+        onSave={handleSavePlayer}
+        initialData={editPlayer}
+      />
+
+      {confirmDelete.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4">
+          <div className="bg-[#181c24] border border-[#23283a] rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-[#23283a]">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center">
+                  <ExclamationTriangleIcon className="w-6 h-6 text-red-500" />
+                </div>
+                <h3 className="text-xl font-bold text-white">Confirmar Eliminación</h3>
               </div>
-            </div> 
-            <div className="flex items-center gap-2 mt-2">
               <button
-                onClick={() => {
-                  setEditPlayer(player);
-                  setModalOpen(true);
-                }}
-                className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-4 py-2 rounded-lg font-semibold transition"
+                onClick={() => setConfirmDelete({ open: false, player: null })}
+                disabled={loading}
+                className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-[#23283a] disabled:opacity-50"
               >
-                Editar
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <div className="text-center space-y-4">
+                {/* Player Info */}
+                <div className="bg-[#23283a] rounded-lg p-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
+                      <span className="text-red-500 font-bold text-lg">
+                        {confirmDelete.player?.nombre?.charAt(0)}{confirmDelete.player?.apellido?.charAt(0)}
+                      </span>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-white font-semibold">
+                        {confirmDelete.player?.nombre} {confirmDelete.player?.apellido}
+                      </p>
+                      <p className="text-gray-400 text-sm">{confirmDelete.player?.email}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Warning Message */}
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+                  <p className="text-red-400 font-medium mb-2">⚠️ Esta acción es irreversible</p>
+                  <p className="text-gray-300 text-sm">
+                    Se eliminará permanentemente toda la información del jugador, incluyendo:
+                  </p>
+                  <ul className="text-gray-400 text-sm mt-2 space-y-1">
+                    <li>• Datos personales y de contacto</li>
+                    <li>• Números favoritos configurados</li>
+                    <li>• Historial de participación</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex space-x-3 p-6 border-t border-[#23283a]">
+              <button
+                className="flex-1 bg-[#23283a] hover:bg-[#2d3748] text-white px-4 py-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => setConfirmDelete({ open: false, player: null })}
+                disabled={loading}
+              >
+                Cancelar
               </button>
               <button
-                onClick={() => {
-                  setConfirmDelete({ open: true, player });
-                }}
-                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-semibold transition"
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                onClick={handleDeletePlayer}
+                disabled={loading}
               >
-                Eliminar
+                {loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Eliminando...</span>
+                  </>
+                ) : (
+                  <>
+                    <ExclamationTriangleIcon className="w-4 h-4" />
+                    <span>Eliminar Jugador</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
-        ))}
-      </div>
-      <JugadorFormModal
-  isOpen={modalOpen}
-  onClose={() => { setModalOpen(false); setEditPlayer(null); }}
-  onSave={handleSavePlayer}
-  initialData={editPlayer}
-/>
+        </div>
+      )}
 
-{confirmDelete.open && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
-    <div className="bg-[#181c24] p-6 rounded-xl shadow-lg w-full max-w-sm text-center">
-      <h3 className="text-lg font-bold text-white mb-2">¿Eliminar jugador?</h3>
-      <p className="text-gray-300 mb-4">
-        Esta acción no se puede deshacer.<br />
-        <span className="font-semibold">{confirmDelete.player?.nombre} {confirmDelete.player?.apellido}</span>
-      </p>
-      <div className="flex justify-center gap-4">
-        <button
-          className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg"
-          onClick={() => setConfirmDelete({ open: false, player: null })}
-        >
-          Cancelar
-        </button>
-        <button
-          className="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-lg"
-          onClick={handleDeletePlayer}
-        >
-          Eliminar
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      {/* Panel lateral de detalles del jugador */}
+      {showPlayerModal && selectedPlayer && (
+        <>
+          {/* Overlay */}
+          <div
+            className="fixed inset-0 z-40 bg-[#181c24d8] transition-opacity duration-300"
+            onClick={closePlayerModal}
+          />
+
+          {/* Panel lateral */}
+          <div className={`fixed top-0 right-0 h-full w-full max-w-2xl bg-[#181c24] border-l border-[#23283a] shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isPlayerModalAnimating ? 'translate-x-0' : 'translate-x-full'
+            }`}>
+            <div className="flex flex-col h-full">
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-[#23283a] bg-[#181c24]">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-tr from-[#7c3bed] to-[#d54ff9] rounded-full flex items-center justify-center text-lg font-bold text-white">
+                    {selectedPlayer.nombre?.charAt(0)}{selectedPlayer.apellido?.charAt(0)}
+                  </div>
+                  <h2 className="text-xl font-bold text-white">
+                    {selectedPlayer.nombre} {selectedPlayer.apellido}
+                  </h2>
+                </div>
+                <button
+                  onClick={closePlayerModal}
+                  className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-[#23283a]"
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 p-6 overflow-y-auto">
+                <div className="space-y-6">
+                  {/* Información Personal */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                      <UserIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />
+                      Información Personal
+                    </h3>
+
+                    <div className="bg-[#23283a] rounded-lg p-4 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Nombre completo:</span>
+                        <span className="text-white font-medium">{selectedPlayer.nombre} {selectedPlayer.apellido}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Email:</span>
+                        <span className="text-white">{selectedPlayer.email}</span>
+                      </div>
+
+                      {selectedPlayer.telefono && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">Teléfono:</span>
+                          <span className="text-white">{selectedPlayer.telefono}</span>
+                        </div>
+                      )}
+
+                      {selectedPlayer.cedula && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">Cédula:</span>
+                          <span className="text-white">{selectedPlayer.cedula}</span>
+                        </div>
+                      )}
+
+                      {selectedPlayer.direccion && (
+                        <div className="flex justify-between items-start">
+                          <span className="text-gray-400">Dirección:</span>
+                          <span className="text-white text-right max-w-xs">{selectedPlayer.direccion}</span>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Estado:</span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${STATUS_BADGES[selectedPlayer.status]?.color || "bg-gray-700 text-white"}`}>
+                          {STATUS_BADGES[selectedPlayer.status]?.label || 'Activo'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Estadísticas */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                      <TrophyIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />
+                      Estadísticas
+                    </h3>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-[#23283a] p-4 rounded-lg text-center">
+                        <TicketIcon className="w-8 h-8 text-[#7c3bed] mx-auto mb-2" />
+                        <p className="text-sm text-gray-400">Tickets Comprados</p>
+                        <p className="text-2xl font-bold text-white">{selectedPlayer.total_tickets_comprados || 0}</p>
+                      </div>
+                      <div className="bg-[#23283a] p-4 rounded-lg text-center">
+                        <TrophyIcon className="w-8 h-8 text-[#16a249] mx-auto mb-2" />
+                        <p className="text-sm text-gray-400">Total Gastado</p>
+                        <p className="text-2xl font-bold text-white">${selectedPlayer.monto_total_gastado || 0}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Números Favoritos */}
+                  {selectedPlayer.numeros_favoritos && selectedPlayer.numeros_favoritos.length > 0 && (
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                        <StarIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />
+                        Números Favoritos
+                      </h3>
+
+                      <div className="bg-[#23283a] rounded-lg p-4">
+                        <div className="flex flex-wrap gap-2">
+                          {selectedPlayer.numeros_favoritos.map((num, index) => (
+                            <span key={index} className="bg-[#7c3bed] text-white px-3 py-1.5 rounded-lg text-sm font-mono font-bold">
+                              {num}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Acciones */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-white mb-4">Acciones</h3>
+
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => {
+                          setEditPlayer(selectedPlayer);
+                          setModalOpen(true);
+                          closePlayerModal();
+                        }}
+                        className="flex-1 bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-4 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center space-x-2"
+                      >
+                        <UserIcon className="w-4 h-4" />
+                        <span>Editar Jugador</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setConfirmDelete({ open: true, player: selectedPlayer });
+                          closePlayerModal();
+                        }}
+                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center space-x-2"
+                      >
+                        <ExclamationTriangleIcon className="w-4 h-4" />
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

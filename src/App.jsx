@@ -17,7 +17,6 @@ import { Jugadores } from "./pages/Jugadores";
 import { useState, useEffect } from "react";
 import { DetalleRifa } from "./pages/DetalleRifa";
 import Analytics from "./pages/Analytics";
-import { NuevoJugador } from "./pages/NuevoJugador";
 import { supabase } from "./api/supabaseClient";
 import { Toaster } from 'sonner';
 import Configuracion from "./pages/Configuracion";
@@ -55,14 +54,14 @@ function Dashboard() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-8 tracking-wider">
+      <div className="flex mb-6 max-sm:flex-col min-md:flex-row min-md:items-center min-md:justify-between gap-4">
         <div>
-          <h1 className="bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent text-3xl font-bold mb-2">Dashboard</h1>
-          <p className="text-gray-400">Welcome back! Here's what's happening with your raffles.</p>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent">Panel de control</h1>
+          <p className="text-gray-400">¡Bienvenido de nuevo! Aquí está lo que está sucediendo con tus rifas.</p>
         </div>
-        <button className="bg-[#7c3bed] hover:bg-[#6b2bd1] text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors">
-          <PlusIcon className="w-5 h-5" />
-          <span className="font-medium">Create Raffle</span>
+        <button className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white text-sm px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors">
+          <PlusIcon className="w-5 h-5 inline-block mr-2" />
+          Crear Rifa
         </button>
       </div>
       <StatsCards />
@@ -133,16 +132,6 @@ function App() {
             <PrivateRoute>
               <MainLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
                 <Jugadores />
-              </MainLayout>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/jugadores/nuevo-jugador"
-          element={
-            <PrivateRoute>
-              <MainLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
-                <NuevoJugador />
               </MainLayout>
             </PrivateRoute>
           }

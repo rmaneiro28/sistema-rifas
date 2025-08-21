@@ -10,7 +10,7 @@ export function NuevaRifa() {
 
   const handleAddRifa = async (form, resetForm) => {
     setLoading(true);
-    const { error } = await supabase.from("rifas").insert([form]);
+    const { error } = await supabase.from("t_rifas").insert([form]);
     setLoading(false);
     if (!error) {
       toast.success("Rifa creada con éxito");

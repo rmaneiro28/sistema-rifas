@@ -54,7 +54,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
           <nav className="space-y-1">
             <NavLink to="/" onClick={handleLinkClick} className={({ isActive }) => isActive ? "flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-[#7c3bed] text-white" : "flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-400 hover:bg-gray-700/30 transition-colors"}>
               <Squares2X2Icon className="w-5 h-5" />
-              <span className="text-sm font-medium">Dashboard</span>
+              <span className="text-sm font-medium">Panel de control</span>
             </NavLink>
             <NavLink to="/rifas" onClick={handleLinkClick} className={({ isActive }) => isActive ? "flex items-center space-x-3 px-3 py-2.5 rounded-lg bg-[#7c3bed] text-white" : "flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-400 hover:bg-gray-700/30 transition-colors"}>
               <TicketIcon className="w-5 h-5" />
@@ -97,7 +97,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
         </div>
         <button onClick={() => handleLogout()} className="flex items-center space-x-3 cursor-pointer px-3 py-2.5 rounded-lg w-full duration-300 ease-in-out hover:bg-[#7c3bed]/30 text-gray-400 hover:text-white transition-colors">
           <UserIcon className="w-5 h-5" />
-          <span className="text-sm">Log Out</span>
+          <span className="text-sm">Cerrar sesión</span>
         </button>
       </div>
     </aside>
