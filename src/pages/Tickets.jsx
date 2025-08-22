@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   MagnifyingGlassIcon,
+  ArrowPathIcon,
   ArrowDownTrayIcon,
   TicketIcon,
   ChevronUpIcon,
@@ -17,30 +18,66 @@ export function Tickets() {
   const [tickets, setTickets] = useState([]);
   const [rafflesList, setRafflesList] = useState([]);
   const [selectedRaffle, setSelectedRaffle] = useState("all");
-  const [sortBy, setSortBy] = useState("fecha_creacion_ticket"); // fecha_creacion_ticket, numero_ticket
+  const [sortBy, setSortBy] = useState("fecha_creacion_ticket"); // fecha_creacion_ticket, numero
   const [sortOrder, setSortOrder] = useState("desc"); // asc, desc
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [isModalAnimating, setIsModalAnimating] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(15); // Tickets por página
+  const [totalTickets, setTotalTickets] = useState(0);
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+
+  // Debounce para la búsqueda
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+      setCurrentPage(1); // Resetear a la primera página con cada nueva búsqueda
+    }, 500);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [search]);
 
   // Fetch tickets
   useEffect(() => {
     async function fetchTickets() {
-      let query = supabase.from("vw_tickets").select("*");
+      setLoading(true);
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      let query = supabase.from("vw_tickets").select("*", { count: "exact" });
 
       if (selectedRaffle !== "all") {
         query = query.eq("rifa_id", parseInt(selectedRaffle));
       }
 
-      const { data, error } = await query;
+      if (debouncedSearch) {
+        const searchTerm = debouncedSearch.trim();
+        if (!isNaN(searchTerm) && searchTerm !== '') {
+          query = query.eq('numero_ticket', parseInt(searchTerm));
+        } else {
+          query = query.or(`nombre_rifa.ilike.%${searchTerm}%,nombre_jugador.ilike.%${searchTerm}%`);
+        }
+      }
+
+      query = query.order(sortBy, { ascending: sortOrder === "asc" }).range(from, to);
+
+      const { data, error, count } = await query;
       if (error) {
         console.error("Error fetching tickets:", error);
+        setTickets([]);
+        setTotalTickets(0);
       } else {
         setTickets(data || []);
+        setTotalTickets(count || 0);
       }
+      setLoading(false);
     }
     fetchTickets();
-  }, [selectedRaffle]);
+  }, [selectedRaffle, currentPage, pageSize, sortBy, sortOrder, debouncedSearch]);
 
   // Fetch raffles
   useEffect(() => {
@@ -84,34 +121,12 @@ export function Tickets() {
     }, 300);
   };
 
-  // Filtro y ordenamiento
-  const filteredAndSortedTickets = tickets
-    .filter((ticket) => {
-      const matchesSearch = (
-        ticket.numero_ticket.toString().includes(search) ||
-        (ticket.nombre_rifa || "").toLowerCase().includes(search.toLowerCase()) ||
-        (ticket.nombre_jugador || "").toLowerCase().includes(search.toLowerCase())
-      );
-      const matchesRaffle = selectedRaffle === "all" || ticket.rifa_id === parseInt(selectedRaffle);
-      return matchesSearch && matchesRaffle;
-    })
-    .sort((a, b) => {
-      let aValue, bValue;
+  const totalPages = Math.ceil(totalTickets / pageSize) || 1;
 
-      if (sortBy === "numero_ticket") {
-        aValue = parseInt(a.numero_ticket);
-        bValue = parseInt(b.numero_ticket);
-      } else if (sortBy === "fecha_creacion_ticket") {
-        aValue = new Date(a.fecha_creacion_ticket || a.created_at || 0);
-        bValue = new Date(b.fecha_creacion_ticket || b.created_at || 0);
-      }
-
-      if (sortOrder === "asc") {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
+  function formatTelephone() {
+    let phone = selectedTicket.telefono;
+    return phone.replace(/(\d{4})(\d{3})(\d{4})/, "+58-$1-$2-$3");
+  }
   return (
     <div>
       <div className="flex mb-6 max-sm:flex-col min-md:flex-row min-md:items-center min-md:justify-between gap-4">
@@ -143,7 +158,10 @@ export function Tickets() {
         </div>
         <select
           value={selectedRaffle}
-          onChange={(e) => setSelectedRaffle(e.target.value)}
+          onChange={(e) => {
+            setSelectedRaffle(e.target.value);
+            setCurrentPage(1);
+          }}
           className="w-full sm:w-auto px-4 py-2 rounded-lg bg-[#181c24] border border-[#23283a] text-white focus:outline-none focus:border-[#7c3bed] transition"
         >
           <option value="all">Todas las Rifas</option>
@@ -162,11 +180,11 @@ export function Tickets() {
           <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
             <div className="col-span-2">
               <button
-                onClick={() => handleSort("numero_ticket")}
+                onClick={() => handleSort("numero")}
                 className="flex items-center space-x-1 hover:text-white transition-colors"
               >
                 <span>Ticket</span>
-                {sortBy === "numero_ticket" && (
+                {sortBy === "numero" && (
                   sortOrder === "asc" ?
                     <ChevronUpIcon className="w-3 h-3" /> :
                     <ChevronDownIcon className="w-3 h-3" />
@@ -193,8 +211,16 @@ export function Tickets() {
         </div>
 
         {/* Lista de tickets */}
-        <div className="divide-y divide-[#23283a]">
-          {filteredAndSortedTickets.map((ticket) => (
+        <div className="divide-y divide-[#23283a] min-h-[400px]">
+          {loading && (
+            <div className="flex justify-center items-center p-12">
+              <ArrowPathIcon className="w-8 h-8 text-gray-400 animate-spin" />
+              <span className="ml-4 text-gray-400">Cargando tickets...</span>
+            </div>
+          )}
+
+          {!loading &&
+            tickets.map((ticket) => (
             <div
               key={ticket.ticket_id}
               onClick={() => handleTicketClick(ticket)}
@@ -251,21 +277,47 @@ export function Tickets() {
                 </div>
               </div>
             </div>
-          ))}
+            ))}
         </div>
 
         {/* Estado vacío */}
-        {filteredAndSortedTickets.length === 0 && (
+        {!loading && tickets.length === 0 && (
           <div className="px-6 py-12 text-center">
             <div className="w-16 h-16 bg-[#23283a] rounded-full flex items-center justify-center mx-auto mb-4">
               <TicketIcon className="w-8 h-8 text-gray-400" />
             </div>
             <h3 className="text-white text-lg font-semibold mb-2">No se encontraron tickets</h3>
             <p className="text-gray-400 text-sm">
-              {search ? `No hay tickets que coincidan con "${search}"` : "No hay tickets registrados"}
+              {search ? `No hay tickets que coincidan con "${search}"` : "Intenta con otro filtro o crea un nuevo ticket."}
             </p>
           </div>
         )}
+
+        {/* Paginación */}
+        <div className="flex items-center justify-between px-6 py-4 bg-[#0f131b] border-t border-[#23283a]">
+          <span className="text-sm text-gray-400">
+            Mostrando {tickets.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} - {Math.min(currentPage * pageSize, totalTickets)} de {totalTickets} tickets
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1 || loading}
+              className="px-3 py-1.5 rounded-lg border text-xs font-semibold bg-[#23283a] text-white border-[#7c3bed] hover:bg-[#7c3bed]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Anterior
+            </button>
+            <span className="text-sm text-white">
+              Página {currentPage} de {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages || loading}
+              className="px-3 py-1.5 rounded-lg border text-xs font-semibold bg-[#23283a] text-white border-[#7c3bed] hover:bg-[#7c3bed]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Siguiente
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Panel lateral de detalles del ticket */}
@@ -362,10 +414,7 @@ export function Tickets() {
                         <span className="text-gray-400">Nombre:</span>
                         <span className="text-white font-medium">{selectedTicket.nombre_rifa}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">ID Rifa:</span>
-                        <span className="text-white">{selectedTicket.rifa_id}</span>
-                      </div>
+
                     </div>
 
                     {/* Información del Jugador */}
@@ -378,12 +427,25 @@ export function Tickets() {
                             <span className="text-white font-medium">{selectedTicket.nombre_jugador}</span>
                           </div>
                         )}
+                        {selectedTicket.cedula && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-400">Cedula de Identidad:</span>
+                            <span className="text-white">{selectedTicket.cedula}</span>
+                          </div>
+                        )}
+                        {selectedTicket.telefono && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-400">Número de teléfono:</span>
+                            <span className="text-white">{formatTelephone(selectedTicket.telefono)}</span>
+                          </div>
+                        )}
                         {selectedTicket.email_jugador && (
                           <div className="flex justify-between items-center">
                             <span className="text-gray-400">Email:</span>
                             <span className="text-white">{selectedTicket.email_jugador}</span>
                           </div>
                         )}
+
                       </div>
                     )}
 
@@ -397,18 +459,9 @@ export function Tickets() {
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex justify-end pt-6 border-t border-[#23283a] mt-6">
-                  <button
-                    onClick={closeTicketModal}
-                    className="bg-[#23283a] hover:bg-[#2d3748] text-white px-6 py-2 rounded-lg font-semibold transition-colors"
-                  >
-                    Cerrar
-                  </button>
                 </div>
               </div>
             </div>
-          </div>
         </>
       )}
     </div>

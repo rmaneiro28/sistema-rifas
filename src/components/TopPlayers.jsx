@@ -11,8 +11,8 @@ export const TopPlayers = () => {
       try {
         const { data, error } = await supabase
           .from('vw_jugadores')
-          .select('nombre, apellido, tickets_comprados, total_gastado')
-          .order('total_gastado', { ascending: false })
+          .select('*')
+          .order('monto_total_gastado', { ascending: false })
           .limit(4)
 
         if (error) {
@@ -24,8 +24,12 @@ export const TopPlayers = () => {
         const formattedPlayers = data.map((player, index) => ({
           rank: index + 1,
           name: player.nombre + ' ' + player.apellido,
-          tickets: `${player.tickets_comprados} tickets`,
-          earnings: `$ ${player.total_gastado}`,
+          nombre: player.nombre,
+          apellido: player.apellido,
+          tickets: `${player.total_tickets_comprados} tickets`,
+          earnings: `$ ${player.monto_total_gastado}`,
+          total_tickets_comprados: player.total_tickets_comprados,
+          monto_total_gastado: player.monto_total_gastado,
           avatar: avatarColors[index] || 'bg-gray-500'
         }))
 
@@ -60,15 +64,15 @@ export const TopPlayers = () => {
                     {player.rank}
                   </div>
                   <div className={`w-10 h-10 rounded-full ${player.avatar} flex items-center justify-center text-white font-semibold`}>
-                    {player.name.split(' ').map(n => n[0]).join('')}
+                    {player.nombre?.[0] || '?'}
                   </div>
                   <div>
                     <h3 className="text-white font-medium">{player.name}</h3>
-                    <p className="text-gray-400 text-sm">{player.tickets}</p>
+                    <p className="text-gray-400 text-sm">{player.total_tickets_comprados} tickets</p>
                   </div>
                 </div>
                 <div className="text-green-400 font-semibold">
-                  {player.earnings}
+                  ${player.monto_total_gastado}
                 </div>
               </div>
             )) : (

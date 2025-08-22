@@ -13,6 +13,7 @@ import './App.css';
 import { PrivateRoute } from "./components/PrivateRoute";
 import NotFound from './pages/NotFound';
 import { NuevaRifa } from "./pages/NuevaRifa";
+import { EditarRifa } from "./pages/EditarRifa";
 import { Jugadores } from "./pages/Jugadores";
 import { useState, useEffect } from "react";
 import { DetalleRifa } from "./pages/DetalleRifa";
@@ -152,6 +153,16 @@ function App() {
             <PrivateRoute>
               <MainLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
                 <NuevaRifa />
+              </MainLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/rifas/editar/:id"
+          element={
+            <PrivateRoute>
+              <MainLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
+                <EditarRifa />
               </MainLayout>
             </PrivateRoute>
           }

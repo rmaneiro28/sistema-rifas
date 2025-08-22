@@ -16,7 +16,12 @@ export default function JugadorFormModal({ isOpen, onClose, onSave, initialData 
   useEffect(() => {
     if (initialData) {
       setForm({
-        ...initialData,
+        nombre: initialData.nombre || "",
+        apellido: initialData.apellido || "",
+        cedula: initialData.cedula || "",
+        email: initialData.email || "",
+        telefono: initialData.telefono || "",
+        direccion: initialData.direccion || "",
         numeros_favoritos: Array.isArray(initialData.numeros_favoritos)
           ? initialData.numeros_favoritos.join(",")
           : initialData.numeros_favoritos || "",

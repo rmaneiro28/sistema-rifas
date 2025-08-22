@@ -12,7 +12,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { NavLink } from 'react-router-dom'
 import { useLocation } from 'react-router-dom'
-
+import LogoSistema from '../assets/Logo RifasPlus.png'
 const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
   useLocation();
   const handleLogout = () => {
@@ -28,8 +28,10 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
 
   return (
     <aside className={`fixed inset-y-0 left-0 z-30 w-64 h-screen bg-[#131620] text-white flex flex-col p-4 border-r border-r-[#1f2937] justify-between transform ${sidebarOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full'}  transition-transform duration-300 ease-in-out`} id="sidebar">
+
       {/* Premium Section */}
       <div>
+
         <div className="flex items-center justify-between">
           <div className="bg-gradient-to-r from-[#f49f0a] px-2 py-2 to-[#ebad09] rounded-lg flex items-center justify-between text-black flex-grow">
             <div className="flex items-center space-x-2">
@@ -46,6 +48,9 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
           </button>
         </div>
 
+      <div className="flex items-center justify-center w-full ">
+        <img src={LogoSistema} className="w-30 h-30 mb-0" />
+      </div>
         {/* Main Section */}
         <div className="mt-5">
           <div className="text-xs font-semibold text-[#7c3bed] tracking-wider mb-3">
@@ -88,7 +93,6 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
           </nav>
         </div>
       </div>
-
       {/* LogOut */}
       <div className="w-full">
         <div className="font-semibold text-[#7c3bed] tracking-wider mb-3 flex justify-between flex-col">

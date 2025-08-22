@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../api/supabaseClient";
 import JugadorFormModal from "../components/JugadorFormModal";
 import { PlusIcon } from "@heroicons/react/16/solid";
+import { toast } from "sonner";
 const STATUS_BADGES = {
   vip: { label: "VIP", color: "bg-[#a21caf] text-white" },
   active: { label: "ACTIVE", color: "bg-[#23283a] text-white" },
@@ -15,30 +16,33 @@ export function Jugadores() {
   const [isActive, setIsActive] = useState("all");
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  useEffect(() => {
-    async function fetchPlayers() {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("vw_jugadores")
-        .select("*")
-        .order("id");
-      if (error) {
-        console.error("Error fetching players:", error);
-      } else {
-        // Asegura que numeros_favoritos sea siempre un array
-        setPlayers(
-          data.map(j => ({
-            ...j,
-            numeros_favoritos: Array.isArray(j.numeros_favoritos)
-              ? j.numeros_favoritos
-              : typeof j.numeros_favoritos === "string"
-                ? j.numeros_favoritos.split(",").map(n => n.trim()).filter(Boolean)
-                : []
-          }))
-        );
-      }
-      setLoading(false);
+
+  const fetchPlayers = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("vw_jugadores")
+      .select("*")
+      .order("id");
+    if (error) {
+      console.error("Error fetching players:", error);
+      toast.error("Error al cargar los jugadores.");
+    } else {
+      // Asegura que numeros_favoritos sea siempre un array
+      setPlayers(
+        data.map(j => ({
+          ...j,
+          numeros_favoritos: Array.isArray(j.numeros_favoritos)
+            ? j.numeros_favoritos
+            : typeof j.numeros_favoritos === "string"
+              ? j.numeros_favoritos.split(",").map(n => n.trim()).filter(Boolean)
+              : []
+        }))
+      );
     }
+    setLoading(false);
+  };
+
+  useEffect(() => {
     fetchPlayers();
   }, []);
 
@@ -71,7 +75,6 @@ export function Jugadores() {
 
   // Crear o actualizar jugador
   const handleSavePlayer = async (data) => {
-    setLoading(true);
     if (editPlayer) {
       // Editar
       const { error } = await supabase
@@ -79,7 +82,10 @@ export function Jugadores() {
         .update(data)
         .eq("id", editPlayer.id);
       if (!error) {
-        setPlayers(players.map(j => (j.id === editPlayer.id ? { ...j, ...data } : j)));
+        toast.success("Jugador actualizado con éxito");
+        fetchPlayers();
+      } else {
+        toast.error(`Error al actualizar el jugador: ${error.message}`);
       }
     } else {
       // Crear
@@ -89,12 +95,14 @@ export function Jugadores() {
         .select()
         .single();
       if (!error && newJugador) {
-        setPlayers([newJugador, ...players]);
+        toast.success("Jugador creado con éxito");
+        fetchPlayers();
+      } else {
+        toast.error(`Error al crear el jugador: ${error.message}`);
       }
     }
     setModalOpen(false);
     setEditPlayer(null);
-    setLoading(false);
   };
   // Eliminar jugador
   const handleDeletePlayer = async () => {
@@ -105,10 +113,13 @@ export function Jugadores() {
       .delete()
       .eq("id", confirmDelete.player.id);
     if (!error) {
-      setPlayers(players.filter(j => j.id !== confirmDelete.player.id));
+      toast.success("Jugador eliminado con éxito");
+      fetchPlayers();
+    } else {
+      toast.error(`Error al eliminar el jugador: ${error.message}`);
+      setLoading(false);
     }
     setConfirmDelete({ open: false, player: null });
-    setLoading(false);
   };
 
   // Funciones para manejar el panel de detalles del jugador

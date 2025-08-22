@@ -400,8 +400,9 @@ export function DetalleRifa() {
           {rifa?.nombre}
         </h1>
 
-        <NavLink to={`/detalle-rifa/${id}/settings`} className="flex items-center gap-1 px-3 py-1 rounded-lg bg-[#23283a] text-[#d54ff9] text-xs font-semibold">
+        <NavLink to={`/rifas/editar/${id}`} className="flex items-center gap-1 px-3 py-1 rounded-lg bg-[#23283a] text-[#d54ff9] text-xs font-semibold">
           <Cog6ToothIcon className="w-4 h-4" />
+          <span>Editar</span>
         </NavLink>
       </div>
 

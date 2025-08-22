@@ -1,10 +1,11 @@
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
   } from 'recharts';
-  import { ChartBarIcon, UserGroupIcon, TicketIcon, TrophyIcon } from "@heroicons/react/24/outline";
+import { ChartBarIcon, UserGroupIcon, TicketIcon, TrophyIcon } from "@heroicons/react/24/outline";
 import { FiDollarSign } from 'react-icons/fi';
 import { useEffect, useState } from 'react';
 import { supabase } from '../api/supabaseClient';
+import { toast } from 'sonner';
   
   export default function Analytics() {
     const [stats, setStats] = useState([
@@ -12,108 +13,144 @@ import { supabase } from '../api/supabaseClient';
             label: "Total Revenue",
             value: "$0",
             icon: <FiDollarSign className="w-6 h-6 text-[#16a249]" />,
-            change: "-0%",
-            changeColor: "bg-[#d54ff9]",
         },
         {
             label: "Active Players",
             value: "0",
             icon: <UserGroupIcon className="w-6 h-6 text-[#7c3bed]" />,
-            change: "+0%",
-            changeColor: "bg-[#7c3bed]",
         },
         {
             label: "Tickets Sold",
             value: "0",
             icon: <TicketIcon className="w-6 h-6 text-[#16a249]" />,
-            change: "-0%",
-            changeColor: "bg-[#d54ff9]",
         },
         {
             label: "Raffles Completed",
             value: "0",
             icon: <TrophyIcon className="w-6 h-6 text-[#16a249]" />,
-            change: "+0",
-            changeColor: "bg-[#7c3bed]",
         },
     ]);
     const [topRaffles, setTopRaffles] = useState([]);
     const [barData, setBarData] = useState([]);
     const [pieData, setPieData] = useState([]);
+    const [filter, setFilter] = useState('last30days');
 
     useEffect(() => {
         const fetchData = async () => {
-            // Fetch raffles
-            const { data: rifas, error: rifasError } = await supabase.from('vw_rifas').select('*');
-            if (rifasError) {
-                console.error('Error fetching raffles:', rifasError);
+            const getFilterDate = () => {
+                if (filter === 'allTime') return null;
+                const date = new Date();
+                const daysToSubtract = filter === 'last7days' ? 7 : 30;
+                date.setDate(date.getDate() - daysToSubtract);
+                return date.toISOString();
+            };
+            const filterDate = getFilterDate();
+
+            // 1. Fetch ALL rifas for lookups
+            const { data: allRifas, error: allRifasError } = await supabase.from('vw_rifas').select('*');
+            if (allRifasError) {
+                toast.error("Error al cargar las rifas.");
+                console.error('Error fetching all raffles:', allRifasError);
                 return;
             }
 
-            // Fetch players
+            // 2. Fetch tickets from the period
+            let ticketsQuery = supabase.from('vw_tickets').select('*');
+            if (filterDate) {
+                ticketsQuery = ticketsQuery.gte('fecha_creacion_ticket', filterDate);
+            }
+            const { data: periodTickets, error: ticketsError } = await ticketsQuery;
+            if (ticketsError) {
+                toast.error("Error al cargar los tickets.");
+                console.error('Error fetching period tickets:', ticketsError);
+                return;
+            }
+
+            // 3. Filter rifas created in the period
+            const periodRifas = filterDate ? allRifas.filter(r => new Date(r.created_at) >= new Date(filterDate)) : allRifas;
+
+            // 4. Fetch total players
             const { data: jugadores, error: jugadoresError } = await supabase.from('t_jugadores').select('id', { count: 'exact' });
             if (jugadoresError) {
+                toast.error("Error al cargar los jugadores.");
                 console.error('Error fetching players:', jugadoresError);
                 return;
             }
 
-            // Fetch tickets
-            const { data: tickets, error: ticketsError } = await supabase.from('t_tickets').select('id, rifa_id');
-            if (ticketsError) {
-                console.error('Error fetching tickets:', ticketsError);
-                return;
-            }
+            // --- Calculations ---
 
-            // Calculate stats
-            const totalRevenue = rifas.reduce((acc, rifa) => acc + rifa.precio_ticket * (tickets.filter(t => t.rifa_id === rifa.id).length), 0);
-            const rafflesCompleted = rifas.filter(r => r.estado === 'Finalizada').length;
+            // Stats Cards
+            const totalRevenue = periodTickets.reduce((acc, ticket) => acc + (ticket.precio_ticket || 0), 0);
+            const ticketsSold = periodTickets.length;
+            const rafflesCompleted = periodRifas.filter(r => r.estado === 'finalizada').length;
+            const totalPlayers = jugadores.length;
 
             setStats([
                 { ...stats[0], value: `$${totalRevenue.toLocaleString()}` },
-                { ...stats[1], value: jugadores.length },
-                { ...stats[2], value: tickets.length },
+                { ...stats[1], value: totalPlayers },
+                { ...stats[2], value: ticketsSold },
                 { ...stats[3], value: rafflesCompleted },
             ]);
 
-            // Calculate top raffles
-            const topRafflesData = rifas
+            // Top Performing Raffles (based on revenue in the period)
+            const topRafflesData = allRifas
                 .map(rifa => ({
                     name: rifa.nombre,
-                    tickets: tickets.filter(t => t.rifa_id === rifa.id).length,
-                    revenue: rifa.precio_ticket * (tickets.filter(t => t.rifa_id === rifa.id).length),
+                    tickets: periodTickets.filter(t => t.rifa_id === rifa.id_rifa).length,
+                    revenue: periodTickets.filter(t => t.rifa_id === rifa.id_rifa).reduce((sum, ticket) => sum + (ticket.precio_ticket || 0), 0),
                 }))
+                .filter(r => r.revenue > 0)
                 .sort((a, b) => b.revenue - a.revenue)
-                .slice(0, 3);
+                .slice(0, 5);
             setTopRaffles(topRafflesData);
 
-            // Calculate bar chart data (revenue and tickets per month)
-            const monthlyData = {};
-            rifas.forEach(rifa => {
-                const month = new Date(rifa.fecha_inicio).toLocaleString('default', { month: 'short' });
-                if (!monthlyData[month]) {
-                    monthlyData[month] = { name: month, revenue: 0, tickets: 0 };
-                }
-                monthlyData[month].revenue += rifa.precio_ticket * (tickets.filter(t => t.rifa_id === rifa.id).length);
-                monthlyData[month].tickets += tickets.filter(t => t.rifa_id === rifa.id).length;
-            });
-            setBarData(Object.values(monthlyData));
+            // Bar Chart Data (revenue and tickets per month/day)
+            const barChartData = {};
+            if (filter === 'allTime') {
+                periodTickets.forEach(ticket => {
+                    const date = new Date(ticket.fecha_creacion_ticket);
+                    if (!isNaN(date)) {
+                        const month = date.toLocaleString('es-ES', { month: 'short', year: 'numeric' });
+                        if (!barChartData[month]) {
+                            barChartData[month] = { name: month, revenue: 0, tickets: 0, dateObj: new Date(date.getFullYear(), date.getMonth()) };
+                        }
+                        barChartData[month].revenue += ticket.precio_ticket || 0;
+                        barChartData[month].tickets += 1;
+                    }
+                });
+            } else {
+                periodTickets.forEach(ticket => {
+                    const date = new Date(ticket.fecha_creacion_ticket);
+                    if (!isNaN(date)) {
+                        const day = date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+                        if (!barChartData[day]) {
+                            barChartData[day] = { name: day, revenue: 0, tickets: 0, dateObj: date };
+                        }
+                        barChartData[day].revenue += ticket.precio_ticket || 0;
+                        barChartData[day].tickets += 1;
+                    }
+                });
+            }
+            const sortedBarData = Object.values(barChartData).sort((a, b) => a.dateObj - b.dateObj);
+            setBarData(sortedBarData);
 
-            // Calculate pie chart data (raffle status distribution)
-            const statusCounts = rifas.reduce((acc, rifa) => {
-                acc[rifa.estado] = (acc[rifa.estado] || 0) + 1;
+            // Pie Chart Data (raffle status distribution in the period)
+            const statusCounts = periodRifas.reduce((acc, rifa) => {
+                const status = rifa.estado || 'desconocido';
+                acc[status] = (acc[status] || 0) + 1;
                 return acc;
             }, {});
 
             const pieChartData = Object.keys(statusCounts).map(status => ({
-                name: status,
+                name: status.charAt(0).toUpperCase() + status.slice(1),
                 value: statusCounts[status],
-                color: status === 'Activa' ? '#22d3ee' : status === 'Finalizada' ? '#fbbf24' : '#a3a3a3',
+                color: status === 'activa' ? '#22d3ee' : status === 'finalizada' ? '#fbbf24' : '#a3a3a3',
             }));
             setPieData(pieChartData);
         };
 
         fetchData();
-    }, []);
+    }, [filter]);
 
     return (
       <div>
@@ -121,9 +158,15 @@ import { supabase } from '../api/supabaseClient';
           <h1 className="bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent text-3xl font-bold mb-1">
             Estadísticas
           </h1>
-          <button className="bg-[#181c24] px-4 py-2 rounded-lg text-xs text-white border border-[#23283a] hover:bg-[#23283a]">
-            Last 30 days ▼
-          </button>
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="bg-[#181c24] px-4 py-2 rounded-lg text-xs text-white border border-[#23283a] hover:bg-[#23283a] focus:outline-none focus:border-[#7c3bed]"
+          >
+            <option value="last7days">Últimos 7 días</option>
+            <option value="last30days">Últimos 30 días</option>
+            <option value="allTime">Desde siempre</option>
+          </select>
         </div>
         <p className="text-gray-400 mb-6">Track performance and insights for your raffle campaigns.</p>
   
@@ -138,9 +181,6 @@ import { supabase } from '../api/supabaseClient';
                     <span className="text-gray-400 text-xs">{stat.label}</span>
                     <span className="text-white flex items-center gap-2 text-2xl font-bold">
                         {stat.value}
-                        <span className="text-xs px-2 py-1 rounded-full bg-[#7c3bed] text-white">
-                            {stat.change}
-                        </span>
                     </span>
                 </div>
             </div>  

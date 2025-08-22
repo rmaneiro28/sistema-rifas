@@ -1,5 +1,5 @@
 import { Bars3BottomLeftIcon } from "@heroicons/react/16/solid";
-
+import LogoCliente from "/src/assets/logo-jocar.ico"
 const Navbar = ({ sidebarOpen, setSidebarOpen }) => {
   const handleSidebarToggle = () => {
     setSidebarOpen(!sidebarOpen);
@@ -9,7 +9,7 @@ const Navbar = ({ sidebarOpen, setSidebarOpen }) => {
       <div className="flex items-center space-x-4">
         <Bars3BottomLeftIcon className="w-6 h-6 cursor-pointer transition-colors duration-300 ease-in-out hover:text-[#1f2937] text-[#7c3bed] lg:hidden" onClick={() => handleSidebarToggle()} />
         <div className="flex items-center space-x-2">
-          <span className="bg-[#7c3bed] text-white px-2 py-1 rounded-md font-bold ">JC</span>
+          <img src={LogoCliente} className="bg-[#7c3bed] text-white px-2 py-1 rounded-md font-bold w-10 h-10" />
           <div className="flex flex-col">
             <span className="text-sm font-medium text-white">Rifas Jocar</span>
             <span className="text-xs text-gray-400">Socopó</span>
