@@ -37,7 +37,7 @@ const Home = () => {
 
       // Fetch sold tickets
       const { data: tickets, error: ticketsError } = await supabase
-        .from("tickets")
+        .from("vw_tickets")
         .select("id", { count: "exact" });
 
       if (ticketsError) {

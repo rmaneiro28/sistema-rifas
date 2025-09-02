@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
-import { useParams, NavLink } from "react-router-dom";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useParams, NavLink, useNavigate } from "react-router-dom";
 import html2canvas from "html2canvas";
-import { ArrowLeftIcon, Cog6ToothIcon, TicketIcon, XMarkIcon, UserIcon, CalendarIcon, CreditCardIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, Cog6ToothIcon, TicketIcon, XMarkIcon, UserIcon, CalendarIcon, CreditCardIcon, MagnifyingGlassIcon, EnvelopeIcon, PhoneIcon, MapPinIcon, HashtagIcon } from "@heroicons/react/24/outline";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
 
@@ -11,7 +11,8 @@ export function DetalleRifa() {
   const [tickets, setTickets] = useState([]);
   const [ticketFilter, setTicketFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const pdfRef = useRef();
+  const [loading, setLoading] = useState(true); // Start with loading true for initial fetch
+  const navigate = useNavigate();
 
   // Wizard modal states
   const [showModal, setShowModal] = useState(false);
@@ -21,10 +22,10 @@ export function DetalleRifa() {
   const [favoritos, setFavoritos] = useState([]);
   const [selectedNumeros, setSelectedNumeros] = useState([]);
   const [customNumero, setCustomNumero] = useState("");
-  const [loading, setLoading] = useState(false);
   const [comprobantePago, setComprobantePago] = useState(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
-
+  const [referenciaPago, setReferenciaPago] = useState("");
+  const [generatedTicketInfo, setGeneratedTicketInfo] = useState(null);
   // Ticket detail modal states
   const [showTicketDetail, setShowTicketDetail] = useState(false);
   const [selectedTicketDetail, setSelectedTicketDetail] = useState(null);
@@ -36,6 +37,70 @@ export function DetalleRifa() {
 
   // Drag and drop states
   const [isDragOver, setIsDragOver] = useState(false);
+
+  const ticketRef = useRef();
+  const pdfRef = useRef(); // Keep this for the map export
+  // New player form state
+  const [form, setForm] = useState({
+    firstName: '',
+    lastName: '',
+    cedula: '',
+    email: '',
+    phone: '',
+    street: '',
+    favoriteNumbers: [],
+    favInput: ''
+  });
+
+  const numerosSeleccionados = useMemo(() => {
+    const customNumbers = customNumero.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0 && n <= (rifa?.total_tickets || 1000));
+    return [...new Set([...selectedNumeros, ...customNumbers])];
+  }, [selectedNumeros, customNumero, rifa?.total_tickets]);
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleAddNumber = () => {
+    const num = parseInt(form.favInput);
+    if (!isNaN(num) && num > 0 && num <= 1000 && !form.favoriteNumbers.includes(num)) {
+      toast.success(`Número ${num} agregado a favoritos.`);
+      setForm({ ...form, favoriteNumbers: [...form.favoriteNumbers, num], favInput: '' });
+    } else if (isNaN(num) || num <= 0 || num > 1000) {
+      toast.error("Por favor, ingresa un número válido entre 1 y 1000.");
+    } else if (form.favoriteNumbers.includes(num)) {
+      toast.info(`El número ${num} ya está en tu lista de favoritos.`);
+    }
+  };
+
+  const handleRemoveNumber = (num) => {
+    toast.info(`Número ${num} eliminado de favoritos.`);
+    setForm({ ...form, favoriteNumbers: form.favoriteNumbers.filter((n) => n !== num) });
+  };
+
+  const handleSaveNewPlayer = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    const { firstName, lastName, cedula, email, phone, street, favoriteNumbers } = form;
+
+    if (!firstName || !lastName || !email) {
+      toast.error("Nombre, apellido y correo son obligatorios.");
+      setLoading(false);
+      return;
+    }
+
+    const { data: newJugador, error } = await supabase.from("t_jugadores").insert([{ nombre: firstName, apellido: lastName, cedula, email, telefono: phone, direccion: street, numeros_favoritos: favoriteNumbers, fecha_registro: new Date() }]).select().single();
+
+    if (error) {
+      toast.error("Error al guardar el jugador: " + error.message);
+    } else {
+      toast.success("¡Jugador agregado correctamente!");
+      setJugadores(prev => [...prev, newJugador]);
+      setSelectedJugador(newJugador.id);
+      setWizardStep(2); // Go back to number selection
+    }
+    setLoading(false);
+  };
 
   // Handle keyboard shortcuts for search
   useEffect(() => {
@@ -56,15 +121,19 @@ export function DetalleRifa() {
   // Fetch rifas info
   useEffect(() => {
     const fetchRaffle = async () => {
-      const { data, error } = await supabase.from("vw_rifas").select("*").eq("id_rifa", id).single();
+      setLoading(true);
+      const { data, error } = await supabase.from("t_rifas").select("*").eq("id_rifa", id).single();
       if (!error) setRifa(data);
+      setLoading(false);
     };
     fetchRaffle();
   }, [id]);
   // Fetch tickets for this rifas
   const fetchTickets = async () => {
+    setLoading(true);
     const { data, error } = await supabase.from("vw_tickets").select("*").eq("rifa_id", id);
     if (!error) setTickets(data || []);
+    setLoading(false);
   };
   useEffect(() => { fetchTickets(); }, [id]);
 
@@ -89,33 +158,37 @@ export function DetalleRifa() {
 
   // Ticket stats
 
-
   // Ticket filters
   const filterOptions = [
     { key: "all", label: "Todos", color: "bg-[#7c3bed]", textColor: "text-white" },
     { key: "disponible", label: "Disponibles", color: "bg-[#23283a]", textColor: "text-white" },
     { key: "apartado", label: "Apartados", color: "bg-yellow-400", textColor: "text-yellow-900" },
     { key: "pagado", label: "Pagados", color: "bg-green-500", textColor: "text-white" },
-    { key: "cancelado", label: "Cancelados", color: "bg-red-500", textColor: "text-white" }
+    { key: "familiares", label: "Familiares", color: "bg-purple-500", textColor: "text-white" }
   ];
 
   // Unified function to generate all tickets with proper status
   const generateAllTickets = () => {
     if (!rifa?.total_tickets) return [];
 
+    // Create a Map for efficient lookups. This is much faster than .find() in a loop.
+    const ticketsMap = new Map(tickets.filter((ticket) => ticket.rifa_id === id).map(t => [t.numero_ticket, t]));
+    console.log(ticketsMap);
     return Array.from({ length: rifa.total_tickets }, (_, i) => {
       const numero = i + 1;
-      const existingTicket = tickets.find(t => t.numero === numero);
+      const existingTicket = ticketsMap.get(numero);
 
       if (existingTicket) {
-        // Return existing ticket with all its data
+        // This ticket exists in the database, so it's occupied.
+        // We use its status directly from the database to show the "true status".
+        // A ticket in the DB should always have a valid status ('apartado', 'pagado', 'familiares').
         return {
           ...existingTicket,
-          numero,
-          estado: existingTicket.estado || "apartado"
+          numero: existingTicket.numero_ticket,
+          estado: existingTicket.estado_ticket, // Using the real status from the database.
         };
       } else {
-        // Return available ticket
+        // This ticket number is not in the database, so it's available.
         return {
           numero,
           estado: "disponible",
@@ -131,13 +204,8 @@ export function DetalleRifa() {
   };
 
   const allTickets = generateAllTickets();
-
-  // Filtered tickets for map with search functionality
   const filteredTickets = allTickets.filter(ticket => {
-    // Filter by status
-    const matchesStatus = ticketFilter === "all" || ticket.estado === ticketFilter;
-
-    // Filter by search query
+    const matchesStatus = ticketFilter === "all" || ticket.estado_ticket === ticketFilter;
     const matchesSearch = !searchQuery ||
       ticket.numero.toString().includes(searchQuery) ||
       (ticket.nombre_jugador && ticket.nombre_jugador.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -146,7 +214,6 @@ export function DetalleRifa() {
     return matchesStatus && matchesSearch;
   });
 
-  // Export ticket map to PDF
   const handleExportPDF = async () => {
     if (!pdfRef.current) return;
     const canvas = await html2canvas(pdfRef.current);
@@ -157,11 +224,9 @@ export function DetalleRifa() {
     link.click();
   };
 
-  // Wizard: Registrar ticket (solo apartado)
   const handleRegistrarTicket = async () => {
     setLoading(true);
-    const customNumbers = customNumero.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
-    const numerosToRegister = [...new Set([...selectedNumeros, ...customNumbers])];
+    const numerosToRegister = numerosSeleccionados;
 
     if (numerosToRegister.length === 0) {
       toast.error("Debes seleccionar al menos un número");
@@ -169,7 +234,6 @@ export function DetalleRifa() {
       return;
     }
 
-    // Verifica si el número ya está tomado
     const { data: taken } = await supabase
       .from("vw_tickets")
       .select("numero")
@@ -196,8 +260,8 @@ export function DetalleRifa() {
     if (!error) {
       const jugadorNombre = jugadores.find(j => j.id == selectedJugador)?.nombre;
       toast.success(`Ticket(s) apartado(s) exitosamente para ${jugadorNombre}`);
-      fetchTickets();
-      setWizardStep(4); // Ir al paso del comprobante
+      fetchTickets(); // Refresh tickets in background
+      setWizardStep(4); // Go to payment method selection
     } else {
       toast.error("Error al registrar el ticket. Inténtalo de nuevo.");
       setLoading(false);
@@ -208,33 +272,120 @@ export function DetalleRifa() {
   // Confirmar pago con comprobante
   const handleConfirmarPago = async () => {
     setLoading(true);
-    const customNumbers = customNumero.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
-    const numerosToRegister = [...new Set([...selectedNumeros, ...customNumbers])];
+    if (!comprobantePago || !selectedPaymentMethod) {
+      toast.error("Por favor, selecciona un método de pago y sube un comprobante.");
+      setLoading(false);
+      return;
+    }
 
-    // Actualizar tickets a pagado
-    const { error } = await supabase
+    const numerosToRegister = numerosSeleccionados;
+
+    // 1. Upload file to Supabase Storage
+    const fileExt = comprobantePago.name.split('.').pop();
+    const fileName = `${selectedJugador}-${Date.now()}.${fileExt}`;
+    const filePath = `comprobantes/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('comprobantes')
+      .upload(filePath, comprobantePago);
+
+    if (uploadError) {
+      toast.error("Error al subir el comprobante: " + uploadError.message);
+      setLoading(false);
+      return;
+    }
+
+    // 2. Get public URL
+    const { data: urlData } = supabase.storage
+      .from('comprobantes')
+      .getPublicUrl(filePath);
+
+    const comprobante_url = urlData.publicUrl;
+
+    // 3. Get the tickets that were just set to 'apartado'
+    const { data: ticketsApartados, error: ticketsError } = await supabase
       .from("t_tickets")
-      .update({ estado: "pagado" })
+      .select('id')
       .eq("rifa_id", id)
       .eq("jugador_id", selectedJugador)
       .in("numero", numerosToRegister);
 
-    if (!error) {
-      const jugadorNombre = jugadores.find(j => j.id == selectedJugador)?.nombre;
-      toast.success(`Pago confirmado para ${jugadorNombre}. Tickets marcados como pagados.`);
+    if (ticketsError || !ticketsApartados || ticketsApartados.length === 0) {
+      toast.error("No se encontraron los tickets apartados para registrar el pago. Inténtalo de nuevo o contacta a soporte.");
+      setLoading(false);
+      return;
+    }
+
+    // 4. Create payment requests for each ticket
+    const solicitudes = ticketsApartados.map(ticket => ({
+      ticket_id: ticket.id,
+      metodo_pago: selectedPaymentMethod,
+      monto: rifa?.precio_ticket,
+      referencia: referenciaPago || 'N/A',
+      comprobante_url: comprobante_url,
+      estado: 'pendiente',
+      fecha_solicitud: new Date().toISOString()
+    }));
+
+    const { error: insertError } = await supabase.from('t_solicitudes').insert(solicitudes);
+
+    if (!insertError) {
+      toast.success("Solicitud de pago enviada. Tus tickets se procesarán pronto.");
       fetchTickets();
-      setShowModal(false);
-      // Reset form
-      setSelectedJugador("");
-      setSelectedNumeros([]);
-      setCustomNumero("");
-      setComprobantePago(null);
-      setSelectedPaymentMethod(null);
-      setWizardStep(1);
+
+      // Prepare data for the summary ticket and move to the next step
+      const jugador = jugadores.find(j => j.id == selectedJugador);
+      setGeneratedTicketInfo({
+        jugador: `${jugador.nombre} ${jugador.apellido}`,
+        telefono: jugador.telefono,
+        rifa: rifa?.nombre,
+        numeros: numerosSeleccionados,
+        total: (rifa?.precio_ticket * numerosSeleccionados.length).toFixed(2),
+        metodoPago: paymentMethods.find(p => p.id === selectedPaymentMethod)?.name || selectedPaymentMethod,
+        referencia: referenciaPago,
+        fecha: new Date()
+      });
+      setWizardStep(6);
     } else {
-      toast.error("Error al confirmar el pago. Inténtalo de nuevo.");
+      toast.error("Error al enviar la solicitud de pago: " + insertError.message);
     }
     setLoading(false);
+  };
+
+  const handleDownloadTicket = async () => {
+    if (!ticketRef.current) return;
+    try {
+      const canvas = await html2canvas(ticketRef.current, {
+        backgroundColor: '#1e2230', // Match the ticket background
+        scale: 2 // Higher resolution for better quality
+      });
+      const imgData = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.href = imgData;
+      link.download = `ticket-rifa-${generatedTicketInfo.rifa.replace(/\s/g, '_')}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Ticket descargado como imagen.");
+    } catch (error) {
+      toast.error("No se pudo descargar el ticket.");
+      console.error("Error downloading ticket:", error);
+    }
+  };
+
+  const handleShareWhatsApp = () => {
+    if (!generatedTicketInfo) return;
+    const { jugador, rifa, numeros, total, fecha, telefono } = generatedTicketInfo;
+    const phone = telefono?.replace(/\D/g, '');
+
+    if (!phone) {
+      toast.error("El jugador no tiene un número de teléfono registrado para compartir por WhatsApp.");
+      return;
+    }
+
+    const message = `¡Hola ${jugador}! 👋\nAquí está el resumen de tu compra para la rifa *${rifa}*:\n\n🎟️ *Tus Números:* ${numeros.join(', ')}\n💰 *Total Pagado:* $${total}\n🗓️ *Fecha:* ${fecha.toLocaleDateString('es-ES')}\n\nTu solicitud de pago ha sido recibida y será procesada pronto.\n¡Gracias por participar y mucha suerte! 🍀`.trim().replace(/^\s+/gm, '');
+    const whatsappUrl = `https://wa.me/58${phone.slice(-10)}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
   };
 
   // Drag and drop handlers
@@ -292,6 +443,11 @@ export function DetalleRifa() {
     }
   };
 
+  const openTicketDetail = (ticket) => {
+    setSelectedTicketDetail(ticket);
+    setShowTicketDetail(true);
+    setTimeout(() => setIsTicketDetailAnimating(true), 10);
+  };
   const closeTicketDetail = () => {
     setIsTicketDetailAnimating(false);
     setTimeout(() => {
@@ -318,6 +474,11 @@ export function DetalleRifa() {
     }
     setLoading(false);
   };
+
+  const formatTelephone = (phone) => {
+    if (!phone) return "N/A";
+    return phone.replace(/(\d{4})(\d{3})(\d{4})/, "+58-$1-$2-$3");
+  }
 
   const handleFavNumberToggle = (num) => {
     setSelectedNumeros(prev =>
@@ -378,13 +539,15 @@ export function DetalleRifa() {
 
   // Calculate ticket statistics correctly
   const disponibles = allTickets.filter((t) => t.estado === "disponible").length;
-  const apartados = tickets.filter((t) => t.estado_ticket === "apartado").length;
-  const pagados = tickets.filter((t) => t.estado_ticket === "pagado").length;
+  const apartados = allTickets.filter((t) => t.estado === "apartado").length;
+  const pagados = allTickets.filter((t) => t.estado === "pagado").length;
+  const familiares = allTickets.filter((t) => t.estado === "familiares").length
 
   const ticketStats = [
     { key: "disponible", label: "Disponibles", color: "bg-[#23283a]", count: disponibles },
     { key: "apartado", label: "Apartados", color: "bg-yellow-400", count: apartados },
     { key: "pagado", label: "Pagados", color: "bg-green-500", count: pagados },
+    { key: "familiares", label: "Familiares", color: "bg-purple-500", count: familiares }
   ];
   return (
     <div>
@@ -407,7 +570,7 @@ export function DetalleRifa() {
       </div>
 
       {/* Stats */}
-      <div className="grid sm:grid-cols-2 md:grid-cols-2  gap-4 mb-4">
+      <div className="grid sm:grid-cols-2   gap-4 mb-4">
         <div className="flex items-center gap-4 bg-[#0f131b] border border-[#23283a] p-4 rounded-lg">
           <div className="flex flex-col">
             <span className="text-gray-400 text-xs">Ticket Price</span>
@@ -426,7 +589,7 @@ export function DetalleRifa() {
       </div>
 
       {/* Ticket stats */}
-      <div className="gap-4 mb-4 grid grid-cols-3">
+      <div className="gap-4 mb-4 grid min-md:grid-cols-4 max-md:grid-cols-2">
         {ticketStats.map(stat => (
           <div key={stat.key} className="bg-[#0f131b] border border-[#23283a] p-4 rounded-lg flex-1">
             <span className={`text-xs text-white`}>{stat.label}</span>
@@ -436,9 +599,9 @@ export function DetalleRifa() {
       </div>
 
       {/* Buscador y Filtros */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-4">
+      <div className="flex flex-col sm:flex-row max-md:w-full gap-4 mb-4">
         {/* Buscador */}
-        <div className="relative flex-1 max-w-xs">
+        <div className="relative flex-1  max-md:w-full ">
           <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -489,7 +652,7 @@ export function DetalleRifa() {
                         ? apartados
                         : opt.key === "pagado"
                           ? pagados
-                          : allTickets.filter(t => t.estado === "cancelado").length
+                          : allTickets.filter(t => t.estado === "familiares").length
                 )}
               </span>
             </button>
@@ -542,21 +705,21 @@ export function DetalleRifa() {
               <span className="text-gray-300">Pagado</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-red-500 border border-red-600 rounded opacity-75"></div>
-              <span className="text-gray-300">Cancelado</span>
+              <div className="w-4 h-4 bg-purple-500 border border-purple-600 rounded opacity-75"></div>
+              <span className="text-gray-300">Familiares</span>
             </div>
           </div>
         </div>
 
-        <div className="grid max-md:grid-cols-5 max-lg:grid-cols-10 min-lg:grid-cols-15 gap-2 max-h-100 overflow-y-scroll">
+        <div className="grid max-md:grid-cols-6 max-lg:grid-cols-10 min-lg:grid-cols-15 gap-2 max-h-100 overflow-y-scroll">
           {filteredTickets.map((ticket) => (
             <div
               key={ticket.numero}
-              onClick={() => handleTicketClick(ticket)}
+              onClick={() => ticket.estado === 'disponible' ? handleTicketClick(ticket) : openTicketDetail(ticket)}
               title={`N°${ticket.numero} - ${ticket.estado === "disponible" ? "Disponible - Haz clic para comprar"
                 : ticket.estado === "apartado" ? `Apartado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
                   : ticket.estado === "pagado" ? `Pagado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
-                    : ticket.estado === "cancelado" ? "Cancelado - Haz clic para ver detalles"
+                    : ticket.estado === "familiares" ? "Familiares"
                       : ""
                 }`}
               className={`
@@ -565,7 +728,7 @@ export function DetalleRifa() {
                 ${ticket.estado === "disponible" ? "bg-[#23283a] text-white hover:bg-[#2d3748] border border-[#4a5568]" : ""}
                 ${ticket.estado === "apartado" ? "bg-yellow-400 text-yellow-900 hover:bg-yellow-300 shadow-md border border-yellow-500" : ""}
                 ${ticket.estado === "pagado" ? "bg-green-500 text-white hover:bg-green-400 shadow-md border border-green-600" : ""}
-                ${ticket.estado === "cancelado" ? "bg-red-500 text-white hover:bg-red-400 shadow-md border border-red-600 opacity-75" : ""}
+                ${ticket.estado === "familiares" ? "bg-purple-500 text-white hover:bg-purple-400 shadow-md border border-purple-600 opacity-75" : ""}
               `}
             >
               <div className="flex flex-col items-center justify-center">
@@ -611,7 +774,7 @@ export function DetalleRifa() {
       {/* Wizard Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4">
-          <div className={`bg-[#181c24] border border-[#23283a] rounded-xl p-6 w-full ${wizardStep === 4 ? 'max-w-4xl' : 'max-w-lg'} shadow-2xl relative transform transition-all duration-300 scale-100`}>
+          <div className={`bg-[#181c24] border border-[#23283a] rounded-xl w-full ${wizardStep === 4 ? 'max-w-lg p-6' : wizardStep === 5 ? 'max-w-4xl p-0' : wizardStep === 6 ? 'max-w-md p-6' : wizardStep === 7 ? 'max-w-2xl p-6' : 'max-w-lg p-6'} shadow-2xl relative transform transition-all duration-300 scale-100 flex flex-col max-h-[90vh]`}>
             <button
               onClick={() => {
                 setShowModal(false);
@@ -620,9 +783,11 @@ export function DetalleRifa() {
                 setCustomNumero("");
                 setComprobantePago(null);
                 setSelectedPaymentMethod(null);
+                setReferenciaPago("");
+                setGeneratedTicketInfo(null);
                 setWizardStep(1);
               }}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-[#23283a]"
+              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-[#23283a] z-10"
             >
               <XMarkIcon className="w-5 h-5" />
             </button>
@@ -667,7 +832,100 @@ export function DetalleRifa() {
                   >
                     Siguiente
                   </button>
+                  <button
+                    onClick={() => setWizardStep(7)}
+                    className="bg-[#4CAF50] hover:bg-[#3e8e41] text-white px-6 py-3 rounded-lg font-semibold transition-all"
+                  >
+                    Agregar jugador
+                  </button>
                 </div>
+              </div>
+            )}
+
+            {/* Paso 7: Agregar nuevo jugador */}
+            {wizardStep === 7 && (
+              <div className="space-y-6">
+                <div className="text-center">
+                  <div className="bg-[#7c3bed]/20 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <UserIcon className="w-6 h-6 text-[#7c3bed]" />
+                  </div>
+                  <h2 className="text-xl font-bold text-white mb-2">Agregar Nuevo Jugador</h2>
+                  <p className="text-gray-400 text-sm">Completa los datos para registrar un nuevo jugador.</p>
+                </div>
+
+                <form onSubmit={handleSaveNewPlayer} className="space-y-4">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Nombre *</label>
+                      <input name="firstName" value={form.firstName} onChange={handleChange} className="w-full bg-[#23283a] border border-[#2d3748] rounded-lg p-2 text-white focus:outline-none focus:border-[#7c3bed]" placeholder="Ingrese el nombre" required />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Apellido *</label>
+                      <input name="lastName" value={form.lastName} onChange={handleChange} className="w-full bg-[#23283a] border border-[#2d3748] rounded-lg p-2 text-white focus:outline-none focus:border-[#7c3bed]" placeholder="Ingrese el apellido" required />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Cédula de Identidad</label>
+                      <div className="flex items-center bg-[#23283a] border border-[#2d3748] rounded-lg">
+                        <UserIcon className="w-5 h-5 text-gray-400 ml-2" />
+                        <input name="cedula" value={form.cedula} onChange={handleChange} className="bg-transparent flex-1 p-2 text-white outline-none" placeholder="V-12345678" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Correo electrónico *</label>
+                      <div className="flex items-center bg-[#23283a] border border-[#2d3748] rounded-lg">
+                        <EnvelopeIcon className="w-5 h-5 text-gray-400 ml-2" />
+                        <input type="email" name="email" value={form.email} onChange={handleChange} className="bg-transparent flex-1 p-2 text-white outline-none" placeholder="jugador@ejemplo.com" required />
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs text-gray-400 mb-1">Número de teléfono</label>
+                      <div className="flex items-center bg-[#23283a] border border-[#2d3748] rounded-lg">
+                        <PhoneIcon className="w-5 h-5 text-gray-400 ml-2" />
+                        <input name="phone" value={form.phone} onChange={handleChange} className="bg-transparent flex-1 p-2 text-white outline-none" placeholder="04141234567" />
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs text-gray-400 mb-1">Dirección</label>
+                      <input name="street" value={form.street} onChange={handleChange} className="w-full bg-[#23283a] border border-[#2d3748] rounded-lg p-2 text-white focus:outline-none focus:border-[#7c3bed]" placeholder="Av. Principal" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-300 mb-2">Números favoritos (opcional)</h3>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        max={rifa?.total_tickets || 1000}
+                        value={form.favInput}
+                        onChange={e => setForm({ ...form, favInput: e.target.value })}
+                        className="flex-1 bg-[#23283a] border border-[#2d3748] rounded-lg p-2 text-white focus:outline-none focus:border-[#7c3bed]"
+                        placeholder={`1-${rifa?.total_tickets || 1000}`}
+                      />
+                      <button type="button" onClick={handleAddNumber} className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-4 py-2 rounded-lg font-bold text-lg">+</button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {form.favoriteNumbers.map(num => (
+                        <span key={num} className="inline-flex items-center bg-[#2d3748] text-white px-2 py-1 rounded-md font-mono text-xs">
+                          {num}
+                          <button type="button" onClick={() => handleRemoveNumber(num)} className="ml-1 text-[#d54ff9] hover:text-red-500 font-bold">&times;</button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-4">
+                    <div className="flex space-x-2">
+                      {/* Step indicator can be dynamic */}
+                    </div>
+                    <div className="flex space-x-3">
+                      <button type="button" onClick={() => setWizardStep(1)} className="px-4 py-2 rounded-lg bg-[#23283a] hover:bg-[#2d3748] text-white transition-colors">Atrás</button>
+                      <button type="submit" className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-6 py-3 rounded-lg font-semibold transition" disabled={loading}>
+                        {loading ? "Guardando..." : "Guardar Jugador"}
+                      </button>
+                    </div>
+                  </div>
+                </form>
               </div>
             )}
 
@@ -788,7 +1046,7 @@ export function DetalleRifa() {
                     <div>
                       <p className="text-sm text-gray-400">Números seleccionados</p>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {[...selectedNumeros, ...customNumero.split(',').map(n => n.trim()).filter(n => n)].map((num, index) => (
+                        {numerosSeleccionados.map((num, index) => (
                           <span key={index} className="bg-[#7c3bed] text-white px-2 py-1 rounded text-sm font-mono">
                             {num}
                           </span>
@@ -802,7 +1060,7 @@ export function DetalleRifa() {
                     <div>
                       <p className="text-sm text-gray-400">Total a pagar</p>
                       <p className="text-white font-medium">
-                        ${(rifa?.precio_ticket * [...selectedNumeros, ...customNumero.split(',').map(n => n.trim()).filter(n => n)].length).toFixed(2)}
+                        ${(rifa?.precio_ticket * numerosSeleccionados.length).toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -840,194 +1098,173 @@ export function DetalleRifa() {
               </div>
             )}
 
-            {/* Paso 4: Comprobante de Pago */}
+            {/* Paso 4: Método de Pago */}
             {wizardStep === 4 && (
-              <div className="space-y-6 w-full">
+              <div className="space-y-6">
                 <div className="text-center">
                   <div className="bg-blue-500/20 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
                     <CreditCardIcon className="w-6 h-6 text-blue-500" />
                   </div>
-                  <h2 className="text-xl font-bold text-white mb-2">Comprobante de Pago</h2>
+                  <h2 className="text-xl font-bold text-white mb-2">Elige un Método de Pago</h2>
+                  <p className="text-gray-400 text-sm">Selecciona cómo realizaste o realizarás el pago.</p>
+                </div>
+
+                <div className="bg-[#0f131b] border border-[#23283a] rounded-lg p-4">
+                  <h4 className="text-white font-medium mb-4 flex items-center">
+                    <CreditCardIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />
+                    Métodos de Pago Disponibles
+                  </h4>
+                  <div className="space-y-3">
+                    {paymentMethods.map(method => (
+                      <label
+                        key={method.id}
+                        className={`flex items-center space-x-3 p-3 bg-[#181c24] rounded-lg border-2 cursor-pointer transition-all ${selectedPaymentMethod === method.id ? 'border-[#7c3bed]' : 'border-[#2d3748] hover:border-[#4a5568]'}`}
+                      >
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          value={method.id}
+                          checked={selectedPaymentMethod === method.id}
+                          onChange={() => setSelectedPaymentMethod(method.id)}
+                          className="hidden"
+                        />
+                        <div className={`w-10 h-10 ${method.bgColor} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                          {method.icon}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-white font-medium">{method.name}</p>
+                          <p className="text-gray-400 text-sm">{method.details}</p>
+                        </div>
+                        {selectedPaymentMethod === method.id && (
+                          <div className="w-5 h-5 bg-[#7c3bed] rounded-full flex items-center justify-center">
+                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                          </div>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-4">
+                  <div className="flex space-x-2">
+                    <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                    <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                    <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                    <div className="w-2 h-2 bg-[#7c3bed] rounded-full"></div>
+                    <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                  </div>
+                  <div className="flex space-x-3">
+                    <button type="button" onClick={() => setWizardStep(3)} className="px-4 py-2 rounded-lg bg-[#23283a] hover:bg-[#2d3748] text-white transition-colors">Atrás</button>
+                    <button
+                      onClick={() => setWizardStep(5)}
+                      disabled={!selectedPaymentMethod}
+                      className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-6 py-3 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Paso 5: Comprobante de Pago */}
+            {wizardStep === 5 && (
+              <div className="flex flex-col h-full">
+                {/* Header */}
+                <div className="p-6 pb-4 text-center flex-shrink-0">
+                  <div className="bg-blue-500/20 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CreditCardIcon className="w-6 h-6 text-blue-500" />
+                  </div>
+                  <h2 className="text-xl font-bold text-white mb-2">Comprobante y Referencia</h2>
                   <p className="text-gray-400 text-sm">Sube el comprobante de pago para confirmar la transacción</p>
                 </div>
 
-                <div className="bg-[#23283a] rounded-lg p-4 space-y-3">
-                  <div className="text-center">
-                    <p className="text-green-400 font-medium mb-2">✅ Tickets apartados exitosamente</p>
-                    <p className="text-gray-300 text-sm">
-                      Los números han sido reservados. Ahora sube el comprobante de pago para confirmar la compra.
-                    </p>
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto px-6 space-y-6">
+                  <div className="bg-[#23283a] rounded-lg p-4">
+                    <div className="text-center">
+                      <p className="text-green-400 font-medium mb-2">✅ Tickets apartados exitosamente</p>
+                      <p className="text-gray-300 text-sm">
+                        Los números han sido reservados. Ahora sube el comprobante de pago para confirmar la compra.
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Left Column - Payment Methods & Summary */}
-                  <div className="space-y-4">
-                    {/* Payment Methods */}
-                    <div className="bg-[#0f131b] border border-[#23283a] rounded-lg p-4">
-                      <h4 className="text-white font-medium mb-4 flex items-center">
-                        <CreditCardIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />
-                        Métodos de Pago Disponibles
-                      </h4>
-                      <div className="space-y-3">
-                        {paymentMethods.map(method => (
-                          <div
-                            key={method.id}
-                            onClick={() => setSelectedPaymentMethod(method.id)}
-                            className={`flex items-center space-x-3 p-3 bg-[#181c24] rounded-lg border-2 cursor-pointer transition-all ${selectedPaymentMethod === method.id ? 'border-[#7c3bed]' : 'border-[#2d3748] hover:border-[#4a5568]'}`}
-                          >
-                            <div className={`w-10 h-10 ${method.bgColor} rounded-lg flex items-center justify-center`}>
-                              {method.icon}
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-white font-medium">{method.name}</p>
-                              <p className="text-gray-400 text-sm">{method.details}</p>
-                            </div>
-                            {selectedPaymentMethod === method.id && (
-                              <div className="w-5 h-5 bg-[#7c3bed] rounded-full flex items-center justify-center">
-                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                  <div className="grid grid-cols-2  gap-6">
+
+                    <div className="space-y-4">
+                      <div>
+                        <label htmlFor="referencia" className="block text-sm font-medium text-gray-300 mb-2">
+                          Número de Referencia (Opcional)
+                        </label>
+                        <div className="flex items-center bg-[#23283a] border border-[#2d3748] rounded-lg focus-within:border-[#7c3bed] transition-colors">
+                          <HashtagIcon className="w-5 h-5 text-gray-400 mx-3" />
+                          <input
+                            type="text"
+                            id="referencia"
+                            value={referenciaPago}
+                            onChange={e => setReferenciaPago(e.target.value)}
+                            className="w-full bg-transparent p-3 text-white focus:outline-none"
+                            placeholder="Ej: 00123456"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Comprobante de Pago *
+                        </label>
+
+                        {/* Drag & Drop Zone */}
+                        <div
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          onDrop={handleDrop}
+                          className={`relative w-full border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 ${isDragOver
+                            ? 'border-[#7c3bed] bg-[#7c3bed]/10'
+                            : comprobantePago
+                              ? 'border-green-500 bg-green-500/10'
+                              : 'border-[#2d3748] bg-[#23283a] hover:border-[#7c3bed] hover:bg-[#7c3bed]/5'
+                            }`}
+                        >
+                          <input
+                            type="file"
+                            accept="image/*,.pdf"
+                            onChange={handleFileSelect}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            id="comprobante-input"
+                          />
+
+                          {comprobantePago ? (
+                            <div className="flex items-center space-x-4 text-left">
+                              <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <svg className="w-7 h-7 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                               </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Payment Summary */}
-                    <div className="bg-[#0f131b] border border-[#23283a] rounded-lg p-4">
-                      <h4 className="text-white font-medium mb-3 flex items-center">
-                        <TicketIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />
-                        Resumen de Compra
-                      </h4>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-400">Jugador:</span>
-                          <span className="text-white font-medium">
-                            {jugadores.find(j => j.id == selectedJugador)?.nombre} {jugadores.find(j => j.id == selectedJugador)?.apellido}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-start">
-                          <span className="text-gray-400">Números:</span>
-                          <div className="flex flex-wrap gap-1 justify-end max-w-[60%]">
-                            {[...selectedNumeros, ...customNumero.split(',').map(n => n.trim()).filter(n => n)].map((num, index) => (
-                              <span key={index} className="bg-[#7c3bed] text-white px-2 py-1 rounded text-xs font-mono leading-tight">
-                                {num}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-400">Precio por ticket:</span>
-                          <span className="text-white">${rifa?.precio_ticket}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-400">Cantidad:</span>
-                          <span className="text-white">{[...selectedNumeros, ...customNumero.split(',').map(n => n.trim()).filter(n => n)].length} tickets</span>
-                        </div>
-                        <div className="border-t border-[#2d3748] pt-3 mt-3">
-                          <div className="flex justify-between items-center">
-                            <span className="text-white font-medium text-lg">Total a pagar:</span>
-                            <span className="text-[#7c3bed] font-bold text-xl">
-                              ${(rifa?.precio_ticket * [...selectedNumeros, ...customNumero.split(',').map(n => n.trim()).filter(n => n)].length).toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Column - Upload Comprobante */}
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Comprobante de Pago
-                      </label>
-
-                      {/* Drag & Drop Zone */}
-                      <div
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
-                        onDrop={handleDrop}
-                        className={`relative w-full border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200 ${isDragOver
-                          ? 'border-[#7c3bed] bg-[#7c3bed]/10'
-                          : comprobantePago
-                            ? 'border-green-500 bg-green-500/10'
-                            : 'border-[#2d3748] bg-[#23283a] hover:border-[#7c3bed] hover:bg-[#7c3bed]/5'
-                          }`}
-                      >
-                        <input
-                          type="file"
-                          accept="image/*,.pdf"
-                          onChange={handleFileSelect}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          id="comprobante-input"
-                        />
-
-                        {comprobantePago ? (
-                          // File selected state
-                          <div className="space-y-3">
-                            <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto">
-                              <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-green-400 font-medium text-sm truncate">{comprobantePago.name}</p>
+                                <p className="text-gray-400 text-xs">{(comprobantePago.size / 1024 / 1024).toFixed(2)} MB</p>
+                              </div>
+                              <button type="button" onClick={() => setComprobantePago(null)} className="text-red-400 hover:text-red-300 p-1 rounded-full hover:bg-red-500/10" title="Remover archivo"><XMarkIcon className="w-5 h-5" /></button>
                             </div>
-                            <div>
-                              <p className="text-green-400 font-medium">{comprobantePago.name}</p>
-                              <p className="text-gray-400 text-sm">
-                                {(comprobantePago.size / 1024 / 1024).toFixed(2)} MB
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setComprobantePago(null)}
-                              className="text-red-400 hover:text-red-300 text-sm underline"
-                            >
-                              Remover archivo
-                            </button>
-                          </div>
-                        ) : isDragOver ? (
-                          // Drag over state
-                          <div className="space-y-3">
-                            <div className="w-16 h-16 bg-[#7c3bed]/20 rounded-full flex items-center justify-center mx-auto">
-                              <svg className="w-8 h-8 text-[#7c3bed]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                              </svg>
-                            </div>
-                            <p className="text-[#7c3bed] font-medium">Suelta el archivo aquí</p>
-                          </div>
-                        ) : (
-                          // Default state
-                          <div className="space-y-3">
-                            <div className="w-16 h-16 bg-[#2d3748] rounded-full flex items-center justify-center mx-auto">
-                              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                              </svg>
-                            </div>
-                            <div>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="w-12 h-12 bg-[#2d3748] rounded-full flex items-center justify-center mx-auto">
+                                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                              </div>
                               <p className="text-white font-medium">Arrastra tu comprobante aquí</p>
                               <p className="text-gray-400 text-sm">o haz clic para seleccionar</p>
                             </div>
-                            <label
-                              htmlFor="comprobante-input"
-                              className="inline-block bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition-colors"
-                            >
-                              Seleccionar archivo
-                            </label>
-                          </div>
-                        )}
+                          )}
+                        </div>
+
+                        <p className="text-xs text-gray-400 mt-2 text-center">
+                          Formatos permitidos: JPG, PNG, PDF • Tamaño máximo: 5MB
+                        </p>
                       </div>
-
-                      <p className="text-xs text-gray-400 mt-2 text-center">
-                        Formatos permitidos: JPG, PNG, PDF • Tamaño máximo: 5MB
-                      </p>
                     </div>
-
                     {/* Instructions */}
-                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 mt-4">
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 mt-4 space-y-4">
                       <h5 className="text-blue-400 font-medium mb-2 flex items-center">
-                        <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                        </svg>
+                        <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
                         Instrucciones
                       </h5>
                       <ul className="text-blue-300 text-sm space-y-1 list-disc list-inside">
@@ -1040,7 +1277,8 @@ export function DetalleRifa() {
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center pt-4">
+                {/* Footer */}
+                <div className="p-6 pt-4 flex justify-between items-center flex-shrink-0 border-t border-[#23283a]">
                   <div className="flex space-x-2">
                     <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
                     <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
@@ -1078,221 +1316,92 @@ export function DetalleRifa() {
 
       {/* Ticket Detail Modal */}
       {showTicketDetail && selectedTicketDetail && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-60">
-          {/* Desktop: slide from right */}
-          <div className="hidden md:block">
-            <div className={`fixed top-0 right-0 h-full w-96 bg-[#181c24] border-l border-[#23283a] shadow-2xl transform transition-transform duration-300 ease-in-out ${isTicketDetailAnimating ? 'translate-x-0' : 'translate-x-full'}`}>
-              <div className="flex flex-col h-full">
-                {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-[#23283a]">
-                  <h2 className="text-xl font-bold text-white">Detalle del Ticket</h2>
-                  <button
-                    onClick={closeTicketDetail}
-                    className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-[#23283a]"
-                  >
-                    <XMarkIcon className="w-6 h-6" />
-                  </button>
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 p-6 overflow-y-auto">
-                  <div className="space-y-6">
-                    {/* Ticket Number */}
-                    <div className="text-center">
-                      <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 ${selectedTicketDetail.estado === "apartado" ? "bg-yellow-400/20" :
-                        selectedTicketDetail.estado === "pagado" ? "bg-green-500/20" :
-                          selectedTicketDetail.estado === "cancelado" ? "bg-red-400/20" : "bg-[#23283a]"
-                        }`}>
-                        <span className={`text-2xl font-bold ${selectedTicketDetail.estado === "apartado" ? "text-yellow-400" :
-                          selectedTicketDetail.estado === "pagado" ? "text-green-500" :
-                            selectedTicketDetail.estado === "cancelado" ? "text-red-400" : "text-white"
-                          }`}>
-                          {selectedTicketDetail.numero}
-                        </span>
-                      </div>
-                      <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${selectedTicketDetail.estado === "apartado" ? "bg-yellow-400 text-yellow-900" :
-                        selectedTicketDetail.estado === "pagado" ? "bg-green-500 text-white" :
-                          selectedTicketDetail.estado === "cancelado" ? "bg-red-400 text-white" : "bg-[#23283a] text-white"
-                        }`}>
-                        {selectedTicketDetail.estado?.toUpperCase()}
-                      </span>
-                    </div>
-
-                    {/* Ticket Info */}
-                    <div className="space-y-4">
-                      <div className="bg-[#23283a] rounded-lg p-4">
-                        <div className="flex items-center space-x-3 mb-3">
-                          <UserIcon className="w-5 h-5 text-[#7c3bed]" />
-                          <span className="text-sm text-gray-400">Información del Jugador</span>
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-white font-medium">
-                            {selectedTicketDetail.nombre_jugador || 'No asignado'}
-                          </p>
-                          <p className="text-gray-400 text-sm">
-                            {selectedTicketDetail.email_jugador || 'Sin email'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="bg-[#23283a] rounded-lg p-4">
-                        <div className="flex items-center space-x-3 mb-3">
-                          <TicketIcon className="w-5 h-5 text-[#7c3bed]" />
-                          <span className="text-sm text-gray-400">Información del Ticket</span>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Número:</span>
-                            <span className="text-white font-mono">#{selectedTicketDetail.numero}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Precio:</span>
-                            <span className="text-white">${rifa?.precio_ticket}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Estado:</span>
-                            <span className={`${selectedTicketDetail.estado === "apartado" ? "text-yellow-400" :
-                              selectedTicketDetail.estado === "pagado" ? "text-green-500" :
-                                selectedTicketDetail.estado === "cancelado" ? "text-red-400" : "text-white"
-                              }`}>
-                              {selectedTicketDetail.estado}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {selectedTicketDetail.fecha_compra && (
-                        <div className="bg-[#23283a] rounded-lg p-4">
-                          <div className="flex items-center space-x-3 mb-3">
-                            <CalendarIcon className="w-5 h-5 text-[#7c3bed]" />
-                            <span className="text-sm text-gray-400">Fecha de Compra</span>
-                          </div>
-                          <p className="text-white">
-                            {new Date(selectedTicketDetail.fecha_compra).toLocaleDateString('es-ES', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="p-6 border-t border-[#23283a]">
-                  <div className="space-y-3">
-                    {selectedTicketDetail.estado === "apartado" && (
-                      <button
-                        onClick={() => handleUpdateTicketStatus("pagado")}
-                        disabled={loading}
-                        className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {loading ? "Actualizando..." : "Marcar como Pagado"}
-                      </button>
-                    )}
-                    {selectedTicketDetail.estado !== "cancelado" && (
-                      <button
-                        onClick={() => handleUpdateTicketStatus("cancelado")}
-                        disabled={loading}
-                        className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {loading ? "Cancelando..." : "Cancelar Ticket"}
-                      </button>
-                    )}
-                  </div>
-                </div>
+        <>
+          <div className="fixed inset-0 z-40 bg-black/60 transition-opacity duration-300" onClick={closeTicketDetail} />
+          <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-[#181c24] border-l border-[#23283a] shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isTicketDetailAnimating ? 'translate-x-0' : 'translate-x-full'}`}>
+            <div className="flex flex-col h-full">
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-[#23283a]">
+                <h2 className="text-xl font-bold text-white">Detalle del Ticket</h2>
+                <button onClick={closeTicketDetail} className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-[#23283a]">
+                  <XMarkIcon className="w-6 h-6" />
+                </button>
               </div>
-            </div>
-          </div>
 
-          {/* Mobile: centered modal */}
-          <div className="md:hidden flex items-center justify-center min-h-screen p-4">
-            <div className="bg-[#181c24] border border-[#23283a] rounded-xl w-full max-w-sm shadow-2xl transform transition-all duration-300 scale-100">
-              <div className="p-6">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-lg font-bold text-white">Detalle del Ticket</h2>
-                  <button
-                    onClick={closeTicketDetail}
-                    className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-[#23283a]"
-                  >
-                    <XMarkIcon className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {/* Content */}
-                <div className="space-y-4">
+              {/* Content */}
+              <div className="flex-1 p-6 overflow-y-auto">
+                <div className="space-y-6">
                   {/* Ticket Number */}
                   <div className="text-center">
-                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 ${selectedTicketDetail.estado === "apartado" ? "bg-yellow-400/20" :
-                      selectedTicketDetail.estado === "pagado" ? "bg-green-500/20" :
-                        selectedTicketDetail.estado === "cancelado" ? "bg-red-400/20" : "bg-[#23283a]"
-                      }`}>
-                      <span className={`text-xl font-bold ${selectedTicketDetail.estado === "apartado" ? "text-yellow-400" :
-                        selectedTicketDetail.estado === "pagado" ? "text-green-500" :
-                          selectedTicketDetail.estado === "cancelado" ? "text-red-400" : "text-white"
-                        }`}>
+                    <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 ${selectedTicketDetail.estado === "apartado" ? "bg-yellow-400/20" : selectedTicketDetail.estado === "pagado" ? "bg-green-500/20" : selectedTicketDetail.estado === "familiares" ? "bg-red-400/20" : "bg-[#23283a]"}`}>
+                      <span className={`text-2xl font-bold ${selectedTicketDetail.estado === "apartado" ? "text-yellow-400" : selectedTicketDetail.estado === "pagado" ? "text-green-500" : selectedTicketDetail.estado === "familiares" ? "text-red-400" : "text-white"}`}>
                         {selectedTicketDetail.numero}
                       </span>
                     </div>
-                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${selectedTicketDetail.estado === "apartado" ? "bg-yellow-400 text-yellow-900" :
-                      selectedTicketDetail.estado === "pagado" ? "bg-green-500 text-white" :
-                        selectedTicketDetail.estado === "cancelado" ? "bg-red-400 text-white" : "bg-[#23283a] text-white"
-                      }`}>
+                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${selectedTicketDetail.estado === "apartado" ? "bg-yellow-400 text-yellow-900" : selectedTicketDetail.estado === "pagado" ? "bg-green-500 text-white" : selectedTicketDetail.estado === "familiares" ? "bg-red-400 text-white" : "bg-[#23283a] text-white"}`}>
                       {selectedTicketDetail.estado?.toUpperCase()}
                     </span>
                   </div>
 
-                  {/* Info */}
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-gray-400 mb-1">Jugador</p>
-                      <p className="text-white text-sm">{selectedTicketDetail.nombre_jugador || 'No asignado'}</p>
+                  {/* Ticket Info */}
+                  <div className="space-y-4">
+                    <div className="bg-[#23283a] rounded-lg p-4">
+                      <div className="flex items-center space-x-3 mb-3">
+                        <UserIcon className="w-5 h-5 text-[#7c3bed]" />
+                        <span className="text-sm text-gray-400">Información del Jugador</span>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-white font-medium">{selectedTicketDetail.nombre_jugador || 'No asignado'}</p>
+                        <p className="text-gray-400 text-sm">{selectedTicketDetail.email_jugador || 'Sin email'}</p>
+                        {selectedTicketDetail.telefono_jugador && <p className="text-gray-400 text-sm">{formatTelephone(selectedTicketDetail.telefono_jugador)}</p>}
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs text-gray-400 mb-1">Precio</p>
-                      <p className="text-white text-sm">${rifa?.precio_ticket}</p>
+
+                    <div className="bg-[#23283a] rounded-lg p-4">
+                      <div className="flex items-center space-x-3 mb-3">
+                        <TicketIcon className="w-5 h-5 text-[#7c3bed]" />
+                        <span className="text-sm text-gray-400">Información del Ticket</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between"><span className="text-gray-400">Número:</span><span className="text-white font-mono">#{selectedTicketDetail.numero}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">Precio:</span><span className="text-white">${rifa?.precio_ticket}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">Estado:</span><span className={`${selectedTicketDetail.estado === "apartado" ? "text-yellow-400" : selectedTicketDetail.estado === "pagado" ? "text-green-500" : selectedTicketDetail.estado === "familiares" ? "text-red-400" : "text-white"}`}>{selectedTicketDetail.estado}</span></div>
+                      </div>
                     </div>
+
                     {selectedTicketDetail.fecha_compra && (
-                      <div>
-                        <p className="text-xs text-gray-400 mb-1">Fecha de Compra</p>
-                        <p className="text-white text-sm">
-                          {new Date(selectedTicketDetail.fecha_compra).toLocaleDateString('es-ES')}
+                      <div className="bg-[#23283a] rounded-lg p-4">
+                        <div className="flex items-center space-x-3 mb-3">
+                          <CalendarIcon className="w-5 h-5 text-[#7c3bed]" />
+                          <span className="text-sm text-gray-400">Fecha de Compra</span>
+                        </div>
+                        <p className="text-white">
+                          {new Date(selectedTicketDetail.fecha_compra).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
                     )}
                   </div>
+                </div>
+              </div>
 
-                  {/* Actions */}
-                  <div className="space-y-2 pt-4">
-                    {selectedTicketDetail.estado === "apartado" && (
-                      <button
-                        onClick={() => handleUpdateTicketStatus("pagado")}
-                        disabled={loading}
-                        className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {loading ? "Actualizando..." : "Marcar como Pagado"}
-                      </button>
-                    )}
-                    {selectedTicketDetail.estado !== "cancelado" && (
-                      <button
-                        onClick={() => handleUpdateTicketStatus("cancelado")}
-                        disabled={loading}
-                        className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {loading ? "Cancelando..." : "Cancelar Ticket"}
-                      </button>
-                    )}
-                  </div>
+              {/* Actions */}
+              <div className="p-6 border-t border-[#23283a]">
+                <div className="space-y-3">
+                  {selectedTicketDetail.estado === "apartado" && (
+                    <button onClick={() => handleUpdateTicketStatus("pagado")} disabled={loading} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                      {loading ? "Actualizando..." : "Marcar como Pagado"}
+                    </button>
+                  )}
+                  {selectedTicketDetail.estado !== "familiares" && (
+                    <button onClick={() => handleUpdateTicketStatus("familiares")} disabled={loading} className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                      {loading ? "Cancelando..." : "Cancelar Ticket"}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* WhatsApp Modal */}
@@ -1328,18 +1437,18 @@ export function DetalleRifa() {
                   <div className="text-center mb-4">
                     <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 ${whatsAppTicket.estado === "apartado" ? "bg-yellow-400/20" :
                       whatsAppTicket.estado === "pagado" ? "bg-green-500/20" :
-                        whatsAppTicket.estado === "cancelado" ? "bg-red-400/20" : "bg-[#23283a]"
+                        whatsAppTicket.estado === "familiares" ? "bg-red-400/20" : "bg-[#23283a]"
                       }`}>
                       <span className={`text-2xl font-bold ${whatsAppTicket.estado === "apartado" ? "text-yellow-400" :
                         whatsAppTicket.estado === "pagado" ? "text-green-500" :
-                          whatsAppTicket.estado === "cancelado" ? "text-red-400" : "text-white"
+                          whatsAppTicket.estado === "familiares" ? "text-red-400" : "text-white"
                         }`}>
                         {whatsAppTicket.numero}
                       </span>
                     </div>
                     <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${whatsAppTicket.estado === "apartado" ? "bg-yellow-400 text-yellow-900" :
                       whatsAppTicket.estado === "pagado" ? "bg-green-500 text-white" :
-                        whatsAppTicket.estado === "cancelado" ? "bg-red-400 text-white" : "bg-[#23283a] text-white"
+                        whatsAppTicket.estado === "familiares" ? "bg-red-400 text-white" : "bg-[#23283a] text-white"
                       }`}>
                       {whatsAppTicket.estado?.toUpperCase()}
                     </span>

@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, NavLink } from "react-router-dom";
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
@@ -60,10 +60,10 @@ function Dashboard() {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent">Panel de control</h1>
           <p className="text-gray-400">¡Bienvenido de nuevo! Aquí está lo que está sucediendo con tus rifas.</p>
         </div>
-        <button className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white text-sm px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors">
+        <NavLink to="/rifas/nueva-rifa" className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white text-sm px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors">
           <PlusIcon className="w-5 h-5 inline-block mr-2" />
           Crear Rifa
-        </button>
+        </NavLink>
       </div>
       <StatsCards />
       <div className="grid max-md:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">

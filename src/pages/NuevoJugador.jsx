@@ -112,21 +112,21 @@ export function NuevoJugador() {
               <label className="block text-xs text-gray-400 mb-1">Cédula de Identidad</label>
               <div className="flex items-center bg-[#11141a] border border-[#23283a] rounded-lg">
                 <UserIcon className="w-5 h-5 text-gray-400 ml-2" />
-                <input name="cedula" value={form.cedula} onChange={handleChange} className="bg-transparent flex-1 p-2 text-white outline-none" placeholder="V-12345678" />
+                <input name="cedula" value={form.cedula} onChange={handleChange} className="bg-transparent flex-1 p-2 text-white outline-none" placeholder="V-12345678" required />
               </div>
             </div>
             <div>
               <label className="block text-xs text-gray-400 mb-1">Correo electrónico *</label>
               <div className="flex items-center bg-[#11141a] border border-[#23283a] rounded-lg">
                 <EnvelopeIcon className="w-5 h-5 text-gray-400 ml-2" />
-                <input type="email" name="email" value={form.email} onChange={handleChange} className="bg-transparent flex-1 p-2 text-white outline-none" placeholder="jugador@ejemplo.com" required />
+                <input type="email" name="email" value={form.email} onChange={handleChange} className="bg-transparent flex-1 p-2 text-white outline-none" placeholder="jugador@ejemplo.com" />
               </div>
             </div>
             <div>
               <label className="block text-xs text-gray-400 mb-1">Número de teléfono</label>
               <div className="flex items-center bg-[#11141a] border border-[#23283a] rounded-lg">
                 <PhoneIcon className="w-5 h-5 text-gray-400 ml-2" />
-                <input name="phone" value={formatNumber(form.phone)} onChange={handleChange} className="bg-transparent flex-1 p-2 text-white outline-none" placeholder="0123-456-7890" />
+                <input name="phone" value={formatNumber(form.phone)} onChange={handleChange} className="bg-transparent flex-1 p-2 text-white outline-none" placeholder="0123-456-7890" required />
               </div>
             </div>
           </div>

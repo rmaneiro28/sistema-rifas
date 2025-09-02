@@ -37,16 +37,25 @@ export function Rifas() {
   };
 
   const handleDeleteRaffle = async (id) => {
-    const { error } = await supabase.from("t_rifas").delete().eq("id_rifa", id);
-    if (!error) {
-      // Agrega una modal de confirmación
-      const confirmacion = window.confirm("¿Estás seguro de que deseas eliminar esta rifa?");
-      if (confirmacion) {
+    const confirmacion = window.confirm("¿Estás seguro de que deseas eliminar esta rifa? Esto también eliminará todos los tickets asociados.");
+    if (confirmacion) {
+      // Primero, eliminar los tickets asociados a la rifa
+      const { error: deleteTicketsError } = await supabase.from("t_tickets").delete().eq("rifa_id", id);
+
+      if (deleteTicketsError) {
+        toast.error("Error al eliminar los tickets de la rifa");
+        return;
+      }
+
+      // Luego, eliminar la rifa
+      const { error: deleteRaffleError } = await supabase.from("t_rifas").delete().eq("id_rifa", id);
+
+      if (!deleteRaffleError) {
         toast.success("Rifa eliminada con éxito");
         fetchRaffles();
+      } else {
+        toast.error("Error al eliminar la rifa");
       }
-    } else {
-      toast.error("Error al eliminar la rifa");
     }
   };
   const navigate = useNavigate();
