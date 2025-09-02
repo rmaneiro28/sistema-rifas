@@ -141,6 +141,11 @@ export default function JugadorFormModal({ isOpen, onClose, onSave, initialData 
                 </div>
               </div>
 
+
+            </div>
+
+            {/* Right Column */}
+            <div className="space-y-6">
               {/* Contact Information */}
               <div>
                 <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
@@ -149,7 +154,7 @@ export default function JugadorFormModal({ isOpen, onClose, onSave, initialData 
                 </h3>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-300">Email *</label>
+                    <label className="block text-sm font-medium text-gray-300">Email</label>
                     <div className="relative">
                       <EnvelopeIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
@@ -159,13 +164,12 @@ export default function JugadorFormModal({ isOpen, onClose, onSave, initialData 
                         onChange={handleChange}
                         placeholder="ejemplo@correo.com"
                         className="w-full pl-10 pr-4 py-3 bg-[#23283a] border border-[#2d3748] rounded-lg text-white focus:outline-none focus:border-[#7c3bed] transition-colors"
-                        required
                         disabled={loading}
                       />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-300">Teléfono</label>
+                    <label className="block text-sm font-medium text-gray-300">Teléfono *</label>
                     <div className="relative">
                       <PhoneIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
@@ -174,38 +178,15 @@ export default function JugadorFormModal({ isOpen, onClose, onSave, initialData 
                         onChange={handleChange}
                         placeholder="+58 414-1234567"
                         className="w-full pl-10 pr-4 py-3 bg-[#23283a] border border-[#2d3748] rounded-lg text-white focus:outline-none focus:border-[#7c3bed] transition-colors"
-                        disabled={loading}
+                        disabled={loading} required
                       />
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-
-            {/* Right Column */}
-            <div className="space-y-6">
               {/* Additional Information */}
               <div>
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                  <MapPinIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />
-                  Información Adicional
-                </h3>
                 <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-300">Dirección</label>
-                    <div className="relative">
-                      <MapPinIcon className="w-5 h-5 text-gray-400 absolute left-3 top-3" />
-                      <textarea
-                        name="direccion"
-                        value={form.direccion}
-                        onChange={handleChange}
-                        placeholder="Ingresa la dirección completa"
-                        rows={4}
-                        className="w-full pl-10 pr-4 py-3 bg-[#23283a] border border-[#2d3748] rounded-lg text-white focus:outline-none focus:border-[#7c3bed] transition-colors resize-none"
-                        disabled={loading}
-                      />
-                    </div>
-                  </div>
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-300">Números Favoritos</label>
                     <div className="relative">
@@ -223,61 +204,6 @@ export default function JugadorFormModal({ isOpen, onClose, onSave, initialData 
                       Ingresa los números favoritos separados por comas. Ejemplo: 1, 7, 13, 21
                     </p>
                   </div>
-                </div>
-              </div>
-
-              {/* Preview Section */}
-              <div className="bg-[#23283a] rounded-lg p-4">
-                <h4 className="text-white font-medium mb-3 flex items-center">
-                  <UserIcon className="w-4 h-4 mr-2 text-[#7c3bed]" />
-                  Vista Previa
-                </h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-[#7c3bed]/20 rounded-full flex items-center justify-center">
-                      <span className="text-[#7c3bed] font-bold text-xs">
-                        {form.nombre?.charAt(0) || '?'}{form.apellido?.charAt(0) || '?'}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-white font-medium">
-                        {form.nombre || 'Nombre'} {form.apellido || 'Apellido'}
-                      </p>
-                      <p className="text-gray-400 text-xs">
-                        {form.email || 'email@ejemplo.com'}
-                      </p>
-                    </div>
-                  </div>
-                  {form.telefono && (
-                    <div className="flex items-center space-x-2 text-gray-300">
-                      <PhoneIcon className="w-4 h-4" />
-                      <span>{form.telefono}</span>
-                    </div>
-                  )}
-                  {form.cedula && (
-                    <div className="flex items-center space-x-2 text-gray-300">
-                      <IdentificationIcon className="w-4 h-4" />
-                      <span>C.I: {form.cedula}</span>
-                    </div>
-                  )}
-                  {form.numeros_favoritos && (
-                    <div className="flex items-start space-x-2 text-gray-300">
-                      <StarIcon className="w-4 h-4 mt-0.5" />
-                      <div>
-                        <p className="text-xs text-gray-400 mb-1">Números favoritos:</p>
-                        <div className="flex flex-wrap gap-1">
-                          {form.numeros_favoritos.split(',').map((num, index) => {
-                            const trimmed = num.trim();
-                            return trimmed ? (
-                              <span key={index} className="bg-[#7c3bed] text-white px-2 py-1 rounded text-xs font-mono">
-                                {trimmed}
-                              </span>
-                            ) : null;
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>

@@ -116,30 +116,18 @@ export function NuevoJugador() {
               </div>
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Correo electrónico *</label>
+              <label className="block text-xs text-gray-400 mb-1">Correo electrónico</label>
               <div className="flex items-center bg-[#11141a] border border-[#23283a] rounded-lg">
                 <EnvelopeIcon className="w-5 h-5 text-gray-400 ml-2" />
                 <input type="email" name="email" value={form.email} onChange={handleChange} className="bg-transparent flex-1 p-2 text-white outline-none" placeholder="jugador@ejemplo.com" />
               </div>
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Número de teléfono</label>
+              <label className="block text-xs text-gray-400 mb-1">Número de teléfono *</label>
               <div className="flex items-center bg-[#11141a] border border-[#23283a] rounded-lg">
                 <PhoneIcon className="w-5 h-5 text-gray-400 ml-2" />
                 <input name="phone" value={formatNumber(form.phone)} onChange={handleChange} className="bg-transparent flex-1 p-2 text-white outline-none" placeholder="0123-456-7890" required />
               </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-[#181c24] rounded-xl p-6 border border-[#23283a] mb-4">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4">
-            <MapPinIcon className="w-5 h-5" /> Información de dirección
-          </h2>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <label className="block text-xs text-gray-400 mb-1">Dirección</label>
-              <input name="street" value={form.street} onChange={handleChange} className="w-full bg-[#11141a] border border-[#23283a] rounded-lg p-2 text-white" placeholder="Av. Principal" />
             </div>
           </div>
         </div>

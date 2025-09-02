@@ -188,8 +188,8 @@ export function Jugadores() {
       {/* Lista de jugadores */}
       <div className="bg-[#141821] border border-[#23283a] rounded-xl overflow-hidden">
         {/* Header de la tabla */}
-        <div className="bg-[#0f131b] px-6 py-4 border-b border-[#23283a]">
-          <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+        <div className="hidden md:block bg-[#0f131b] px-6 py-4 border-b border-[#23283a]">
+          <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-gray-400 uppercase tracking-wider ">
             <div className="col-span-4">Jugador</div>
             <div className="col-span-2 text-center">Tickets</div>
             <div className="col-span-2 text-center">Gastado</div>
@@ -206,7 +206,8 @@ export function Jugadores() {
               onClick={() => handlePlayerClick(player)}
               className="px-6 py-4 hover:bg-[#1a1f2e] transition-colors cursor-pointer"
             >
-              <div className="grid grid-cols-12 gap-4 items-center">
+              {/* Vista de Tabla (Desktop) */}
+              <div className="hidden md:grid grid-cols-12 gap-4 items-center">
                 {/* Información del jugador */}
                 <div className="col-span-4 flex items-center space-x-3">
                   <div className="w-10 h-10 bg-gradient-to-tr from-[#7c3bed] to-[#d54ff9] rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
@@ -277,6 +278,52 @@ export function Jugadores() {
                     className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
                     title="Eliminar jugador"
                   >
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+
+              {/* Vista de Tarjeta (Mobile) */}
+              <div className="grid md:hidden gap-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gradient-to-tr from-[#7c3bed] to-[#d54ff9] rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+                      {player.nombre.charAt(0)}{player.apellido?.charAt(0) || ''}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold text-white truncate">
+                        {player.nombre} {player.apellido}
+                      </h3>
+                      <p className="text-sm text-gray-400 truncate">{player.email}</p>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${STATUS_BADGES[player.status]?.color || "bg-gray-700 text-white"}`}>
+                    {STATUS_BADGES[player.status]?.label || 'Activo'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-center border-y border-y-[#23283a] py-3">
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">Tickets</p>
+                    <div className="flex items-center justify-center space-x-1">
+                      <TicketIcon className="w-4 h-4 text-[#7c3bed]" />
+                      <span className="text-white font-semibold">{player.total_tickets_comprados || 0}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">Gastado</p>
+                    <div className="flex items-center justify-center space-x-1">
+                      <TrophyIcon className="w-4 h-4 text-[#16a249]" />
+                      <span className="text-white font-semibold">${player.monto_total_gastado || 0}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end space-x-2">
+                  <button onClick={(e) => { e.stopPropagation(); setEditPlayer(player); setModalOpen(true); }} className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors" title="Editar jugador">
+                    Editar
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); setConfirmDelete({ open: true, player }); }} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors" title="Eliminar jugador">
                     Eliminar
                   </button>
                 </div>

@@ -20,16 +20,16 @@ export function DetalleRifa() {
   const [jugadores, setJugadores] = useState([]);
   const [selectedJugador, setSelectedJugador] = useState("");
   const [favoritos, setFavoritos] = useState([]);
-  const [selectedNumeros, setSelectedNumeros] = useState([]);
   const [customNumero, setCustomNumero] = useState("");
+  const [singleCustomNumberInput, setSingleCustomNumberInput] = useState("");
   const [comprobantePago, setComprobantePago] = useState(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
   const [referenciaPago, setReferenciaPago] = useState("");
   const [generatedTicketInfo, setGeneratedTicketInfo] = useState(null);
   // Ticket detail modal states
-  const [showTicketDetail, setShowTicketDetail] = useState(false);
-  const [selectedTicketDetail, setSelectedTicketDetail] = useState(null);
-  const [isTicketDetailAnimating, setIsTicketDetailAnimating] = useState(false);
+  const [showPlayerGroupModal, setShowPlayerGroupModal] = useState(false);
+  const [selectedPlayerGroup, setSelectedPlayerGroup] = useState(null);
+  const [isPlayerGroupModalAnimating, setIsPlayerGroupModalAnimating] = useState(false);
 
   // WhatsApp modal states
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
@@ -37,6 +37,7 @@ export function DetalleRifa() {
 
   // Drag and drop states
   const [isDragOver, setIsDragOver] = useState(false);
+  const [selectedTicketsFromMap, setSelectedTicketsFromMap] = useState([]);
 
   const ticketRef = useRef();
   const pdfRef = useRef(); // Keep this for the map export
@@ -54,8 +55,8 @@ export function DetalleRifa() {
 
   const numerosSeleccionados = useMemo(() => {
     const customNumbers = customNumero.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0 && n <= (rifa?.total_tickets || 1000));
-    return [...new Set([...selectedNumeros, ...customNumbers])];
-  }, [selectedNumeros, customNumero, rifa?.total_tickets]);
+    return [...new Set(customNumbers)];
+  }, [customNumero, rifa?.total_tickets]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -152,9 +153,7 @@ export function DetalleRifa() {
     } else {
       setFavoritos([]);
     }
-    setSelectedNumeros([]);
-    setCustomNumero("");
-  }, [selectedJugador]);
+  }, [selectedJugador, jugadores]);
 
   // Ticket stats
 
@@ -204,8 +203,9 @@ export function DetalleRifa() {
   };
 
   const allTickets = generateAllTickets();
+  const ticketStatusMap = useMemo(() => new Map(allTickets.map(t => [t.numero, t.estado])), [allTickets]);
   const filteredTickets = allTickets.filter(ticket => {
-    const matchesStatus = ticketFilter === "all" || ticket.estado_ticket === ticketFilter;
+    const matchesStatus = ticketFilter === "all" || ticket.estado === ticketFilter;
     const matchesSearch = !searchQuery ||
       ticket.numero.toString().includes(searchQuery) ||
       (ticket.nombre_jugador && ticket.nombre_jugador.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -431,44 +431,75 @@ export function DetalleRifa() {
     }
   };
 
+  const handleProceedWithSelection = () => {
+    if (selectedTicketsFromMap.length === 0) {
+      toast.info("Selecciona al menos un ticket del mapa.");
+      return;
+    }
+    setCustomNumero(selectedTicketsFromMap.join(', '));
+    setShowModal(true);
+    setWizardStep(1);
+  };
+
   const handleTicketClick = (ticket) => {
     if (ticket.estado === 'disponible') {
-      setCustomNumero(String(ticket.numero));
-      setShowModal(true);
-      setWizardStep(1);
+      setSelectedTicketsFromMap(prev =>
+        prev.includes(ticket.numero)
+          ? prev.filter(n => n !== ticket.numero)
+          : [...prev, ticket.numero]
+      );
     } else {
-      // Show WhatsApp modal for occupied tickets
-      setWhatsAppTicket(ticket);
-      setShowWhatsAppModal(true);
+      openTicketDetail(ticket);
     }
   };
 
+
+
   const openTicketDetail = (ticket) => {
-    setSelectedTicketDetail(ticket);
-    setShowTicketDetail(true);
-    setTimeout(() => setIsTicketDetailAnimating(true), 10);
+    if (!ticket.jugador_id) return;
+
+    const playerTickets = allTickets.filter(t => t.jugador_id === ticket.jugador_id);
+
+    if (playerTickets.length === 0) return;
+
+    setSelectedPlayerGroup({
+      info: {
+        nombre_jugador: ticket.nombre_jugador,
+        email_jugador: ticket.email_jugador,
+        telefono_jugador: ticket.telefono_jugador,
+        jugador_id: ticket.jugador_id
+      },
+      tickets: playerTickets.sort((a, b) => a.numero - b.numero)
+    });
+
+    setShowPlayerGroupModal(true);
+    setTimeout(() => setIsPlayerGroupModalAnimating(true), 10);
   };
-  const closeTicketDetail = () => {
-    setIsTicketDetailAnimating(false);
+  const closePlayerGroupModal = () => {
+    setIsPlayerGroupModalAnimating(false);
     setTimeout(() => {
-      setShowTicketDetail(false);
-      setSelectedTicketDetail(null);
+      setShowPlayerGroupModal(false);
+      setSelectedPlayerGroup(null);
     }, 300); // Wait for animation to complete
   };
 
-  const handleUpdateTicketStatus = async (newStatus) => {
-    if (!selectedTicketDetail) return;
+  const handleUpdatePlayerTicketsStatus = async (newStatus, fromStatus = null) => {
+    if (!selectedPlayerGroup) return;
+
+    const ticketsToUpdate = selectedPlayerGroup.tickets.filter(t =>
+      fromStatus ? t.estado === fromStatus : t.estado !== newStatus
+    );
 
     setLoading(true);
     const { error } = await supabase
       .from("t_tickets")
       .update({ estado: newStatus })
-      .eq("id", selectedTicketDetail.ticket_id);
+      .in("id", ticketsToUpdate.map(t => t.ticket_id));
 
     if (!error) {
-      toast.success(`Ticket marcado como ${newStatus}`);
+      toast.success(`Tickets de ${selectedPlayerGroup.info.nombre_jugador} actualizados a ${newStatus}`);
       fetchTickets();
-      closeTicketDetail();
+      closePlayerGroupModal();
     } else {
       toast.error("Error al actualizar el ticket");
     }
@@ -480,14 +511,91 @@ export function DetalleRifa() {
     return phone.replace(/(\d{4})(\d{3})(\d{4})/, "+58-$1-$2-$3");
   }
 
+  const ticketsByStatus = useMemo(() => {
+    if (!selectedPlayerGroup) return {};
+    return selectedPlayerGroup.tickets.reduce((acc, ticket) => {
+      const status = ticket.estado;
+      if (!acc[status]) {
+        acc[status] = [];
+      }
+      acc[status].push(ticket);
+      return acc;
+    }, {});
+  }, [selectedPlayerGroup]);
+
   const handleFavNumberToggle = (num) => {
-    setSelectedNumeros(prev =>
-      prev.includes(num) ? prev.filter(n => n !== num) : [...prev, num]
-    );
+    const currentNumbers = numerosSeleccionados;
+    let newNumbers;
+    if (currentNumbers.includes(num)) {
+      newNumbers = currentNumbers.filter(n => n !== num);
+    } else {
+      newNumbers = [...currentNumbers, num];
+    }
+    setCustomNumero(newNumbers.sort((a, b) => a - b).join(', '));
   };
 
   const handleSelectAllFavoritos = () => {
-    setSelectedNumeros(favoritos);
+    const currentNumbers = numerosSeleccionados;
+
+    const unavailable = favoritos.filter(num => ticketStatusMap.get(num) !== 'disponible');
+    const available = favoritos.filter(num => ticketStatusMap.get(num) === 'disponible');
+
+    if (unavailable.length > 0) {
+      toast.info(`Los números favoritos ${unavailable.join(', ')} no están disponibles y no se pueden seleccionar.`);
+    }
+
+    const newNumbersToAdd = available.filter(num => !currentNumbers.includes(num));
+
+    if (newNumbersToAdd.length > 0) {
+      const newSelection = [...currentNumbers, ...newNumbersToAdd].sort((a, b) => a - b);
+      setCustomNumero(newSelection.join(', '));
+      toast.success(`${newNumbersToAdd.length} número(s) favorito(s) agregado(s) a tu selección.`);
+    } else if (available.length > 0) {
+      toast.info("Todos tus favoritos disponibles ya están en la selección.");
+    } else if (favoritos.length === 0) {
+      toast.info("No tienes números favoritos para seleccionar.");
+    }
+  };
+
+  const handleAddCustomNumber = () => {
+    const num = parseInt(singleCustomNumberInput);
+    if (isNaN(num) || num <= 0 || num > (rifa?.total_tickets || 1000)) {
+      toast.error(`Por favor, ingresa un número válido entre 1 y ${rifa?.total_tickets || 1000}.`);
+      return;
+    }
+
+    if (numerosSeleccionados.includes(num)) {
+      toast.info(`El número ${num} ya está en tu selección.`);
+      setSingleCustomNumberInput("");
+      return;
+    }
+
+    if (ticketStatusMap.get(num) !== 'disponible') {
+      toast.error(`El número ${num} no está disponible.`);
+      setSingleCustomNumberInput("");
+      return;
+    }
+
+    const newNumbers = [...numerosSeleccionados, num].sort((a, b) => a - b);
+    setCustomNumero(newNumbers.join(', '));
+    setSingleCustomNumberInput("");
+  };
+
+  const handleProceedToConfirmation = () => {
+    const unavailableNumbers = numerosSeleccionados.filter(
+      num => ticketStatusMap.get(num) !== 'disponible'
+    );
+
+    if (unavailableNumbers.length > 0) {
+      toast.error(`Los siguientes números ya no están disponibles: ${unavailableNumbers.join(', ')}`);
+      const availableNumbers = numerosSeleccionados.filter(num => !unavailableNumbers.includes(num));
+      setCustomNumero(availableNumbers.sort((a, b) => a - b).join(', '));
+    } else if (numerosSeleccionados.length > 0) {
+      setWizardStep(3);
+    } else {
+      // This case should be prevented by the disabled button, but it's a good safeguard.
+      toast.info("Por favor, selecciona al menos un número.");
+    }
   };
 
   const paymentMethods = [
@@ -658,12 +766,30 @@ export function DetalleRifa() {
             </button>
           ))}
           <div className="flex gap-2 mt-2 sm:mt-0 sm:ml-auto">
-            <button
-              className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-4 py-2 rounded-lg font-semibold"
-              onClick={() => { setShowModal(true); setWizardStep(1); }}
-            >
-              Registrar Ticket
-            </button>
+            {selectedTicketsFromMap.length > 0 ? (
+              <>
+                <button
+                  onClick={handleProceedWithSelection}
+                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2"
+                >
+                  <TicketIcon className="w-5 h-5" />
+                  Registrar Selección ({selectedTicketsFromMap.length})
+                </button>
+                <button
+                  onClick={() => setSelectedTicketsFromMap([])}
+                  className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                >
+                  Limpiar
+                </button>
+              </>
+            ) : (
+              <button
+                className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-4 py-2 rounded-lg font-semibold"
+                onClick={() => { setShowModal(true); setWizardStep(1); }}
+              >
+                Registrar Ticket
+              </button>
+            )}
             <button
               onClick={handleExportPDF}
               className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-4 py-2 rounded-lg font-semibold"
@@ -715,7 +841,7 @@ export function DetalleRifa() {
           {filteredTickets.map((ticket) => (
             <div
               key={ticket.numero}
-              onClick={() => ticket.estado === 'disponible' ? handleTicketClick(ticket) : openTicketDetail(ticket)}
+              onClick={() => handleTicketClick(ticket)}
               title={`N°${ticket.numero} - ${ticket.estado === "disponible" ? "Disponible - Haz clic para comprar"
                 : ticket.estado === "apartado" ? `Apartado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
                   : ticket.estado === "pagado" ? `Pagado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
@@ -729,6 +855,7 @@ export function DetalleRifa() {
                 ${ticket.estado === "apartado" ? "bg-yellow-400 text-yellow-900 hover:bg-yellow-300 shadow-md border border-yellow-500" : ""}
                 ${ticket.estado === "pagado" ? "bg-green-500 text-white hover:bg-green-400 shadow-md border border-green-600" : ""}
                 ${ticket.estado === "familiares" ? "bg-purple-500 text-white hover:bg-purple-400 shadow-md border border-purple-600 opacity-75" : ""}
+                ${selectedTicketsFromMap.includes(ticket.numero) ? "!bg-[#d54ff9] ring-2 ring-white" : ""}
               `}
             >
               <div className="flex flex-col items-center justify-center">
@@ -779,13 +906,13 @@ export function DetalleRifa() {
               onClick={() => {
                 setShowModal(false);
                 setSelectedJugador("");
-                setSelectedNumeros([]);
                 setCustomNumero("");
                 setComprobantePago(null);
                 setSelectedPaymentMethod(null);
                 setReferenciaPago("");
                 setGeneratedTicketInfo(null);
                 setWizardStep(1);
+                setSelectedTicketsFromMap([]);
               }}
               className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-[#23283a] z-10"
             >
@@ -827,7 +954,7 @@ export function DetalleRifa() {
                   </div>
                   <button
                     disabled={!selectedJugador}
-                    onClick={() => setWizardStep(2)}
+                    onClick={() => setWizardStep(numerosSeleccionados.length > 0 ? 3 : 2)}
                     className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-6 py-3 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                   >
                     Siguiente
@@ -958,7 +1085,7 @@ export function DetalleRifa() {
                           <div
                             key={num}
                             onClick={() => handleFavNumberToggle(num)}
-                            className={`p-2 text-center rounded-md cursor-pointer transition-all hover:scale-105 ${selectedNumeros.includes(num)
+                            className={`p-2 text-center rounded-md cursor-pointer transition-all hover:scale-105 ${numerosSeleccionados.includes(num)
                               ? 'bg-[#7c3bed] text-white shadow-lg'
                               : 'bg-[#0f131b] text-gray-300 hover:bg-[#1a1f2e]'
                               }`}
@@ -981,16 +1108,48 @@ export function DetalleRifa() {
 
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-300">
-                      Otros números (separados por coma)
+                      Agregar otro número
                     </label>
-                    <input
-                      type="text"
-                      value={customNumero}
-                      onChange={e => setCustomNumero(e.target.value)}
-                      placeholder="Ej: 1, 5, 12"
-                      className="w-full bg-[#23283a] text-white rounded-lg px-4 py-3 border border-[#2d3748] focus:border-[#7c3bed] focus:outline-none transition-colors"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={singleCustomNumberInput}
+                        onChange={e => setSingleCustomNumberInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomNumber(); } }}
+                        placeholder={`1 - ${rifa?.total_tickets || 1000}`}
+                        className="flex-1 bg-[#23283a] text-white rounded-lg px-4 py-3 border border-[#2d3748] focus:border-[#7c3bed] focus:outline-none transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddCustomNumber}
+                        className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-4 py-3 rounded-lg font-bold text-lg leading-none"
+                      >+</button>
+                    </div>
                   </div>
+
+                  {numerosSeleccionados.length > 0 && (
+                    <div className="pt-4 border-t border-[#2d3748]">
+                      <h3 className="text-sm font-medium text-gray-300 mb-2">
+                        Números seleccionados ({numerosSeleccionados.length})
+                      </h3>
+                      <div className="flex flex-wrap gap-2 p-3 bg-[#0f131b] rounded-lg max-h-28 overflow-y-auto">
+                        {numerosSeleccionados.sort((a, b) => a - b).map((num) => (
+                          <span
+                            key={num}
+                            className="inline-flex items-center bg-[#7c3bed] text-white px-2 py-1 rounded-md font-mono text-xs"
+                          >
+                            {num}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveFromSelection(num)}
+                              className="ml-1.5 text-white/70 hover:text-white font-bold"
+                              title={`Quitar número ${num}`}
+                            >&times;</button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-between items-center pt-4">
@@ -1008,8 +1167,8 @@ export function DetalleRifa() {
                       Atrás
                     </button>
                     <button
-                      disabled={selectedNumeros.length === 0 && !customNumero}
-                      onClick={() => setWizardStep(3)}
+                      disabled={numerosSeleccionados.length === 0}
+                      onClick={handleProceedToConfirmation}
                       className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-6 py-3 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
                       Siguiente
@@ -1315,15 +1474,15 @@ export function DetalleRifa() {
       )}
 
       {/* Ticket Detail Modal */}
-      {showTicketDetail && selectedTicketDetail && (
+      {showPlayerGroupModal && selectedPlayerGroup && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/60 transition-opacity duration-300" onClick={closeTicketDetail} />
-          <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-[#181c24] border-l border-[#23283a] shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isTicketDetailAnimating ? 'translate-x-0' : 'translate-x-full'}`}>
+          <div className="fixed inset-0 z-40 bg-black/60 transition-opacity duration-300" onClick={closePlayerGroupModal} />
+          <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-[#181c24] border-l border-[#23283a] shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isPlayerGroupModalAnimating ? 'translate-x-0' : 'translate-x-full'}`}>
             <div className="flex flex-col h-full">
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-[#23283a]">
-                <h2 className="text-xl font-bold text-white">Detalle del Ticket</h2>
-                <button onClick={closeTicketDetail} className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-[#23283a]">
+                <h2 className="text-xl font-bold text-white">Detalles del Jugador</h2>
+                <button onClick={closePlayerGroupModal} className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-[#23283a]">
                   <XMarkIcon className="w-6 h-6" />
                 </button>
               </div>
@@ -1331,70 +1490,51 @@ export function DetalleRifa() {
               {/* Content */}
               <div className="flex-1 p-6 overflow-y-auto">
                 <div className="space-y-6">
-                  {/* Ticket Number */}
-                  <div className="text-center">
-                    <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 ${selectedTicketDetail.estado === "apartado" ? "bg-yellow-400/20" : selectedTicketDetail.estado === "pagado" ? "bg-green-500/20" : selectedTicketDetail.estado === "familiares" ? "bg-red-400/20" : "bg-[#23283a]"}`}>
-                      <span className={`text-2xl font-bold ${selectedTicketDetail.estado === "apartado" ? "text-yellow-400" : selectedTicketDetail.estado === "pagado" ? "text-green-500" : selectedTicketDetail.estado === "familiares" ? "text-red-400" : "text-white"}`}>
-                        {selectedTicketDetail.numero}
-                      </span>
+                  {/* Player Info */}
+                  <div className="bg-[#23283a] rounded-lg p-4">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <UserIcon className="w-5 h-5 text-[#7c3bed]" />
+                      <span className="text-sm text-gray-400">Información del Jugador</span>
                     </div>
-                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${selectedTicketDetail.estado === "apartado" ? "bg-yellow-400 text-yellow-900" : selectedTicketDetail.estado === "pagado" ? "bg-green-500 text-white" : selectedTicketDetail.estado === "familiares" ? "bg-red-400 text-white" : "bg-[#23283a] text-white"}`}>
-                      {selectedTicketDetail.estado?.toUpperCase()}
-                    </span>
+                    <div className="space-y-2">
+                      <p className="text-white font-medium">{selectedPlayerGroup.info.nombre_jugador || 'No asignado'}</p>
+                      <p className="text-gray-400 text-sm">{selectedPlayerGroup.info.email_jugador || 'Sin email'}</p>
+                      {selectedPlayerGroup.info.telefono_jugador && <p className="text-gray-400 text-sm">{formatTelephone(selectedPlayerGroup.info.telefono_jugador)}</p>}
+                    </div>
                   </div>
 
-                  {/* Ticket Info */}
-                  <div className="space-y-4">
-                    <div className="bg-[#23283a] rounded-lg p-4">
-                      <div className="flex items-center space-x-3 mb-3">
-                        <UserIcon className="w-5 h-5 text-[#7c3bed]" />
-                        <span className="text-sm text-gray-400">Información del Jugador</span>
+                  {/* Tickets by Status */}
+                  {Object.entries(ticketsByStatus).map(([status, ticketsInStatus]) => (
+                    <div key={status} className="bg-[#23283a] rounded-lg p-4">
+                      <div className="flex justify-between items-center mb-3">
+                        <h4 className={`font-semibold capitalize ${status === "apartado" ? "text-yellow-400" : status === "pagado" ? "text-green-500" : status === "familiares" ? "text-purple-400" : "text-white"}`}>
+                          {status}
+                        </h4>
+                        <span className="text-xs bg-gray-700 text-white px-2 py-1 rounded-full">{ticketsInStatus.length}</span>
                       </div>
-                      <div className="space-y-2">
-                        <p className="text-white font-medium">{selectedTicketDetail.nombre_jugador || 'No asignado'}</p>
-                        <p className="text-gray-400 text-sm">{selectedTicketDetail.email_jugador || 'Sin email'}</p>
-                        {selectedTicketDetail.telefono_jugador && <p className="text-gray-400 text-sm">{formatTelephone(selectedTicketDetail.telefono_jugador)}</p>}
-                      </div>
-                    </div>
-
-                    <div className="bg-[#23283a] rounded-lg p-4">
-                      <div className="flex items-center space-x-3 mb-3">
-                        <TicketIcon className="w-5 h-5 text-[#7c3bed]" />
-                        <span className="text-sm text-gray-400">Información del Ticket</span>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between"><span className="text-gray-400">Número:</span><span className="text-white font-mono">#{selectedTicketDetail.numero}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-400">Precio:</span><span className="text-white">${rifa?.precio_ticket}</span></div>
-                        <div className="flex justify-between"><span className="text-gray-400">Estado:</span><span className={`${selectedTicketDetail.estado === "apartado" ? "text-yellow-400" : selectedTicketDetail.estado === "pagado" ? "text-green-500" : selectedTicketDetail.estado === "familiares" ? "text-red-400" : "text-white"}`}>{selectedTicketDetail.estado}</span></div>
+                      <div className="flex flex-wrap gap-2">
+                        {ticketsInStatus.map(ticket => (
+                          <span key={ticket.numero} className={`px-3 py-1.5 rounded-lg text-sm font-mono font-bold ${status === "apartado" ? "bg-yellow-400/20 text-yellow-300" : status === "pagado" ? "bg-green-500/20 text-green-300" : status === "familiares" ? "bg-purple-500/20 text-purple-300" : "bg-gray-600 text-white"}`}>
+                            {ticket.numero}
+                          </span>
+                        ))}
                       </div>
                     </div>
-
-                    {selectedTicketDetail.fecha_compra && (
-                      <div className="bg-[#23283a] rounded-lg p-4">
-                        <div className="flex items-center space-x-3 mb-3">
-                          <CalendarIcon className="w-5 h-5 text-[#7c3bed]" />
-                          <span className="text-sm text-gray-400">Fecha de Compra</span>
-                        </div>
-                        <p className="text-white">
-                          {new Date(selectedTicketDetail.fecha_compra).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                  ))}
                 </div>
               </div>
 
               {/* Actions */}
               <div className="p-6 border-t border-[#23283a]">
                 <div className="space-y-3">
-                  {selectedTicketDetail.estado === "apartado" && (
-                    <button onClick={() => handleUpdateTicketStatus("pagado")} disabled={loading} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                      {loading ? "Actualizando..." : "Marcar como Pagado"}
+                  {ticketsByStatus.apartado?.length > 0 && (
+                    <button onClick={() => handleUpdatePlayerTicketsStatus("pagado", "apartado")} disabled={loading} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                      {loading ? "Actualizando..." : `Marcar ${ticketsByStatus.apartado.length} Apartado(s) como Pagado`}
                     </button>
                   )}
-                  {selectedTicketDetail.estado !== "familiares" && (
-                    <button onClick={() => handleUpdateTicketStatus("familiares")} disabled={loading} className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                      {loading ? "Cancelando..." : "Cancelar Ticket"}
+                  {selectedPlayerGroup.tickets.some(t => t.estado !== 'familiares') && (
+                    <button onClick={() => handleUpdatePlayerTicketsStatus("familiares")} disabled={loading} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                      {loading ? "Cambiando..." : "Cambiar Todos a Ticket Familiar"}
                     </button>
                   )}
                 </div>

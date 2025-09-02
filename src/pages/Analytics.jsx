@@ -173,7 +173,7 @@ import { toast } from 'sonner';
         {/* Stats Cards */}
         <div className="grid max-md:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           {stats.map((stat, idx) => (
-            <div className="flex items-center gap-4 px-4 py-6 bg-[#0f131b] border border-[#23283a] p-4 rounded-lg">
+            <div key={stat.label || idx} className="flex items-center gap-4 px-4 py-6 bg-[#0f131b] border border-[#23283a] p-4 rounded-lg">
                 <div className="flex items-center gap-2 bg-[#7c3bed]/20 p-2 rounded-lg">
                     {stat.icon}
                 </div>
@@ -219,8 +219,8 @@ import { toast } from 'sonner';
                   outerRadius={90}
                   paddingAngle={4}
                 >
-                  {pieData.map((entry, idx) => (
-                    <Cell key={idx} fill={entry.color} />
+                  {pieData.map((entry) => (
+                    <Cell key={`cell-${entry.name}`} fill={entry.color} />
                   ))}
                 </Pie>
                 <Legend
@@ -232,7 +232,7 @@ import { toast } from 'sonner';
             </ResponsiveContainer>
             <div className="flex gap-4 mt-2 justify-center text-xs">
               {pieData.map((d, i) => (
-                <span key={i} className="flex items-center gap-1">
+                <span key={d.name} className="flex items-center gap-1">
                   <span className="inline-block w-3 h-3 rounded-full" style={{ background: d.color }} />
                   <span className="text-white">{d.name} ({d.value})</span>
                 </span>
@@ -255,7 +255,7 @@ import { toast } from 'sonner';
               </thead>
               <tbody className="bg-[#0f131b] divide-y divide-[#23283a]">
                 {topRaffles.map((raffle, idx) => (
-                  <tr key={idx}>
+                  <tr key={raffle.name || idx}>
                     <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-white">{raffle.name}</td>
                     <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-white">{raffle.tickets}</td>
                     <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-white">${new Intl.NumberFormat().format(raffle.revenue)}</td>
