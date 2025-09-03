@@ -79,8 +79,8 @@ export function Rifas() {
       </div>
 
       {/* Filtros y buscador */}
-      <div className="flex items-center gap-4 mb-8">
-        <div className="relative flex-1 max-w-xs">
+      <div className="max-md:grid max-md:grid-cols-1 min-md:flex gap-4 mb-8">
+        <div className="relative flex-1 max-w-prose">
           <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -90,16 +90,23 @@ export function Rifas() {
             className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#181c24] border border-[#23283a] text-white focus:outline-none focus:border-[#7c3bed] transition"
           />
         </div>
-        <button
-          onClick={() => handleFilterChange("all")}
-          className={`px-4 py-2 rounded-lg text-xs font-semibold ${filter === "all" ? "bg-[#7c3bed] text-white" : "bg-[#23283a] text-white border border-[#7c3bed]"}`}>
-          Todos
-        </button>
-        <button
-          onClick={() => handleFilterChange("featured")}
-          className={`px-4 py-2 rounded-lg text-xs font-semibold ${filter === "featured" ? "bg-[#d54ff9] text-white" : "bg-[#23283a] text-white border border-[#d54ff9]"}`}>
-          Destacadas
-        </button>
+        <div className="grid grid-cols-3 gap-4">
+          <button
+            onClick={() => handleFilterChange("all")}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold ${filter === "all" ? "bg-[#7c3bed] text-white" : "bg-[#23283a] text-white border border-[#7c3bed]"}`}>
+            Todos
+          </button>
+          <button
+            onClick={() => handleFilterChange("featured")}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold ${filter === "featured" ? "bg-[#d54ff9] text-white" : "bg-[#23283a] text-white border border-[#d54ff9]"}`}>
+            Destacadas
+          </button>
+          <button
+            onClick={() => handleFilterChange("finished")}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold ${filter === "finished" ? "bg-[#d54ff9] text-white" : "bg-[#23283a] text-white border border-[#d54ff9]"}`}>
+            Finalizadas
+          </button>
+        </div>
       </div>
 
       {/* Cards de rifas */}

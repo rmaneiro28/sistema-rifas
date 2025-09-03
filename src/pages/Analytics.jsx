@@ -243,26 +243,43 @@ import { toast } from 'sonner';
   
         {/* Top Performing Raffles */}
         <div className="bg-[#0f131b] border border-[#23283a] p-4 rounded-lg">
-          <h2 className="text-white text-lg font-bold mb-2">Top Performing Raffles</h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-[#23283a]">
-              <thead className="bg-[#0f131b]">
+          <h2 className="text-white text-lg font-bold mb-4">Rifas con mejor rendimiento</h2>
+          {/* Desktop Table */}
+          <div className="overflow-x-auto hidden md:block">
+            <table className="min-w-full">
+              <thead>
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Raffle Name</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tickets Sold</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Nombre de la Rifa</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Tickets Vendidos</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Ingresos</th>
                 </tr>
               </thead>
-              <tbody className="bg-[#0f131b] divide-y divide-[#23283a]">
+              <tbody className="divide-y divide-[#23283a]">
                 {topRaffles.map((raffle, idx) => (
                   <tr key={raffle.name || idx}>
-                    <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-white">{raffle.name}</td>
-                    <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-white">{raffle.tickets}</td>
-                    <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-white">${new Intl.NumberFormat().format(raffle.revenue)}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-white">{raffle.name}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-300 text-right">{raffle.tickets}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-green-400 text-right">${new Intl.NumberFormat().format(raffle.revenue)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+          {/* Mobile Cards */}
+          <div className="md:hidden space-y-3">
+            {topRaffles.map((raffle, idx) => (
+              <div key={raffle.name || idx} className="bg-[#181c24] p-4 rounded-lg">
+                <h3 className="text-white font-semibold truncate mb-2">{raffle.name}</h3>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Tickets Vendidos:</span>
+                  <span className="text-white">{raffle.tickets}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Ingresos:</span>
+                  <span className="text-green-400 font-bold">${new Intl.NumberFormat().format(raffle.revenue)}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

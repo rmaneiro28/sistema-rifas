@@ -1,19 +1,14 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import {
   ArrowDownTrayIcon,
+  ChevronDownIcon,
   ClockIcon,
-  PencilSquareIcon,
-  TrashIcon,
   XMarkIcon,
   UserIcon,
-  EnvelopeIcon,
-  PhoneIcon,
-  CurrencyDollarIcon,
+  TicketIcon,
 } from "@heroicons/react/24/outline";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
-import { TicketList } from "./../components/TicketList";
-import { RequestList } from "./../components/RequestList";
 import { RequestModal } from "./../components/RequestModal";
 import { Pagination } from "./../components/Pagination";
 import { SearchAndFilter } from "./../components/SearchAndFilter";
@@ -118,7 +113,7 @@ export function Tickets() {
     [filteredTickets.length, pageSize]
   );
 
-  const pendingRequestsCount = useMemo(() => 
+  const pendingRequestsCount = useMemo(() =>
     paymentRequests.filter(req => req.estado === "pendiente").length,
     [paymentRequests]
   );
@@ -149,55 +144,55 @@ export function Tickets() {
 
   // Fetch tickets
   const fetchAndGroupTickets = useCallback(async () => {
-      if (activeTab !== "tickets") return;
+    if (activeTab !== "tickets") return;
 
-      setLoading(true);
+    setLoading(true);
 
-      try {
-        let query = supabase.from("vw_tickets").select("*");
+    try {
+      let query = supabase.from("vw_tickets").select("*");
 
-        if (selectedRaffle !== "all") {
-          query = query.eq("rifa_id", selectedRaffle);
-        }
-
-        const { data, error } = await query;
-
-        if (error) throw error;
-
-        const groups = (data || []).reduce((acc, ticket) => {
-          if (!ticket.jugador_id) return acc;
-
-          const playerId = ticket.jugador_id;
-          if (!acc[playerId]) {
-            acc[playerId] = {
-              jugador_id: ticket.jugador_id,
-              nombre_jugador: ticket.nombre_jugador,
-              email_jugador: ticket.email_jugador,
-              telefono_jugador: ticket.telefono_jugador,
-              tickets: [],
-              total_gastado: 0,
-            };
-          }
-          acc[playerId].tickets.push(ticket);
-          acc[playerId].total_gastado += ticket.precio_ticket;
-          return acc;
-        }, {});
-
-        setGroupedTickets(Object.values(groups));
-      } catch (error) {
-        console.error("Error fetching tickets:", error);
-        toast.error("Error al cargar los tickets");
-        setGroupedTickets([]);
-      } finally {
-        setLoading(false);
+      if (selectedRaffle !== "all") {
+        query = query.eq("rifa_id", selectedRaffle);
       }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      const groups = (data || []).reduce((acc, ticket) => {
+        if (!ticket.jugador_id) return acc;
+
+        const playerId = ticket.jugador_id;
+        if (!acc[playerId]) {
+          acc[playerId] = {
+            jugador_id: ticket.jugador_id,
+            nombre_jugador: ticket.nombre_jugador,
+            email_jugador: ticket.email_jugador,
+            telefono_jugador: ticket.telefono_jugador,
+            tickets: [],
+            total_gastado: 0,
+          };
+        }
+        acc[playerId].tickets.push(ticket);
+        acc[playerId].total_gastado += ticket.precio_ticket;
+        return acc;
+      }, {});
+
+      setGroupedTickets(Object.values(groups));
+    } catch (error) {
+      console.error("Error fetching tickets:", error);
+      toast.error("Error al cargar los tickets");
+      setGroupedTickets([]);
+    } finally {
+      setLoading(false);
     }
-  , [activeTab, selectedRaffle]);
+  }
+    , [activeTab, selectedRaffle]);
 
   useEffect(() => {
     fetchAndGroupTickets();
   }, [fetchAndGroupTickets]);
-  
+
   // Fetch payment requests
   useEffect(() => {
     async function fetchPaymentRequests() {
@@ -374,6 +369,16 @@ export function Tickets() {
     setCurrentPage(1);
   }, []);
 
+  const handleRowClick = (e, group) => {
+    if (e.target.closest('button')) return;
+    toggleGroup(group.jugador_id);
+  };
+
+  const SortIndicator = ({ direction }) => {
+    if (!direction) return null;
+    return direction === 'asc' ? ' ▲' : ' ▼';
+  };
+
   return (
     <div>
       <div className="flex mb-6 max-sm:flex-col min-md:flex-row min-md:items-center min-md:justify-between gap-4">
@@ -426,17 +431,99 @@ export function Tickets() {
             onRaffleChange={setSelectedRaffle}
             rafflesList={rafflesList}
           />
+          {/* START: Responsive Ticket List */}
+          <div className="mt-8">
+            {/* Desktop Header */}
+            <div className="hidden lg:flex items-center px-4 py-2 text-xs text-gray-400 font-semibold border-b border-[#23283a] bg-[#0f131b] rounded-t-lg">
+              <div className="flex-1 cursor-pointer hover:text-white" onClick={() => handleSort('nombre_jugador')}>
+                Jugador
+                {sortConfig.key === 'nombre_jugador' && <SortIndicator direction={sortConfig.direction} />}
+              </div>
+              <div className="w-32 text-center cursor-pointer hover:text-white" onClick={() => handleSort('total_tickets')}>
+                Total Tickets
+                {sortConfig.key === 'total_tickets' && <SortIndicator direction={sortConfig.direction} />}
+              </div>
+              <div className="w-32 text-center cursor-pointer hover:text-white" onClick={() => handleSort('total_gastado')}>
+                Total Gastado
+                {sortConfig.key === 'total_gastado' && <SortIndicator direction={sortConfig.direction} />}
+              </div>
+              <div className="w-24 text-right">Acciones</div>
+            </div>
 
-          <TicketList
-            loading={loading}
-            paginatedGroups={paginatedGroups}
-            expandedGroups={expandedGroups}
-            sortConfig={sortConfig}
-            onSort={handleSort}
-            onToggleGroup={toggleGroup}
-            onTicketClick={handleTicketClick}
-            formatTelephone={formatTelephone}
-          />
+            {/* List of Tickets (Cards on mobile, Rows on desktop) */}
+            {loading ? (
+              <div className="text-center py-12 text-gray-400">Cargando tickets...</div>
+            ) : paginatedGroups.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 bg-[#141821] lg:bg-transparent border border-[#23283a] lg:border-t-0 rounded-xl lg:rounded-t-none">No se encontraron tickets.</div>
+            ) : (
+              <div className="space-y-4 lg:space-y-0">
+                {paginatedGroups.map((group) => (
+                  <div key={group.jugador_id} className="bg-[#141821] lg:bg-transparent border border-[#23283a] rounded-xl lg:rounded-none overflow-hidden lg:border-b lg:border-[#23283a]">
+                    {/* Card Header for Mobile / Table Row for Desktop */}
+                    <div
+                      className="flex flex-col lg:flex-row lg:items-center p-4 cursor-pointer hover:bg-[#1a1f2e]/50 transition-colors"
+                      onClick={() => toggleGroup(group.jugador_id)}
+                    >
+                      {/* Player Info */}
+                      <div className="flex-1 flex items-center space-x-4 mb-4 lg:mb-0">
+                        <div className="w-10 h-10 bg-gradient-to-tr from-[#7c3bed] to-[#d54ff9] rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+                          {group.nombre_jugador.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="font-semibold text-white truncate">{group.nombre_jugador}</h3>
+                          <p className="text-sm text-gray-400 truncate">{group.email_jugador || 'Sin email'}</p>
+                        </div>
+                      </div>
+
+                      {/* Stats */}
+                      <div className="w-full lg:w-auto grid grid-cols-2 lg:flex lg:items-center lg:space-x-8 text-sm">
+                        <div className="lg:w-32 text-center">
+                          <span className="text-gray-400 lg:hidden">Tickets: </span>
+                          <span className="text-white font-medium">{group.tickets.length}</span>
+                        </div>
+                        <div className="lg:w-32 text-center">
+                          <span className="text-gray-400 lg:hidden">Gastado: </span>
+                          <span className="text-green-400 font-semibold">${group.total_gastado.toFixed(2)}</span>
+                        </div>
+                        <div className="lg:w-24 flex justify-end items-center col-span-2 mt-4 lg:mt-0">
+                          <ChevronDownIcon
+                            className={`w-5 h-5 text-gray-400 transition-transform ${expandedGroups[group.jugador_id] ? "transform rotate-180" : ""}`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expanded Content */}
+                    {expandedGroups[group.jugador_id] && (
+                      <div className="p-4 border-t border-[#23283a] bg-[#0f131b]">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                          {group.tickets.map((ticket) => (
+                            <div
+                              key={ticket.ticket_id}
+                              onClick={() => handleTicketClick(ticket)}
+                              className="bg-[#23283a] p-3 rounded-lg cursor-pointer hover:bg-[#7c3bed]/20 transition-all text-center"
+                            >
+                              <p className="text-white font-bold text-lg">#{ticket.numero_ticket}</p>
+                              <p className="text-xs text-gray-400 truncate">{ticket.nombre_rifa}</p>
+                              <span
+                                className={`mt-2 inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${ticket.estado === 'pagado'
+                                  ? 'bg-green-500/20 text-green-400'
+                                  : 'bg-yellow-500/20 text-yellow-400'
+                                  }`}
+                              >
+                                {ticket.estado}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* END: Responsive Ticket List */}
 
           <Pagination
             currentPage={currentPage}
@@ -448,13 +535,53 @@ export function Tickets() {
           />
         </>
       ) : (
-        <RequestList
-          loading={loadingRequests}
-          paymentRequests={paymentRequests}
-          onApproveRequest={approvePaymentRequest}
-          onRejectRequest={rejectPaymentRequest}
-          onViewRequest={openRequestModal}
-        />
+        <div className="mt-8">
+          {loadingRequests ? (
+            <div className="text-center py-12 text-gray-400">Cargando solicitudes...</div>
+          ) : paymentRequests.length === 0 ? (
+            <div className="text-center py-16 text-gray-400 bg-[#141821] rounded-xl">
+              <TicketIcon className="w-12 h-12 mx-auto text-gray-500 mb-4" />
+              <h3 className="text-lg font-semibold text-white">No hay solicitudes de pago</h3>
+              <p className="text-sm">Actualmente no hay solicitudes pendientes.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {paymentRequests.map(request => (
+                <div key={request.id} className="bg-[#141821] border border-[#23283a] rounded-xl p-5 flex flex-col justify-between shadow-lg hover:border-[#7c3bed] transition-colors">
+                  <div>
+                    <div className="flex justify-between items-start mb-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${request.estado === 'pendiente' ? 'bg-yellow-500/20 text-yellow-300' :
+                        request.estado === 'aprobado' ? 'bg-green-500/20 text-green-400' :
+                          'bg-red-500/20 text-red-400'
+                        }`}>
+                        {request.estado}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {new Date(request.fecha_solicitud).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+                    {request.ticket ? (
+                      <>
+                        <h3 className="text-lg font-bold text-white">Ticket #{request.ticket.numero_ticket}</h3>
+                        <p className="text-sm text-gray-300 mb-1">{request.ticket.nombre_rifa}</p>
+                        <div className="flex items-center text-sm text-gray-400 mt-2">
+                          <UserIcon className="w-4 h-4 mr-2" />
+                          <span>{request.ticket.nombre_jugador}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-red-400">Detalles del ticket no disponibles.</p>
+                    )}
+                    <p className="text-green-400 font-bold text-2xl mt-4">${request.ticket?.precio_ticket || '0.00'}</p>
+                  </div>
+                  <div className="mt-5 pt-4 border-t border-[#23283a] flex gap-3">
+                    <button onClick={() => openRequestModal(request)} className="w-full bg-[#23283a] hover:bg-[#2d3748] text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Ver Detalles</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       <RequestModal

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BoltIcon, StarIcon, UserGroupIcon } from "@heroicons/react/24/outline";
+import { BoltIcon, StarIcon, UserGroupIcon, EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ export default function Login() {
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
   const [formType, setFormType] = useState("login");
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
@@ -21,7 +22,7 @@ export default function Login() {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Login successful!");
+      toast.success("¡Inicio de sesión exitoso!");
       navigate("/");
     }
   };
@@ -67,7 +68,7 @@ export default function Login() {
         if (userError) {
           toast.error(userError.message);
         } else {
-          toast.success("Sign up successful! Please check your email to verify your account.");
+          toast.success("¡Registro exitoso! Por favor, revisa tu correo para verificar tu cuenta.");
           setFormType("login");
         }
       }
@@ -88,12 +89,12 @@ export default function Login() {
           </div>
           <h1 className="text-2xl font-bold text-white mb-1">RifaPlus</h1>
         </div>
-        <h2 className="text-white text-xl font-semibold mb-2 text-center">{formType === 'login' ? 'Welcome back!' : 'Create an account'}</h2>
-        <p className="text-gray-400 text-center mb-4 text-sm">{formType === 'login' ? 'Sign in to your account to continue' : 'Fill in the details to sign up'}</p>
+        <h2 className="text-white text-xl font-semibold mb-2 text-center">{formType === 'login' ? '¡Bienvenido de nuevo!' : 'Crear una cuenta'}</h2>
+        <p className="text-gray-400 text-center mb-4 text-sm">{formType === 'login' ? 'Inicia sesión en tu cuenta para continuar' : 'Completa los detalles para registrarte'}</p>
         <div className="flex justify-center gap-4 mb-6 text-xs">
-          <span className="flex items-center gap-1 text-[#7c3bed]"><BoltIcon className="w-4 h-4" /> Instant</span>
-          <span className="flex items-center gap-1 text-yellow-400"><StarIcon className="w-4 h-4" /> Secure</span>
-          <span className="flex items-center gap-1 text-green-400"><UserGroupIcon className="w-4 h-4" /> Fun</span>
+          <span className="flex items-center gap-1 text-[#7c3bed]"><BoltIcon className="w-4 h-4" /> Instantáneo</span>
+          <span className="flex items-center gap-1 text-yellow-400"><StarIcon className="w-4 h-4" /> Seguro</span>
+          <span className="flex items-center gap-1 text-green-400"><UserGroupIcon className="w-4 h-4" /> Divertido</span>
         </div>
         <form className="space-y-5" onSubmit={formType === 'login' ? handleLogin : handleSignUp}>
           {formType === 'signup' && (
@@ -103,7 +104,7 @@ export default function Login() {
                 <input
                   type="text"
                   className="w-full rounded-lg bg-[#181c24] border border-[#23283a] px-4 py-3 text-white focus:outline-none focus:border-[#7c3bed] transition"
-                  placeholder="Enter your name"
+                  placeholder="Ingresa tu nombre"
                   value={nombre}
                   onChange={e => setNombre(e.target.value)}
                 />
@@ -113,7 +114,7 @@ export default function Login() {
                 <input
                   type="text"
                   className="w-full rounded-lg bg-[#181c24] border border-[#23283a] px-4 py-3 text-white focus:outline-none focus:border-[#7c3bed] transition"
-                  placeholder="Enter your last name"
+                  placeholder="Ingresa tu apellido"
                   value={apellido}
                   onChange={e => setApellido(e.target.value)}
                 />
@@ -121,44 +122,57 @@ export default function Login() {
             </>
           )}
           <div>
-            <label className="block text-white text-sm mb-1">Email</label>
+            <label className="block text-white text-sm mb-1">Correo electrónico</label>
             <input
               type="email"
               className="w-full rounded-lg bg-[#181c24] border border-[#23283a] px-4 py-3 text-white focus:outline-none focus:border-[#7c3bed] transition"
-              placeholder="Enter your email"
+              placeholder="Ingresa tu correo electrónico"
               value={email}
               onChange={e => setEmail(e.target.value)}
             />
           </div>
           <div>
-            <label className="block text-white text-sm mb-1">Password</label>
-            <input
-              type="password"
-              className="w-full rounded-lg bg-[#181c24] border border-[#23283a] px-4 py-3 text-white focus:outline-none focus:border-[#7c3bed] transition"
-              placeholder="Enter your password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-            />
+            <label className="block text-white text-sm mb-1">Contraseña</label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                className="w-full rounded-lg bg-[#181c24] border border-[#23283a] px-4 py-3 text-white focus:outline-none focus:border-[#7c3bed] transition pr-10"
+                placeholder="Ingresa tu contraseña"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-white"
+              >
+                {showPassword ? (
+                  <EyeSlashIcon className="h-5 w-5" />
+                ) : (
+                  <EyeIcon className="h-5 w-5" />
+                )}
+              </button>
+            </div>
           </div>
           {formType === 'login' && (
             <div className="flex items-center justify-between text-xs text-gray-400">
               <label className="flex items-center">
                 <input type="checkbox" className="mr-2 accent-[#7c3bed]" />
-                Remember me
+                Recuérdame
               </label>
-              <a href="#" className="text-[#7c3bed] hover:underline">Forgot password?</a>
+              <a href="#" className="text-[#7c3bed] hover:underline">¿Olvidaste tu contraseña?</a>
             </div>
           )}
           <button
             type="submit"
             className="w-full bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] hover:from-[#6b2bd1] hover:to-[#b03be2] text-white font-semibold py-3 rounded-lg transition"
           >
-            {formType === 'login' ? 'Sign In' : 'Sign Up'}
+            {formType === 'login' ? 'Iniciar Sesión' : 'Registrarse'}
           </button>
         </form>
         <div className="flex items-center my-6">
           <div className="flex-grow border-t border-[#23283a]" />
-          <span className="mx-4 text-gray-500 text-xs">OR CONTINUE WITH</span>
+          <span className="mx-4 text-gray-500 text-xs">O CONTINUAR CON</span>
           <div className="flex-grow border-t border-[#23283a]" />
         </div>
         <div className="flex gap-4">
@@ -170,9 +184,9 @@ export default function Login() {
           </button>
         </div>
         <div className="mt-6 text-center text-gray-400 text-sm">
-          {formType === 'login' ? "Don't have an account?" : "Already have an account?"}
-          <button onClick={() => setFormType(formType === 'login' ? 'signup' : 'login')} className="text-[#7c3bed] hover:underline">
-            {formType === 'login' ? 'Sign up' : 'Sign in'}
+          {formType === 'login' ? "¿No tienes una cuenta?" : "¿Ya tienes una cuenta?"}
+          <button onClick={() => setFormType(formType === 'login' ? 'signup' : 'login')} className="text-[#7c3bed] hover:underline ml-1">
+            {formType === 'login' ? 'Regístrate' : 'Inicia sesión'}
           </button>
         </div>
       </div>
