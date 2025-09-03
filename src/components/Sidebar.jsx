@@ -26,8 +26,8 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
     }
   }
 
-  return ( // Added overflow-hidden to the parent to prevent scrollbars from appearing during transition
-    <aside className={`fixed inset-y-0 left-0 z-30 w-64 h-screen bg-[#131620] text-white flex flex-col p-4 border-r border-r-[#1f2937] transform ${sidebarOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full'} transition-transform duration-300 ease-in-out overflow-hidden`} id="sidebar">
+  return ( 
+    <aside className={`fixed inset-y-0 left-0 z-30 w-64 h-full bg-[#131620] text-white flex flex-col  p-4 border-r border-r-[#1f2937] transform ${sidebarOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full'} transition-transform duration-300 ease-in-out overflow-hidden`} id="sidebar">
 
       {/* Premium Section */}
       <div>
@@ -48,12 +48,12 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
           </button>
         </div>
 
-        <div className="flex items-center justify-center w-full ">
-          <img src={LogoSistema} className="w-30 h-30 mb-0" alt="Logo RifasPlus" />
+        <div className="flex items-center  justify-center pt-6 w-full ">
+          <img src={LogoSistema} className="w-40 h-20 rounded-lg object-cover object-center mb-0" alt="Logo RifasPlus" />
         </div>
       </div>
       {/* Scrollable Navigation Area */}
-      <div className="flex-1 overflow-y-auto my-4 pr-2 -mr-4">
+      <div className="flex-1 overflow-y-auto pr-2 -mr-4">
           {/* Main Section */}
           <div className="mt-5">
             <div className="text-xs font-semibold text-[#7c3bed] tracking-wider mb-3">

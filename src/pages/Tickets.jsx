@@ -431,64 +431,68 @@ export function Tickets() {
             onRaffleChange={setSelectedRaffle}
             rafflesList={rafflesList}
           />
-          {/* START: Responsive Ticket List */}
-          <div className="mt-8">
-            {/* Desktop Header */}
-            <div className="hidden lg:flex items-center px-4 py-2 text-xs text-gray-400 font-semibold border-b border-[#23283a] bg-[#0f131b] rounded-t-lg">
-              <div className="flex-1 cursor-pointer hover:text-white" onClick={() => handleSort('nombre_jugador')}>
-                Jugador
-                {sortConfig.key === 'nombre_jugador' && <SortIndicator direction={sortConfig.direction} />}
-              </div>
-              <div className="w-32 text-center cursor-pointer hover:text-white" onClick={() => handleSort('total_tickets')}>
-                Total Tickets
-                {sortConfig.key === 'total_tickets' && <SortIndicator direction={sortConfig.direction} />}
-              </div>
-              <div className="w-32 text-center cursor-pointer hover:text-white" onClick={() => handleSort('total_gastado')}>
-                Total Gastado
-                {sortConfig.key === 'total_gastado' && <SortIndicator direction={sortConfig.direction} />}
-              </div>
-              <div className="w-24 text-right">Acciones</div>
+          {/* Controles de Ordenamiento */}
+          <div className="hidden md:flex items-center justify-between mt-6 mb-4">
+            <p className="text-sm text-gray-400">
+              Mostrando <span className="font-bold text-white">{filteredTickets.length}</span> grupos de tickets.
+            </p>
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <span className="font-semibold">Ordenar por:</span>
+              <button className={`px-3 py-1 rounded-md transition-colors ${sortConfig.key === 'nombre_jugador' ? 'bg-[#23283a] text-white' : 'hover:bg-[#23283a]'}`} onClick={() => handleSort('nombre_jugador')}>
+                Jugador {sortConfig.key === 'nombre_jugador' && <SortIndicator direction={sortConfig.direction} />}
+              </button>
+              <button className={`px-3 py-1 rounded-md transition-colors ${sortConfig.key === 'total_tickets' ? 'bg-[#23283a] text-white' : 'hover:bg-[#23283a]'}`} onClick={() => handleSort('total_tickets')}>
+                Tickets {sortConfig.key === 'total_tickets' && <SortIndicator direction={sortConfig.direction} />}
+              </button>
+              <button className={`px-3 py-1 rounded-md transition-colors ${sortConfig.key === 'total_gastado' ? 'bg-[#23283a] text-white' : 'hover:bg-[#23283a]'}`} onClick={() => handleSort('total_gastado')}>
+                Gastado {sortConfig.key === 'total_gastado' && <SortIndicator direction={sortConfig.direction} />}
+              </button>
             </div>
+          </div>
 
+          {/* START: Responsive Ticket List */}
+          <div className="mt-4 md:mt-0">
             {/* List of Tickets (Cards on mobile, Rows on desktop) */}
             {loading ? (
               <div className="text-center py-12 text-gray-400">Cargando tickets...</div>
             ) : paginatedGroups.length === 0 ? (
-              <div className="text-center py-12 text-gray-400 bg-[#141821] lg:bg-transparent border border-[#23283a] lg:border-t-0 rounded-xl lg:rounded-t-none">No se encontraron tickets.</div>
+              <div className="text-center py-16 text-gray-400 bg-[#141821] border border-[#23283a] rounded-xl">No se encontraron tickets.</div>
             ) : (
-              <div className="space-y-4 lg:space-y-0">
+              <div className="grid max-md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-4">
                 {paginatedGroups.map((group) => (
-                  <div key={group.jugador_id} className="bg-[#141821] lg:bg-transparent border border-[#23283a] rounded-xl lg:rounded-none overflow-hidden lg:border-b lg:border-[#23283a]">
-                    {/* Card Header for Mobile / Table Row for Desktop */}
+                  <div key={group.jugador_id} className="bg-[#141821] border border-[#23283a] rounded-xl flex flex-col overflow-hidden transition-all duration-300 hover:border-[#7c3bed]/50 hover:shadow-lg">
+                    {/* Card content */}
                     <div
-                      className="flex flex-col lg:flex-row lg:items-center p-4 cursor-pointer hover:bg-[#1a1f2e]/50 transition-colors"
+                      className="p-4 cursor-pointer flex-1"
                       onClick={() => toggleGroup(group.jugador_id)}
                     >
-                      {/* Player Info */}
-                      <div className="flex-1 flex items-center space-x-4 mb-4 lg:mb-0">
-                        <div className="w-10 h-10 bg-gradient-to-tr from-[#7c3bed] to-[#d54ff9] rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-                          {group.nombre_jugador.charAt(0).toUpperCase()}
+                      {/* Top part: Player info + chevron */}
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-4 min-w-0">
+                          <div className="w-10 h-10 bg-gradient-to-tr from-[#7c3bed] to-[#d54ff9] rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+                            {group.nombre_jugador.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="font-semibold text-white truncate">{group.nombre_jugador}</h3>
+                            <p className="text-sm text-gray-400 truncate">{group.email_jugador || 'Sin email'}</p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <h3 className="font-semibold text-white truncate">{group.nombre_jugador}</h3>
-                          <p className="text-sm text-gray-400 truncate">{group.email_jugador || 'Sin email'}</p>
-                        </div>
-                      </div>
-
-                      {/* Stats */}
-                      <div className="w-full lg:w-auto grid grid-cols-2 lg:flex lg:items-center lg:space-x-8 text-sm">
-                        <div className="lg:w-32 text-center">
-                          <span className="text-gray-400 lg:hidden">Tickets: </span>
-                          <span className="text-white font-medium">{group.tickets.length}</span>
-                        </div>
-                        <div className="lg:w-32 text-center">
-                          <span className="text-gray-400 lg:hidden">Gastado: </span>
-                          <span className="text-green-400 font-semibold">${group.total_gastado.toFixed(2)}</span>
-                        </div>
-                        <div className="lg:w-24 flex justify-end items-center col-span-2 mt-4 lg:mt-0">
+                        <div className="p-1 rounded-full hover:bg-[#23283a] transition-colors -mt-1 -mr-1 flex-shrink-0">
                           <ChevronDownIcon
                             className={`w-5 h-5 text-gray-400 transition-transform ${expandedGroups[group.jugador_id] ? "transform rotate-180" : ""}`}
                           />
+                        </div>
+                      </div>
+
+                      {/* Bottom part: Stats */}
+                      <div className="mt-4 pt-4 border-t border-[#23283a] grid grid-cols-2 gap-4 text-center">
+                        <div>
+                          <p className="text-xs text-gray-400">Tickets</p>
+                          <p className="text-white font-semibold">{group.tickets.length}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400">Gastado</p>
+                          <p className="text-green-400 font-semibold">${group.total_gastado.toFixed(2)}</p>
                         </div>
                       </div>
                     </div>
@@ -496,7 +500,7 @@ export function Tickets() {
                     {/* Expanded Content */}
                     {expandedGroups[group.jugador_id] && (
                       <div className="p-4 border-t border-[#23283a] bg-[#0f131b]">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                           {group.tickets.map((ticket) => (
                             <div
                               key={ticket.ticket_id}
@@ -545,7 +549,7 @@ export function Tickets() {
               <p className="text-sm">Actualmente no hay solicitudes pendientes.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid max-md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {paymentRequests.map(request => (
                 <div key={request.id} className="bg-[#141821] border border-[#23283a] rounded-xl p-5 flex flex-col justify-between shadow-lg hover:border-[#7c3bed] transition-colors">
                   <div>
@@ -674,22 +678,41 @@ export function Tickets() {
                     </div>
                   </div>
 
-                  {/* Información de la Rifa y Jugador */}
+                  {/* Información del Jugador */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
                       <UserIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />
-                      Información Adicional
+                      Información del Jugador
                     </h3>
-
                     <div className="bg-[#23283a] rounded-lg p-4 space-y-3">
-                      <h4 className="text-white font-medium mb-2">Rifa</h4>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Nombre:</span>
+                        <span className="text-white font-medium">{selectedTicket.nombre_jugador || 'No asignado'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Email:</span>
+                        <span className="text-white">{selectedTicket.email_jugador || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Teléfono:</span>
+                        <span className="text-white">{formatTelephone(selectedTicket.telefono_jugador)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Información de la Rifa */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                      <TicketIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />
+                      Información de la Rifa
+                    </h3>
+                    <div className="bg-[#23283a] rounded-lg p-4">
                       <div className="flex justify-between items-center">
                         <span className="text-gray-400">Nombre:</span>
                         <span className="text-white font-medium">{selectedTicket.nombre_rifa}</span>
                       </div>
                     </div>
                   </div>
-
                   <div className="flex justify-end items-center gap-5">
                     <button className="bg-[#7c3bed] px-4 py-2 rounded-md text-white" onClick={() => handleEditTicket(selectedTicket)}>Editar</button>
                     <button className="bg-red-500 px-4 py-2 rounded-md text-white" onClick={() => handleDeleteTicket(selectedTicket)}>Eliminar</button>

@@ -254,6 +254,8 @@ export function DetalleRifa() {
       tickets: playerTickets.sort((a, b) => a.numero - b.numero)
     });
 
+    setSelectedTicketForDetail(ticket);
+
     setShowPlayerGroupModal(true);
     setTimeout(() => setIsPlayerGroupModalAnimating(true), 10);
   };
@@ -1288,8 +1290,13 @@ Has participado en la rifa *${rifa}*.
           <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-[#181c24] border-l border-[#23283a] shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isPlayerGroupModalAnimating ? 'translate-x-0' : 'translate-x-full'}`}>
             <div className="flex flex-col h-full">
               {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b border-[#23283a]">
-                <h2 className="text-xl font-bold text-white">Detalles del Ticket #{selectedTicketForDetail.numero}</h2>
+              <div className="flex items-center justify-between p-6 border-b border-[#23283a] bg-[#0f131b]">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-[#7c3bed]/20 rounded-full flex items-center justify-center">
+                    <TicketIcon className="w-6 h-6 text-[#7c3bed]" />
+                  </div>
+                  <h2 className="text-xl font-bold text-white">Detalles del Ticket #{selectedTicketForDetail.numero}</h2>
+                </div>
                 <button onClick={closePlayerGroupModal} className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-[#23283a]">
                   <XMarkIcon className="w-6 h-6" />
                 </button>
@@ -1298,38 +1305,74 @@ Has participado en la rifa *${rifa}*.
               {/* Content */}
               <div className="flex-1 p-6 overflow-y-auto">
                 <div className="space-y-6">
+
                   {/* Ticket Info */}
-                  <div className="bg-[#23283a] rounded-lg p-4">
-                    <div className="flex items-center space-x-3 mb-3">
-                      <TicketIcon className="w-5 h-5 text-[#7c3bed]" />
-                      <span className="text-sm text-gray-400">Información del Ticket</span>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Jugador:</span>
-                        <span className="text-white font-medium">{selectedTicketForDetail.nombre_jugador || 'No asignado'}</span>
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-white flex items-center">
+                      <TicketIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />
+                      Información del Ticket
+                    </h3>
+                    <div className="bg-[#23283a] rounded-lg p-4 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Número:</span>
+                        <span className="text-white font-bold text-lg">#{selectedTicketForDetail.numero}</span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Precio:</span>
+                        <span className="text-white font-bold">${rifa?.precio_ticket}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
                         <span className="text-gray-400">Estado:</span>
                         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${filterOptions.find(f => f.key === selectedTicketForDetail.estado)?.color || 'bg-gray-500'} ${filterOptions.find(f => f.key === selectedTicketForDetail.estado)?.textColor || 'text-white'}`}>
                           {selectedTicketForDetail.estado}
                         </span>
                       </div>
+                      {(selectedTicketForDetail.fecha_creacion_ticket || selectedTicketForDetail.created_at) && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">Fecha de compra:</span>
+                          <span className="text-white text-sm">
+                            {new Date(selectedTicketForDetail.fecha_creacion_ticket || selectedTicketForDetail.created_at).toLocaleString('es-ES')}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
+                  {/* Player Info */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-white flex items-center">
+                      <UserIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />
+                      Información del Jugador
+                    </h3>
+                    <div className="bg-[#23283a] rounded-lg p-4 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Nombre:</span>
+                        <span className="text-white font-medium">{selectedPlayerGroup.info.nombre_jugador || 'No asignado'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Email:</span>
+                        <span className="text-white">{selectedPlayerGroup.info.email_jugador || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Teléfono:</span>
+                        <span className="text-white">{formatTelephone(selectedPlayerGroup.info.telefono_jugador)}</span>
+                      </div>
+                    </div>
+                  </div>
                   {/* Other tickets from this player */}
                   {selectedPlayerGroup.tickets.filter(t => t.numero !== selectedTicketForDetail.numero).length > 0 && (
-                    <div className="bg-[#23283a] rounded-lg p-4">
-                      <h4 className="text-sm text-gray-400 mb-3">Otros números de este jugador</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedPlayerGroup.tickets
-                          .filter(t => t.numero !== selectedTicketForDetail.numero)
-                          .map(ticket => (
-                            <span key={ticket.numero} className={`px-3 py-1.5 rounded-lg text-sm font-mono font-bold ${filterOptions.find(f => f.key === ticket.estado)?.color || 'bg-gray-600'} ${filterOptions.find(f => f.key === ticket.estado)?.textColor || 'text-white'}`}>
-                              {ticket.numero}
-                            </span>
-                          ))}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-white">Otros números de este jugador</h3>
+                      <div className="bg-[#23283a] rounded-lg p-4">
+                        <div className="flex flex-wrap gap-2">
+                          {selectedPlayerGroup.tickets
+                            .filter(t => t.numero !== selectedTicketForDetail.numero)
+                            .map(ticket => (
+                              <span key={ticket.numero} className={`px-3 py-1.5 rounded-lg text-sm font-mono font-bold ${filterOptions.find(f => f.key === ticket.estado)?.color || 'bg-gray-600'} ${filterOptions.find(f => f.key === ticket.estado)?.textColor || 'text-white'}`}>
+                                {ticket.numero}
+                              </span>
+                            ))}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1350,7 +1393,7 @@ Has participado en la rifa *${rifa}*.
                     Familiar
                   </button>
                   <button onClick={() => handleUpdateSingleTicketStatus("disponible")} disabled={loading} className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                    Anular (Liberar)
+                    Cancelar
                   </button>
                 </div>
               </div>

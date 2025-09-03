@@ -170,25 +170,6 @@ export default function Login() {
             {formType === 'login' ? 'Iniciar Sesión' : 'Registrarse'}
           </button>
         </form>
-        <div className="flex items-center my-6">
-          <div className="flex-grow border-t border-[#23283a]" />
-          <span className="mx-4 text-gray-500 text-xs">O CONTINUAR CON</span>
-          <div className="flex-grow border-t border-[#23283a]" />
-        </div>
-        <div className="flex gap-4">
-          <button className="flex-1 flex items-center justify-center gap-2 bg-[#181c24] border border-[#23283a] rounded-lg py-2 text-white hover:bg-[#23283a] transition">
-            <span className="text-[#7c3bed] font-bold">G</span> Google
-          </button>
-          <button className="flex-1 flex items-center justify-center gap-2 bg-[#181c24] border border-[#23283a] rounded-lg py-2 text-white hover:bg-[#23283a] transition">
-            <span className="text-[#7c3bed] font-bold">f</span> Facebook
-          </button>
-        </div>
-        <div className="mt-6 text-center text-gray-400 text-sm">
-          {formType === 'login' ? "¿No tienes una cuenta?" : "¿Ya tienes una cuenta?"}
-          <button onClick={() => setFormType(formType === 'login' ? 'signup' : 'login')} className="text-[#7c3bed] hover:underline ml-1">
-            {formType === 'login' ? 'Regístrate' : 'Inicia sesión'}
-          </button>
-        </div>
       </div>
     </div>
   );
