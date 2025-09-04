@@ -11,21 +11,24 @@ import {
   TrophyIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
+import { LoadingScreen } from "../components/LoadingScreen";
 
 export function Rifas() {
   const [search, setSearch] = useState("");
   const [raffles, setRaffles] = useState([]);
   const [filter, setFilter] = useState("all"); // all, featured
+  const [loading, setLoading] = useState(true);
 
   const fetchRaffles = async () => {
+    setLoading(true);
     let query = supabase.from("vw_rifas").select("*");
 
     if (filter === "featured") {
       query = query.eq("destacada", true);
     }
-
     const { data, error } = await query;
     if (!error) setRaffles(data);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -63,8 +66,12 @@ export function Rifas() {
     navigate(`/rifas/editar/${id}`);
   };
 
+  if (loading) {
+    return <LoadingScreen message="Cargando rifas..." />;
+  }
+
   return (
-    <div>
+    <div className="animate-fade-in">
       <div className="flex mb-6 max-sm:flex-col min-md:flex-row min-md:items-center min-md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent">Rifas</h1>
@@ -102,8 +109,8 @@ export function Rifas() {
             Destacadas
           </button>
           <button
-            onClick={() => handleFilterChange("finished")}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold ${filter === "finished" ? "bg-[#d54ff9] text-white" : "bg-[#23283a] text-white border border-[#d54ff9]"}`}>
+            onClick={() => handleFilterChange("finalizada")}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold ${filter === "finalizada" ? "bg-[#d54ff9] text-white" : "bg-[#23283a] text-white border border-[#d54ff9]"}`}>
             Finalizadas
           </button>
         </div>
@@ -125,6 +132,21 @@ export function Rifas() {
                   {raffle.estado === "activa" && (
                     <span className="bg-yellow-400/90 text-yellow-900 text-xs font-bold px-3 py-1 rounded-full shadow">
                       Activa
+                    </span>
+                  )}
+                  {raffle.estado === "finalizada" && (
+                    <span className="bg-red-400/90 text-red-900 text-xs font-bold px-3 py-1 rounded-full shadow">
+                      Finalizada
+                    </span>
+                  )}
+                  {raffle.estado === "vencida" && (
+                    <span className="bg-red-400/90 text-red-900 text-xs font-bold px-3 py-1 rounded-full shadow">
+                      Vencida
+                    </span>
+                  )}
+                  {raffle.destacada && (
+                    <span className="bg-green-400/90 text-green-900 text-xs font-bold px-3 py-1 rounded-full shadow">
+                      Destacada
                     </span>
                   )}
                 </div>

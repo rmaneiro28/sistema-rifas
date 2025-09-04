@@ -6,6 +6,7 @@ import { FiDollarSign } from 'react-icons/fi';
 import { useEffect, useState } from 'react';
 import { supabase } from '../api/supabaseClient';
 import { toast } from 'sonner';
+import { LoadingScreen } from '../components/LoadingScreen';
 
 export default function Analytics() {
   const [stats, setStats] = useState([
@@ -38,207 +39,212 @@ export default function Analytics() {
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [isPlayerModalAnimating, setIsPlayerModalAnimating] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
-      // --- PERIOD CALCULATION ---
-      let filterDate = null;
-      let previousFilterStartDate = null;
-      let previousFilterEndDate = null;
+      setLoading(true);
+      try {
+        // --- PERIOD CALCULATION ---
+        let filterDate = null;
+        let previousFilterStartDate = null;
+        let previousFilterEndDate = null;
 
-      if (filter !== 'allTime') {
-        const now = new Date();
-        const currentPeriodStart = new Date();
-        const daysToSubtract = filter === 'last7days' ? 7 : 30;
-        currentPeriodStart.setDate(now.getDate() - daysToSubtract);
-        filterDate = currentPeriodStart.toISOString();
+        if (filter !== 'allTime') {
+          const now = new Date();
+          const currentPeriodStart = new Date();
+          const daysToSubtract = filter === 'last7days' ? 7 : 30;
+          currentPeriodStart.setDate(now.getDate() - daysToSubtract);
+          filterDate = currentPeriodStart.toISOString();
 
-        // Calculate previous period dates
-        const previousEnd = new Date(currentPeriodStart);
-        const previousStart = new Date(previousEnd);
-        previousStart.setDate(previousEnd.getDate() - daysToSubtract);
+          // Calculate previous period dates
+          const previousEnd = new Date(currentPeriodStart);
+          const previousStart = new Date(previousEnd);
+          previousStart.setDate(previousEnd.getDate() - daysToSubtract);
 
-        previousFilterStartDate = previousStart.toISOString();
-        previousFilterEndDate = previousEnd.toISOString();
-      }
+          previousFilterStartDate = previousStart.toISOString();
+          previousFilterEndDate = previousEnd.toISOString();
+        }
 
-      const { data: previousPeriodTicketsData, error: previousTicketsError } = previousFilterStartDate ? await supabase.from('vw_tickets').select('precio_ticket')
-        .gte('fecha_creacion_ticket', previousFilterStartDate)
-        .lt('fecha_creacion_ticket', previousFilterEndDate) : { data: [], error: null };
+        const { data: previousPeriodTicketsData, error: previousTicketsError } = previousFilterStartDate ? await supabase.from('vw_tickets').select('precio_ticket')
+          .gte('fecha_creacion_ticket', previousFilterStartDate)
+          .lt('fecha_creacion_ticket', previousFilterEndDate) : { data: [], error: null };
 
-      if (previousTicketsError) {
-        console.error('Error fetching previous period tickets:', previousTicketsError);
-      };
-
-      // 1. Fetch ALL rifas for lookups
-      const { data: allRifas, error: allRifasError } = await supabase.from('vw_rifas').select('*');
-      if (allRifasError) {
-        toast.error("Error al cargar las rifas.");
-        console.error('Error fetching all raffles:', allRifasError);
-        return;
-      }
-
-      // 2. Fetch tickets from the period
-      let ticketsQuery = supabase.from('vw_tickets').select('*');
-      if (filterDate) {
-        ticketsQuery = ticketsQuery.gte('fecha_creacion_ticket', filterDate);
-      }
-      const { data: periodTickets, error: ticketsError } = await ticketsQuery;
-      if (ticketsError) {
-        toast.error("Error al cargar los tickets.");
-        console.error('Error fetching period tickets:', ticketsError);
-        return;
-      }
-
-      // 3. Filter rifas created in the period
-      const periodRifas = filterDate ? allRifas.filter(r => new Date(r.created_at) >= new Date(filterDate)) : allRifas;
-
-      // 4. Fetch total players
-      const { data: jugadores, error: jugadoresError } = await supabase.from('t_jugadores').select('id', { count: 'exact' });
-      if (jugadoresError) {
-        toast.error("Error al cargar los jugadores.");
-        console.error('Error fetching players:', jugadoresError);
-        return;
-      }
-
-      // --- Calculations ---
-
-      // Stats Cards
-      const totalRevenue = periodTickets.reduce((acc, ticket) => acc + (ticket.precio_ticket || 0), 0);
-      const ticketsSold = periodTickets.length;
-      const rafflesCompleted = periodRifas.filter(r => r.estado === 'finalizada').length;
-      const totalPlayers = jugadores.length;
-
-      // Previous period stats
-      const previousTotalRevenue = (previousPeriodTicketsData || []).reduce((acc, ticket) => acc + (ticket.precio_ticket || 0), 0);
-      const previousTicketsSold = (previousPeriodTicketsData || []).length;
-
-      // Calculate percentage change
-      const calculateChange = (current, previous) => {
-        if (previous === 0) return { percentage: current > 0 ? 100 : 0, type: current > 0 ? 'increase' : 'neutral' };
-        if (current === previous) return { percentage: 0, type: 'neutral' };
-        const percentage = ((current - previous) / previous) * 100;
-        return {
-          percentage: Math.abs(percentage).toFixed(0),
-          type: percentage > 0 ? 'increase' : 'decrease'
+        if (previousTicketsError) {
+          console.error('Error fetching previous period tickets:', previousTicketsError);
         };
-      };
 
-      const revenueChange = calculateChange(totalRevenue, previousTotalRevenue);
-      const ticketsSoldChange = calculateChange(ticketsSold, previousTicketsSold);
-
-      setStats(prevStats => [
-        { ...prevStats[0], value: `$${totalRevenue.toLocaleString()}`, change: filter !== 'allTime' ? revenueChange : null },
-        { ...prevStats[1], value: totalPlayers },
-        { ...prevStats[2], value: ticketsSold, change: filter !== 'allTime' ? ticketsSoldChange : null },
-        { ...prevStats[3], value: rafflesCompleted },
-      ]);
-
-      // Top Performing Raffles (based on revenue in the period)
-      const ticketsByRaffle = periodTickets.reduce((acc, ticket) => {
-        const rifaId = ticket.rifa_id;
-        if (!acc[rifaId]) {
-          acc[rifaId] = { tickets_sold: 0, revenue: 0 };
+        // 1. Fetch ALL rifas for lookups
+        const { data: allRifas, error: allRifasError } = await supabase.from('vw_rifas').select('*');
+        if (allRifasError) {
+          toast.error("Error al cargar las rifas.");
+          console.error('Error fetching all raffles:', allRifasError);
+          return;
         }
-        acc[rifaId].tickets_sold += 1;
-        acc[rifaId].revenue += ticket.precio_ticket || 0;
-        return acc;
-      }, {});
 
-      const topRafflesData = allRifas
-        .map(rifa => {
-          const performance = ticketsByRaffle[rifa.id_rifa];
-          if (!performance || performance.revenue <= 0) return null;
+        // 2. Fetch tickets from the period
+        let ticketsQuery = supabase.from('vw_tickets').select('*');
+        if (filterDate) {
+          ticketsQuery = ticketsQuery.gte('fecha_creacion_ticket', filterDate);
+        }
+        const { data: periodTickets, error: ticketsError } = await ticketsQuery;
+        if (ticketsError) {
+          toast.error("Error al cargar los tickets.");
+          console.error('Error fetching period tickets:', ticketsError);
+          return;
+        }
 
+        // 3. Filter rifas created in the period
+        const periodRifas = filterDate ? allRifas.filter(r => new Date(r.created_at) >= new Date(filterDate)) : allRifas;
+
+        // 4. Fetch total players
+        const { data: jugadores, error: jugadoresError } = await supabase.from('t_jugadores').select('id', { count: 'exact' });
+        if (jugadoresError) {
+          toast.error("Error al cargar los jugadores.");
+          console.error('Error fetching players:', jugadoresError);
+          return;
+        }
+
+        // --- Calculations ---
+
+        // Stats Cards
+        const totalRevenue = periodTickets.reduce((acc, ticket) => acc + (ticket.precio_ticket || 0), 0);
+        const ticketsSold = periodTickets.length;
+        const rafflesCompleted = periodRifas.filter(r => r.estado === 'finalizada').length;
+        const totalPlayers = jugadores.length;
+
+        // Previous period stats
+        const previousTotalRevenue = (previousPeriodTicketsData || []).reduce((acc, ticket) => acc + (ticket.precio_ticket || 0), 0);
+        const previousTicketsSold = (previousPeriodTicketsData || []).length;
+
+        // Calculate percentage change
+        const calculateChange = (current, previous) => {
+          if (previous === 0) return { percentage: current > 0 ? 100 : 0, type: current > 0 ? 'increase' : 'neutral' };
+          if (current === previous) return { percentage: 0, type: 'neutral' };
+          const percentage = ((current - previous) / previous) * 100;
           return {
-            name: rifa.nombre,
-            tickets: performance.tickets_sold,
-            revenue: performance.revenue,
-            total_tickets: rifa.total_tickets,
-            sales_percentage: rifa.total_tickets > 0 ? (performance.tickets_sold / rifa.total_tickets) * 100 : 0,
+            percentage: Math.abs(percentage).toFixed(0),
+            type: percentage > 0 ? 'increase' : 'decrease'
           };
-        })
-        .filter(Boolean)
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 5);
-      setTopRaffles(topRafflesData);
+        };
 
-      // Bar Chart Data (revenue and tickets per month/day)
-      const barChartData = {};
-      if (filter === 'allTime') {
-        periodTickets.forEach(ticket => {
-          const date = new Date(ticket.fecha_creacion_ticket);
-          if (!isNaN(date)) {
-            const month = date.toLocaleString('es-ES', { month: 'short', year: 'numeric' });
-            if (!barChartData[month]) {
-              barChartData[month] = { name: month, revenue: 0, tickets: 0, dateObj: new Date(date.getFullYear(), date.getMonth()) };
-            }
-            barChartData[month].revenue += ticket.precio_ticket || 0;
-            barChartData[month].tickets += 1;
+        const revenueChange = calculateChange(totalRevenue, previousTotalRevenue);
+        const ticketsSoldChange = calculateChange(ticketsSold, previousTicketsSold);
+
+        setStats(prevStats => [
+          { ...prevStats[0], value: `$${totalRevenue.toLocaleString()}`, change: filter !== 'allTime' ? revenueChange : null },
+          { ...prevStats[1], value: totalPlayers },
+          { ...prevStats[2], value: ticketsSold, change: filter !== 'allTime' ? ticketsSoldChange : null },
+          { ...prevStats[3], value: rafflesCompleted },
+        ]);
+
+        // Top Performing Raffles (based on revenue in the period)
+        const ticketsByRaffle = periodTickets.reduce((acc, ticket) => {
+          const rifaId = ticket.rifa_id;
+          if (!acc[rifaId]) {
+            acc[rifaId] = { tickets_sold: 0, revenue: 0 };
           }
-        });
-      } else {
-        periodTickets.forEach(ticket => {
-          const date = new Date(ticket.fecha_creacion_ticket);
-          if (!isNaN(date)) {
-            const day = date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-            if (!barChartData[day]) {
-              barChartData[day] = { name: day, revenue: 0, tickets: 0, dateObj: date };
-            }
-            barChartData[day].revenue += ticket.precio_ticket || 0;
-            barChartData[day].tickets += 1;
-          }
-        });
-      }
-      const sortedBarData = Object.values(barChartData).sort((a, b) => a.dateObj - b.dateObj);
-      setBarData(sortedBarData);
+          acc[rifaId].tickets_sold += 1;
+          acc[rifaId].revenue += ticket.precio_ticket || 0;
+          return acc;
+        }, {});
 
-      // Ticket Status Distribution Chart Data
-      const statusCounts = periodTickets.reduce((acc, ticket) => {
-        const status = ticket.estado || 'desconocido';
-        acc[status] = (acc[status] || 0) + 1;
-        return acc;
-      }, {});
+        const topRafflesData = allRifas
+          .map(rifa => {
+            const performance = ticketsByRaffle[rifa.id_rifa];
+            if (!performance || performance.revenue <= 0) return null;
 
-      const statusUI = {
-        pagado: { label: 'Pagado', color: '#22c55e' },
-        apartado: { label: 'Apartado', color: '#f59e0b' },
-        familiares: { label: 'Familiar', color: '#a855f7' },
-        disponible: { label: 'Disponible', color: '#6b7280' },
-        desconocido: { label: 'Desconocido', color: '#a3a3a3' }
-      };
-
-      const pieChartData = Object.keys(statusCounts)
-        .map(status => ({
-          name: statusUI[status]?.label || status,
-          value: statusCounts[status],
-          color: statusUI[status]?.color || '#a3a3a3',
-        })).sort((a, b) => b.value - a.value);
-      setTicketStatusData(pieChartData);
-
-      // Top Players Chart Data (based on revenue in the period)
-      const playersData = periodTickets.reduce((acc, ticket) => {
-        if (ticket.jugador_id && ticket.nombre_jugador) {
-          if (!acc[ticket.jugador_id]) {
-            acc[ticket.jugador_id] = {
-              id: ticket.jugador_id,
-              name: ticket.nombre_jugador,
-              revenue: 0,
-              ticketsCount: 0,
+            return {
+              name: rifa.nombre,
+              tickets: performance.tickets_sold,
+              revenue: performance.revenue,
+              total_tickets: rifa.total_tickets,
+              sales_percentage: rifa.total_tickets > 0 ? (performance.tickets_sold / rifa.total_tickets) * 100 : 0,
             };
-          }
-          acc[ticket.jugador_id].revenue += ticket.precio_ticket || 0;
-          acc[ticket.jugador_id].ticketsCount += 1;
+          })
+          .filter(Boolean)
+          .sort((a, b) => b.revenue - a.revenue)
+          .slice(0, 5);
+        setTopRaffles(topRafflesData);
+
+        // Bar Chart Data (revenue and tickets per month/day)
+        const barChartData = {};
+        if (filter === 'allTime') {
+          periodTickets.forEach(ticket => {
+            const date = new Date(ticket.fecha_creacion_ticket);
+            if (!isNaN(date)) {
+              const month = date.toLocaleString('es-ES', { month: 'short', year: 'numeric' });
+              if (!barChartData[month]) {
+                barChartData[month] = { name: month, revenue: 0, tickets: 0, dateObj: new Date(date.getFullYear(), date.getMonth()) };
+              }
+              barChartData[month].revenue += ticket.precio_ticket || 0;
+              barChartData[month].tickets += 1;
+            }
+          });
+        } else {
+          periodTickets.forEach(ticket => {
+            const date = new Date(ticket.fecha_creacion_ticket);
+            if (!isNaN(date)) {
+              const day = date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+              if (!barChartData[day]) {
+                barChartData[day] = { name: day, revenue: 0, tickets: 0, dateObj: date };
+              }
+              barChartData[day].revenue += ticket.precio_ticket || 0;
+              barChartData[day].tickets += 1;
+            }
+          });
         }
-        return acc;
-      }, {});
+        const sortedBarData = Object.values(barChartData).sort((a, b) => a.dateObj - b.dateObj);
+        setBarData(sortedBarData);
 
-      const sortedTopPlayers = Object.values(playersData)
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 5)
-        .reverse();
-      setTopPlayersChartData(sortedTopPlayers);
+        // Ticket Status Distribution Chart Data
+        const statusCounts = periodTickets.reduce((acc, ticket) => {
+          const status = ticket.estado || 'desconocido';
+          acc[status] = (acc[status] || 0) + 1;
+          return acc;
+        }, {});
 
+        const statusUI = {
+          pagado: { label: 'Pagado', color: '#22c55e' },
+          apartado: { label: 'Apartado', color: '#f59e0b' },
+          familiares: { label: 'Familiar', color: '#a855f7' },
+          disponible: { label: 'Disponible', color: '#6b7280' },
+          desconocido: { label: 'Desconocido', color: '#a3a3a3' }
+        };
+
+        const pieChartData = Object.keys(statusCounts)
+          .map(status => ({
+            name: statusUI[status]?.label || status,
+            value: statusCounts[status],
+            color: statusUI[status]?.color || '#a3a3a3',
+          })).sort((a, b) => b.value - a.value);
+        setTicketStatusData(pieChartData);
+
+        // Top Players Chart Data (based on revenue in the period)
+        const playersData = periodTickets.reduce((acc, ticket) => {
+          if (ticket.jugador_id && ticket.nombre_jugador) {
+            if (!acc[ticket.jugador_id]) {
+              acc[ticket.jugador_id] = {
+                id: ticket.jugador_id,
+                name: ticket.nombre_jugador,
+                revenue: 0,
+                ticketsCount: 0,
+              };
+            }
+            acc[ticket.jugador_id].revenue += ticket.precio_ticket || 0;
+            acc[ticket.jugador_id].ticketsCount += 1;
+          }
+          return acc;
+        }, {});
+
+        const sortedTopPlayers = Object.values(playersData)
+          .sort((a, b) => b.revenue - a.revenue)
+          .slice(0, 5)
+          .reverse();
+        setTopPlayersChartData(sortedTopPlayers);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchData();
@@ -316,8 +322,13 @@ export default function Analytics() {
     active: { label: "Activo", color: "bg-[#23283a] text-white" },
     winner: { label: "Ganador", color: "bg-[#0ea5e9] text-white" },
   };
+
+  if (loading) {
+    return <LoadingScreen message="Cargando estadísticas..." />;
+  }
+
   return (
-    <div>
+    <div className="animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent text-3xl font-bold mb-1">
           Estadísticas

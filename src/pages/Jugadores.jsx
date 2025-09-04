@@ -5,6 +5,7 @@ import JugadorFormModal from "../components/JugadorFormModal";
 import { PlusIcon } from "@heroicons/react/16/solid";
 import { toast } from "sonner";
 import { Pagination } from "../components/Pagination";
+import { LoadingScreen } from "../components/LoadingScreen";
 const STATUS_BADGES = {
   vip: { label: "VIP", color: "bg-[#a21caf] text-white" },
   active: { label: "ACTIVE", color: "bg-[#23283a] text-white" },
@@ -156,8 +157,12 @@ export function Jugadores() {
     }, 300);
   };
 
+  if (loading) {
+    return <LoadingScreen message="Cargando jugadores..." />;
+  }
+
   return (
-    <div>
+    <div className="animate-fade-in">
       <div className="flex mb-6 max-sm:flex-col min-md:flex-row min-md:items-center min-md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent">Jugadores</h1>
@@ -199,8 +204,6 @@ export function Jugadores() {
           </button>
         </div>
       </div>
-
-      {loading && <div className="text-white py-8 text-center">Cargando jugadores...</div>}
 
       {/* Player Cards */}
       <div className="grid max-sm:grid-cols-1 max-md:grid-cols-2 min-md:grid-cols-3  gap-4">

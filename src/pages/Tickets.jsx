@@ -13,6 +13,7 @@ import { RequestModal } from "./../components/RequestModal";
 import { Pagination } from "./../components/Pagination";
 import { SearchAndFilter } from "./../components/SearchAndFilter";
 import { useNavigate } from "react-router-dom";
+import { LoadingScreen } from "../components/LoadingScreen";
 
 // Utilidad para formatear números telefónicos
 const formatTelephone = (phone) => {
@@ -380,7 +381,7 @@ export function Tickets() {
   };
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <div className="flex mb-6 max-sm:flex-col min-md:flex-row min-md:items-center min-md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent">
@@ -454,7 +455,7 @@ export function Tickets() {
           <div className="mt-4 md:mt-0">
             {/* List of Tickets (Cards on mobile, Rows on desktop) */}
             {loading ? (
-              <div className="text-center py-12 text-gray-400">Cargando tickets...</div>
+              <LoadingScreen message="Cargando tickets..." />
             ) : paginatedGroups.length === 0 ? (
               <div className="text-center py-16 text-gray-400 bg-[#141821] border border-[#23283a] rounded-xl">No se encontraron tickets.</div>
             ) : (

@@ -21,10 +21,13 @@ import Analytics from "./pages/Analytics";
 import { supabase } from "./api/supabaseClient";
 import { Toaster } from 'sonner';
 import Configuracion from "./pages/Configuracion";
-
+import { PublicRifa } from "./pages/PublicRifa";
+import { LoadingScreen } from "./components/LoadingScreen";
+import Logo from "./assets/Logo RifasPlus.png"
 // Dashboard page layout
 function Dashboard() {
   const [raffles, setRaffles] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchRaffles = async () => {
@@ -48,13 +51,18 @@ function Dashboard() {
         }));
         setRaffles(formattedRaffles);
       }
+      setLoading(false);
     };
 
     fetchRaffles();
   }, []);
 
+  if (loading) {
+    return <LoadingScreen message="Cargando panel de control..." />;
+  }
+
   return (
-    <>
+    <div className="animate-fade-in">
       <div className="flex mb-6 max-sm:flex-col min-md:flex-row min-md:items-center min-md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent">Panel de control</h1>
@@ -70,7 +78,7 @@ function Dashboard() {
         <RecentRaffles raffles={raffles} />
         <TopPlayers />
       </div>
-    </>
+    </div>
   );
 }
 
@@ -87,12 +95,24 @@ function MainLayout({ children, sidebarOpen, setSidebarOpen }) {
   );
 }
 
+const Footer = () => {
+  const year = new Date().getFullYear();
+  return (
+    <footer className="flex justify-center items-center h-16 bg-[#0d1016] text-white  text-center p-4">
+      <img className="w-16 object-contain" src={Logo} alt="" />
+      <p>&copy; {year} Rifas Plus. Desarrollado por <a href="https://wa.me/+584123397066">Rúbel Maneiro</a> y Sneider Araque</p>
+    </footer>
+  );
+};
+
+
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   return (
     <Router>
       <Toaster richColors />
       <Routes>
+        <Route path="/public-rifa/:id" element={<PublicRifa />} />
         {/* Login route - no sidebar/navbar */}
         <Route path="/login" element={<Login />} />
 
@@ -103,6 +123,7 @@ function App() {
             <PrivateRoute>
               <MainLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
                 <Dashboard />
+                <Footer />
               </MainLayout>
             </PrivateRoute>
           }
@@ -113,6 +134,7 @@ function App() {
             <PrivateRoute>
               <MainLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
                 <Home />
+                <Footer />
               </MainLayout>
             </PrivateRoute>
           }
@@ -123,6 +145,7 @@ function App() {
             <PrivateRoute>
               <MainLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
                 <Rifas />
+                <Footer />
               </MainLayout>
             </PrivateRoute>
           }
@@ -133,6 +156,7 @@ function App() {
             <PrivateRoute>
               <MainLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
                 <Jugadores />
+                <Footer />
               </MainLayout>
             </PrivateRoute>
           }
@@ -143,6 +167,7 @@ function App() {
             <PrivateRoute>
               <MainLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
                 <Tickets />
+                <Footer />
               </MainLayout>
             </PrivateRoute>
           }
@@ -153,6 +178,7 @@ function App() {
             <PrivateRoute>
               <MainLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
                 <NuevaRifa />
+                <Footer />
               </MainLayout>
             </PrivateRoute>
           }
@@ -163,6 +189,7 @@ function App() {
             <PrivateRoute>
               <MainLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
                 <EditarRifa />
+                <Footer />
               </MainLayout>
             </PrivateRoute>
           }
@@ -173,6 +200,7 @@ function App() {
             <PrivateRoute>
               <MainLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
                 <DetalleRifa />
+                <Footer />
               </MainLayout>
             </PrivateRoute>
           }
@@ -183,6 +211,7 @@ function App() {
             <PrivateRoute>
               <MainLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
                 <Analytics />
+                <Footer />
               </MainLayout>
             </PrivateRoute>
           }
@@ -193,6 +222,7 @@ function App() {
             <PrivateRoute>
               <MainLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
                 <Configuracion />
+                <Footer />
               </MainLayout>
             </PrivateRoute>
           }
@@ -201,6 +231,7 @@ function App() {
           <PrivateRoute>
             <MainLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
               <NotFound />
+                <Footer />
             </MainLayout>
           </PrivateRoute>
         } />

@@ -4,34 +4,51 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
 
+const countryOptions = [
+  { name: 'Venezuela', code: '+58', flag: '🇻🇪' },
+  { name: 'Colombia', code: '+57', flag: '🇨🇴' },
+  { name: 'United States', code: '+1', flag: '🇺🇸' },
+  { name: 'Spain', code: '+34', flag: '🇪🇸' },
+  { name: 'Mexico', code: '+52', flag: '🇲🇽' },
+  { name: 'Ecuador', code: '+593', flag: '🇪🇨' },
+  { name: 'Argentina', code: '+54', flag: '🇦🇷' },
+  { name: 'Chile', code: '+56', flag: '🇨🇱' },
+  { name: 'Peru', code: '+51', flag: '🇵🇪' },
+  { name: 'Brazil', code: '+55', flag: '🇧🇷' },
+  { name: 'Uruguay', code: '+598', flag: '🇺🇾' }
+];
+
 export function NuevoJugador() {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
+    cedula: "",
     email: "",
     phone: "",
     street: "",
-    favoriteNumbers: []
+    favoriteNumbers: [],
+    favInput: ""
   });
   const navigate = useNavigate();
+  const [selectedCountry, setSelectedCountry] = useState(countryOptions[0]);
 
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleAddNumber = () => {
     const num = parseInt(form.favInput);
-    if (!isNaN(num) && num > 0 && num <= 1000 && !form.favoriteNumbers.includes(num)) {
+    if (!isNaN(num) && num >= 0 && num <= 999 && !form.favoriteNumbers.includes(num)) {
       toast.success(`Número ${num} agregado a favoritos.`);
       setForm({ ...form, favoriteNumbers: [...form.favoriteNumbers, num], favInput: "" });
-    } else if (isNaN(num) || num <= 0 || num > 1000) {
-      toast.error("Por favor, ingresa un número válido entre 1 y 1000.");
+    } else if (isNaN(num) || num < 0 || num > 999) {
+      toast.error("Por favor, ingresa un número válido entre 0 y 999.");
     } else if (form.favoriteNumbers.includes(num)) {
       toast.info(`El número ${num} ya está en tu lista de favoritos.`);
     }
   };
 
   const handleRemoveNumber = (num) => {
-    toast.info(`Número ${num} eliminado de favoritos.`);
+    toast.warning(`Número ${num} eliminado de favoritos.`);
     setForm({ ...form, favoriteNumbers: form.favoriteNumbers.filter(n => n !== num) });
   };
 
@@ -40,24 +57,22 @@ export function NuevoJugador() {
     e.preventDefault();
     setLoading(true);
 
-    const { firstName, lastName, cedula, email, phone, street, favoriteNumbers } = form;
-
     // Validación básica
-    if (!firstName || !lastName || !email) {
-      toast.error("Nombre, apellido y correo son obligatorios.");
+    if (!form.firstName || !form.lastName) {
+      toast.error("Nombre y apellido son obligatorios.");
       setLoading(false);
       return;
     }
 
     // Construir objeto para Supabase
     const playerData = {
-      nombre: firstName,
-      apellido: lastName,
-      cedula: cedula,
-      email,
-      telefono: phone,
-      direccion: street,
-      numeros_favoritos: favoriteNumbers,
+      nombre: form.firstName,
+      apellido: form.lastName,
+      cedula: form.cedula,
+      email: form.email,
+      telefono: `${selectedCountry.code}${form.phone.replace(/\D/g, '')}`,
+      direccion: form.street,
+      numeros_favoritos: form.favoriteNumbers,
       // Agrega campos extra según tu tabla
     };
 
@@ -78,11 +93,6 @@ export function NuevoJugador() {
     setLoading(false);
   };
 
-  function formatNumber() {
-    const phone = form.phone;
-    let result = phone.replace(/\D/g, "").replace(/(\d{4})(\d{3})(\d{4})/, "+58-$1-$2-$3");
-    return result;
-  }
   return (
     <>
       {loading && <div className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center">
@@ -112,7 +122,7 @@ export function NuevoJugador() {
               <label className="block text-xs text-gray-400 mb-1">Cédula de Identidad</label>
               <div className="flex items-center bg-[#11141a] border border-[#23283a] rounded-lg">
                 <UserIcon className="w-5 h-5 text-gray-400 ml-2" />
-                <input name="cedula" value={form.cedula} onChange={handleChange} className="bg-transparent flex-1 p-2 text-white outline-none" placeholder="V-12345678" required />
+                <input name="cedula" value={form.cedula} onChange={handleChange} className="bg-transparent flex-1 p-2 text-white outline-none" placeholder="V-12345678" />
               </div>
             </div>
             <div>
@@ -124,9 +134,22 @@ export function NuevoJugador() {
             </div>
             <div>
               <label className="block text-xs text-gray-400 mb-1">Número de teléfono *</label>
-              <div className="flex items-center bg-[#11141a] border border-[#23283a] rounded-lg">
-                <PhoneIcon className="w-5 h-5 text-gray-400 ml-2" />
-                <input name="phone" value={formatNumber(form.phone)} onChange={handleChange} className="bg-transparent flex-1 p-2 text-white outline-none" placeholder="0123-456-7890" required />
+              <div className="flex items-center bg-[#11141a] border border-[#23283a] rounded-lg focus-within:border-[#7c3bed] transition-colors">
+                <select
+                  value={selectedCountry.code}
+                  onChange={(e) => {
+                    const country = countryOptions.find(c => c.code === e.target.value);
+                    setSelectedCountry(country);
+                  }}
+                  className="bg-transparent border-r border-[#23283a] p-2 text-white outline-none rounded-l-lg cursor-pointer appearance-none"
+                >
+                  {countryOptions.map(c => (
+                    <option key={c.code} value={c.code} className="bg-[#181c24]">
+                      {c.flag} {c.code}
+                    </option>
+                  ))}
+                </select>
+                <input name="phone" value={form.phone} onChange={handleChange} className="bg-transparent flex-1 p-2 text-white outline-none" placeholder="412-123-4567" required />
               </div>
             </div>
           </div>
@@ -140,12 +163,13 @@ export function NuevoJugador() {
           <div className="flex items-center gap-2">
             <input
               type="number"
-              min={1}
-              max={1000}
+              name="favInput"
+              min="0"
+              max="999"
               value={form.favInput}
-              onChange={e => setForm({ ...form, favInput: e.target.value })}
+              onChange={handleChange}
               className="flex-1 bg-[#11141a] border border-[#23283a] rounded-lg p-2 text-white"
-              placeholder="Ingrese un número (1-1000)"
+              placeholder="Ingrese un número (0-999)"
             />
             <button type="button" onClick={handleAddNumber} className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-4 py-2 rounded-lg font-bold text-lg">+</button>
           </div>
