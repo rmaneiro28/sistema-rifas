@@ -12,8 +12,8 @@ const formatTicketNumber = (number, totalTickets) => {
   if (number === null || number === undefined || !totalTickets || totalTickets <= 0) {
     return number;
   }
-  const numDigits = String(totalTickets).length;
-  return String(number).padStart(numDigits, "0");
+  const numDigits = String(totalTickets - 1).length;
+  return String(number).padStart(Math.max(3, numDigits), "0");
 };
 
 export function DetalleRifa() {
@@ -114,11 +114,9 @@ export function DetalleRifa() {
 
     // Create a Map for efficient lookups. This is much faster than .find() in a loop.
     const ticketsMap = new Map(tickets.filter((ticket) => ticket.rifa_id === id).map(t => [t.numero_ticket, t]));
-    console.log(ticketsMap);
-    return Array.from({ length: rifa.total_tickets - 1 }, (_, i) => {
-      const numero = i + 1;
+    return Array.from({ length: rifa.total_tickets }, (_, i) => {
+      const numero = i;
       const existingTicket = ticketsMap.get(numero);
-
       if (existingTicket) {
         // This ticket exists in the database, so it's occupied.
         // We use its status directly from the database to show the "true status".
