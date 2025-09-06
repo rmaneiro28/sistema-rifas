@@ -478,9 +478,9 @@ export function DetalleRifa() {
 
           {/* Mensaje cuando no hay resultados */}
           {filteredTickets.length === 0 && (
-            <div className="text-center py-12">
+            <div className="col-span-full w-full text-center py-12">
               <div className="bg-[#23283a] rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                <MagnifyingGlassIcon className="w-8 h-8 text-gray-400" />
+                <MagnifyingGlassIcon className="w-8 h-8 text-gray-400" /> 
               </div>
               <h3 className="text-white text-lg font-semibold mb-2">
                 No se encontraron tickets

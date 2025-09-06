@@ -13,7 +13,7 @@ export const TopPlayers = () => {
           .from('vw_jugadores')
           .select('*')
           .order('monto_total_gastado', { ascending: false })
-          .limit(4)
+          .limit(5)
 
         if (error) {
           throw error

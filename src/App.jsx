@@ -35,7 +35,7 @@ function Dashboard() {
         .from('vw_rifas')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(5);
+        .limit(3);
 
       if (error) {
         console.error('Error fetching raffles:', error);
@@ -98,9 +98,9 @@ function MainLayout({ children, sidebarOpen, setSidebarOpen }) {
 const Footer = () => {
   const year = new Date().getFullYear();
   return (
-    <footer className="flex justify-center items-center h-16 bg-[#0d1016] text-white  text-center p-4">
+    <footer className="flex justify-center items-center  h-16 bg-[#0d1016] text-white  text-center p-4">
       <img className="w-16 object-contain" src={Logo} alt="" />
-      <p>&copy; {year} Rifas Plus. Desarrollado por <a href="https://wa.me/+584123397066">Rúbel Maneiro</a> y Sneider Araque</p>
+      <p className="text-xs">&copy; {year} Rifas Plus. Desarrollado por <a href="https://wa.me/+584123397066">Rúbel Maneiro</a> y Sneider Araque</p>
     </footer>
   );
 };
