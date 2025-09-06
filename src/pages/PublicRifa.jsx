@@ -3,7 +3,40 @@ import { useParams } from "react-router-dom";
 import Confetti from "react-confetti";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
-import { MagnifyingGlassIcon, GiftIcon, CalendarDaysIcon, CurrencyDollarIcon, TrophyIcon, TicketIcon } from "@heroicons/react/24/outline";
+import { MagnifyingGlassIcon, GiftIcon, CalendarDaysIcon, CurrencyDollarIcon, TrophyIcon, TicketIcon, ClipboardIcon, BanknotesIcon, CurrencyEuroIcon } from "@heroicons/react/24/outline";
+import bancolombiaLogo from '../assets/Bancolombia.png';
+import zelleLogo from '../assets/Zelle.png';
+import venezuelaLogo from "../assets/Bdv.jpg"
+// Componente para mostrar y copiar datos bancarios con íconos/logos y notificación
+const BankDataCard = ({ logo, icon: Icon, label, value }) => {
+    const handleCopy = () => {
+        navigator.clipboard.writeText(value);
+        toast.success(`¡${label} copiado al portapapeles!`);
+    };
+    return (
+        <div className="flex items-center justify-between bg-[#23283a] rounded-xl p-4 mb-3 shadow-md border border-[#353a4d]">
+            <div className="flex items-center gap-3">
+                {logo ? (
+                    <img src={logo} alt={label} className="w-8 h-8 rounded-full bg-white p-1 border border-gray-300" />
+                ) : (
+                    <Icon className="w-7 h-7 text-yellow-400" />
+                )}
+                <div>
+                    <div className="font-bold text-white text-base flex items-center gap-1">{label}</div>
+                    <div className="text-sm text-gray-300 break-all">{value}</div>
+                </div>
+            </div>
+            <button
+                onClick={handleCopy}
+                className="ml-4 bg-yellow-500 hover:bg-yellow-600 text-black px-3 py-1 rounded-lg font-semibold flex items-center gap-1 transition-all"
+                title="Copiar"
+            >
+                <ClipboardIcon className="w-5 h-5" />
+                Copiar
+            </button>
+        </div>
+    );
+};
 import { LoadingScreen } from '../components/LoadingScreen.jsx';
 import { useWindowSize } from '../hooks/useWindowSize.js';
 import { TicketVerifierModal } from '../components/TicketVerifierModal.jsx';
@@ -130,6 +163,7 @@ export function PublicRifa() {
     const [loading, setLoading] = useState(true);
     const { width, height } = useWindowSize();
     const [isVerifierOpen, setIsVerifierOpen] = useState(false);
+    const [ticketFilter, setTicketFilter] = useState('todos');
 
     const fetchRaffleAndTickets = useCallback(async () => {
         setLoading(true);
@@ -175,6 +209,7 @@ export function PublicRifa() {
         }
     }, [id]);
 
+
     useEffect(() => { fetchRaffleAndTickets(); }, [fetchRaffleAndTickets]);
 
     const { vendidos, disponibles, progreso } = useMemo(() => {
@@ -186,6 +221,13 @@ export function PublicRifa() {
             progreso: total > 0 ? (vendidosCount / total) * 100 : 0,
         };
     }, [allTickets, rifa]);
+
+    // Filtrar tickets según el estado seleccionado (hook debe ir antes de cualquier return)
+    const filteredTickets = useMemo(() => {
+        if (ticketFilter === 'todos') return allTickets;
+        if (ticketFilter === 'familiar') return allTickets.filter(t => t.estado === 'familiares');
+        return allTickets.filter(t => t.estado === ticketFilter);
+    }, [allTickets, ticketFilter]);
 
     if (loading) return <LoadingScreen message="Cargando rifa..." />;
     if (!rifa) return <div className="flex items-center justify-center min-h-screen bg-[#0f131b] text-red-500">No se pudo encontrar la rifa.</div>;
@@ -212,13 +254,64 @@ export function PublicRifa() {
                         </button>
 
                         <Legend />
+
+                        {/* Datos Bancarios llamativos */}
+                        <div className="bg-[#181c24] border border-[#23283a] p-4 rounded-xl mt-4">
+                            <h3 className="font-bold text-white mb-5 text-center text-lg">Datos Bancarios</h3>
+                            <BankDataCard
+                                logo={bancolombiaLogo}
+                                label="Bancolombia"
+                                value={import.meta.env.VITE_BANCOLOMBIA}
+                            />
+                            <BankDataCard
+                                logo={zelleLogo}
+                                label="Zelle"
+                                value={import.meta.env.VITE_ZELLE}
+                            />
+                            <BankDataCard
+                                icon={BanknotesIcon}
+                                label="Pago Móvil"
+                                value={import.meta.env.VITE_PAGOMOVIL}
+                            />
+                            <BankDataCard   
+                                logo={venezuelaLogo}
+                                label="Banco de Venezuela"
+                                value={import.meta.env.VITE_BDV}
+                            />
+                        </div>
+                        
+                        <div className='bg-[#181c24] border border-[#232383a] p-4 rounded-xl mt-4'>
+                            <h3 className="font-bold text-white mb-5 text-center text-lg">Números de contacto</h3>
+                            <div className='flex items-center justify-between bg-[#23283a] rounded-xl p-4 mb-3 shadow-md border border-[#353a4d]'>
+                                <p>{import.meta.env.VITE_CONTACTO_1}</p>
+                            </div>
+                            <div className='flex items-center justify-between bg-[#23283a] rounded-xl p-4 mb-3 shadow-md border border-[#353a4d]'>
+                                <p>{import.meta.env.VITE_CONTACTO_2}</p>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Columna Derecha: Mapa de Tickets */}
                     <div className="lg:col-span-2 bg-[#181c24]/50 backdrop-blur-sm border border-[#23283a] p-6 rounded-xl flex flex-col">
                         <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2 flex-shrink-0"><TicketIcon className="w-6 h-6 text-purple-400" /> Mapa de Tickets</h2>
+                        {/* Filtro de tickets */}
+                        <div className="mb-4 flex flex-wrap gap-2 items-center">
+                            <label htmlFor="ticketFilter" className="text-sm font-semibold text-gray-300">Filtrar por estado:</label>
+                            <select
+                                id="ticketFilter"
+                                value={ticketFilter}
+                                onChange={e => setTicketFilter(e.target.value)}
+                                className="bg-[#23283a] text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none"
+                            >
+                                <option value="todos">Todos</option>
+                                <option value="pagado">Pagado</option>
+                                <option value="apartado">Apartado</option>
+                                <option value="familiar">Familiar</option>
+                                <option value="disponible">Disponible</option>
+                            </select>
+                        </div>
                         <div className="overflow-y-auto h-[75vh] pr-2">
-                            <TicketGrid tickets={allTickets} ganador={ganador} />
+                            <TicketGrid tickets={filteredTickets} ganador={ganador} />
                         </div>
                     </div>
                 </div>
