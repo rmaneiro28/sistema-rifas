@@ -85,7 +85,12 @@ export function DetalleRifa() {
   const fetchTickets = async () => {
     setLoading(true);
     const { data, error } = await supabase.from("vw_tickets").select("*").eq("rifa_id", id);
-    if (!error) setTickets(data || []);
+    if (!error) {
+      console.log('Tickets loaded:', data);
+      setTickets(data || []);
+    } else {
+      console.error('Error loading tickets:', error);
+    }
     setLoading(false);
   };
 
@@ -113,29 +118,38 @@ export function DetalleRifa() {
     if (!rifa?.total_tickets) return [];
 
     // Create a Map for efficient lookups. This is much faster than .find() in a loop.
+    // Use the formatted ticket number as key for lookup since database stores formatted numbers
     const ticketsMap = new Map(tickets.filter((ticket) => ticket.rifa_id === id).map(t => [t.numero_ticket, t]));
     return Array.from({ length: rifa.total_tickets }, (_, i) => {
-      const numero = i;
-      const existingTicket = ticketsMap.get(numero);
+      const rawNumero = i;
+      const formattedNumero = formatTicketNumber(rawNumero, rifa.total_tickets);
+      const existingTicket = ticketsMap.get(formattedNumero);
+      
       if (existingTicket) {
         // This ticket exists in the database, so it's occupied.
-        // We use its status directly from the database to show the "true status".
-        // A ticket in the DB should always have a valid status ('apartado', 'pagado', 'familiares').
+        // Map the database fields to our expected structure with formatted ticket number
         return {
-          ...existingTicket,
-          numero: existingTicket.numero_ticket,
-          estado: existingTicket.estado_ticket, // Using the real status from the database.
+          id: existingTicket.ticket_id,
+          numero_ticket: formattedNumero,
+          estado_ticket: existingTicket.estado_ticket,
+          nombre_jugador: existingTicket.nombre_jugador,
+          email_jugador: existingTicket.email_jugador,
+          telefono_jugador: existingTicket.telefono,
+          cedula_jugador: existingTicket.cedula,
+          fecha_pago: existingTicket.fecha_pago,
+          rifa_id: existingTicket.rifa_id
         };
       } else {
         // This ticket number is not in the database, so it's available.
         return {
-          numero,
-          estado: "disponible",
-          ticket_id: null,
+          id: null,
+          numero_ticket: formattedNumero,
+          estado_ticket: "disponible",
           nombre_jugador: null,
           email_jugador: null,
           telefono_jugador: null,
-          fecha_compra: null,
+          cedula_jugador: null,
+          fecha_pago: null,
           rifa_id: rifa.id_rifa
         };
       }
@@ -143,13 +157,13 @@ export function DetalleRifa() {
   };
 
   const allTickets = generateAllTickets();
-  const ticketStatusMap = useMemo(() => new Map(allTickets.map(t => [t.numero, t.estado])), [allTickets]);
+  const ticketStatusMap = useMemo(() => new Map(allTickets.map(t => [t.numero_ticket, t.estado_ticket])), [allTickets]);
   const filteredTickets = allTickets.filter(ticket => {
-    const matchesStatus = ticketFilter === "all" || ticket.estado === ticketFilter;
+    const matchesStatus = ticketFilter === "all" || ticket.estado_ticket === ticketFilter;
     const matchesSearch = !searchQuery ||
-      ticket.numero.toString().includes(searchQuery) ||
+      ticket.numero_ticket.includes(searchQuery) ||
       (ticket.nombre_jugador && ticket.nombre_jugador.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (ticket.email_jugador && ticket.email_jugador.toLowerCase().includes(searchQuery.toLowerCase()));
+      (ticket.cedula && ticket.cedula.toLowerCase().includes(searchQuery.toLowerCase()));
 
     return matchesStatus && matchesSearch;
   });
@@ -163,37 +177,88 @@ export function DetalleRifa() {
   };
 
   const handleTicketClick = (ticket) => {
-    if (ticket.estado === 'disponible') {
+    console.log('Ticket clicked:', ticket);
+    console.log('Ticket estado:', ticket.estado_ticket);
+    console.log('Ticket jugador_id:', ticket.jugador_id);
+    console.log('Ticket nombre_jugador:', ticket.nombre_jugador);
+    
+    if (ticket.estado_ticket === 'disponible') {
+      console.log('Ticket is available, adding to selection');
       setSelectedTicketsFromMap(prev =>
-        prev.includes(ticket.numero)
-          ? prev.filter(n => n !== ticket.numero)
-          : [...prev, ticket.numero]
+        prev.includes(ticket.numero_ticket)
+          ? prev.filter(n => n !== ticket.numero_ticket)
+          : [...prev, ticket.numero_ticket]
       );
     } else {
+      console.log('Ticket is not available, opening detail modal');
       openTicketDetail(ticket);
     }
   };
 
   const openTicketDetail = (ticket) => {
-    if (!ticket.jugador_id) return;
+    console.log('Opening ticket detail for:', ticket);
+    
+    // Si no hay jugador_id pero hay información del jugador, crear un playerGroup con los datos disponibles
+    if (!ticket.jugador_id) {
+      console.log('No jugador_id found, but creating player group with available data');
+      
+      const playerGroupData = {
+        info: {
+          nombre_jugador: ticket.nombre_jugador || 'N/A',
+          cedula_jugador: ticket.cedula_jugador || 'N/A',
+          telefono_jugador: ticket.telefono_jugador || ticket.email_jugador || 'N/A',
+          email_jugador: ticket.email_jugador || 'N/A',
+          jugador_id: ticket.jugador_id || null
+        },
+        tickets: [ticket] // Solo este ticket ya que no podemos agrupar por jugador_id
+      };
+      
+      console.log('Setting player group with available data:', playerGroupData);
+      setSelectedPlayerGroup(playerGroupData);
+      setSelectedTicketForDetail(ticket);
+      setShowPlayerGroupModal(true);
+      return;
+    }
 
     const playerTickets = allTickets.filter(t => t.jugador_id === ticket.jugador_id);
+    console.log('Found player tickets:', playerTickets);
 
-    if (playerTickets.length === 0) return;
+    if (playerTickets.length === 0) {
+      console.log('No player tickets found, creating single ticket group');
+      const playerGroupData = {
+        info: {
+          nombre_jugador: ticket.nombre_jugador || 'N/A',
+          cedula_jugador: ticket.cedula_jugador || 'N/A',
+          telefono_jugador: ticket.telefono_jugador || ticket.email_jugador || 'N/A',
+          email_jugador: ticket.email_jugador || 'N/A',
+          jugador_id: ticket.jugador_id
+        },
+        tickets: [ticket]
+      };
+      
+      setSelectedPlayerGroup(playerGroupData);
+      setSelectedTicketForDetail(ticket);
+      setShowPlayerGroupModal(true);
+      return;
+    }
 
-    setSelectedPlayerGroup({
+    const playerGroupData = {
       info: {
         nombre_jugador: ticket.nombre_jugador,
-        email_jugador: ticket.email_jugador,
+        cedula_jugador: ticket.cedula_jugador,
         telefono_jugador: ticket.telefono_jugador,
+        email_jugador: ticket.email_jugador,
         jugador_id: ticket.jugador_id
       },
-      tickets: playerTickets.sort((a, b) => a.numero - b.numero)
-    });
-
+      tickets: playerTickets.sort((a, b) => a.numero_ticket - b.numero_ticket)
+    };
+    
+    console.log('Setting player group:', playerGroupData);
+    setSelectedPlayerGroup(playerGroupData);
     setSelectedTicketForDetail(ticket);
-
-    setShowPlayerGroupModal(true);;
+    
+    console.log('Setting modal to open');
+    setShowPlayerGroupModal(true);
   };
   const closePlayerGroupModal = () => {
     setShowPlayerGroupModal(false);
@@ -233,13 +298,11 @@ export function DetalleRifa() {
     fetchRaffle();
     fetchTickets();
   }, [id, fetchRaffle]);
-
   // Calculate ticket statistics correctly
-  const disponibles = allTickets.filter((t) => t.estado === "disponible").length;
-  const apartados = allTickets.filter((t) => t.estado === "apartado").length;
-  const pagados = allTickets.filter((t) => t.estado === "pagado").length;
-  const familiares = allTickets.filter((t) => t.estado === "familiares").length
-
+  const disponibles = allTickets.filter((t) => t.estado_ticket === "disponible").length;
+  const apartados = allTickets.filter((t) => t.estado_ticket === "apartado").length;
+  const pagados = allTickets.filter((t) => t.estado_ticket === "pagado").length;
+  const familiares = allTickets.filter((t) => t.estado_ticket === "familiares").length
   const ticketStats = [
     { key: "disponible", label: "Disponibles", color: "bg-[#23283a]", count: disponibles },
     { key: "apartado", label: "Apartados", color: "bg-yellow-400", count: apartados },
@@ -291,13 +354,41 @@ export function DetalleRifa() {
       </div>
 
       {/* Ticket stats */}
-      <div className="gap-4 mb-4 grid min-md:grid-cols-4 max-md:grid-cols-2">
-        {ticketStats.map(stat => (
-          <div key={stat.key} className="bg-[#0f131b] border border-[#23283a] p-4 rounded-lg flex-1">
-            <span className={`text-xs text-white`}>{stat.label}</span>
-            <span className={`block text-2xl font-bold text-white`}>{stat.count}</span>
-          </div>
-        ))}
+      <div className="mb-4">
+        <div className="gap-4 grid min-md:grid-cols-4 max-md:grid-cols-2 mb-4">
+          {ticketStats.map(stat => (
+            <div key={stat.key} className="bg-[#0f131b] border border-[#23283a] p-4 rounded-lg flex-1">
+              <span className={`text-xs text-white`}>{stat.label}</span>
+              <span className={`block text-2xl font-bold text-white`}>{stat.count}</span>
+            </div>
+          ))}
+        </div>
+        
+        {/* Action buttons */}
+        <div className="flex items-end justify-end gap-4 w-full">
+          <button
+            onClick={handleOpenWinnerModal}
+            className="group relative overflow-hidden bg-gradient-to-r from-amber-500 to-orange-600 text-white px-6 py-3 sm:px-4 sm:py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 active:scale-95 min-h-[48px] sm:min-h-0"
+            title="Registrar ganador de la rifa"
+            aria-label="Registrar ganador de la rifa"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+            <TrophyIcon className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 group-hover:animate-bounce" />
+            <span className="relative z-10 text-sm sm:text-base">Ganador</span>
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+          </button>
+          <button
+            onClick={handleShareLink}
+            className="group relative overflow-hidden bg-gradient-to-r from-sky-500 to-blue-600 text-white px-6 py-3 sm:px-4 sm:py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 active:scale-95 min-h-[48px] sm:min-h-0"
+            title="Compartir enlace público"
+            aria-label="Compartir enlace público"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-sky-400 to-blue-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+            <ShareIcon className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 group-hover:animate-pulse" />
+            <span className="relative z-10 text-sm sm:text-base">Compartir</span>
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+          </button>
+        </div>
       </div>
 
       {/* Buscador y Filtros */}
@@ -354,7 +445,7 @@ export function DetalleRifa() {
                         ? apartados
                         : opt.key === "pagado"
                           ? pagados
-                          : allTickets.filter(t => t.estado === "familiares").length
+                          : allTickets.filter(t => t.estado_ticket === "familiares").length
                 )}
               </span>
             </button>
@@ -364,44 +455,27 @@ export function DetalleRifa() {
               <>
                 <button
                   onClick={handleProceedWithSelection}
-                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2"
+                  className="bg-gradient-to-r from-green-500 to-[#16a249] text-white px-4 py-2 rounded-xl font-bold transition-all duration-200 flex items-center gap-2 shadow-lg hover:scale-105"
+                  style={{ minWidth: '140px' }}
                 >
-                  <TicketIcon className="w-5 h-5" />
-                  Registrar Selección ({selectedTicketsFromMap.length})
+                  <TicketIcon className="w-6 h-6 animate-bounce" />
+                  <span>Registrar</span>
+                  <span className="ml-2 text-xs bg-black/20 px-2 py-1 rounded">
+                    {selectedTicketsFromMap.map(n => formatTicketNumber(n, rifa?.total_tickets)).join(", ")}
+                  </span>
                 </button>
                 <button
                   onClick={() => setSelectedTicketsFromMap([])}
-                  className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                  className="bg-gradient-to-r from-gray-600 to-gray-800 text-white px-4 py-2 rounded-xl font-bold transition-all hover:scale-105 shadow"
+                  style={{ minWidth: '100px' }}
                 >
+                  <XMarkIcon className="w-5 h-5 mr-1" />
                   Limpiar
                 </button>
               </>
-            ) : (
-              <button
-                className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-4 py-2 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={handleOpenRegistrationModal}
-                disabled={disponibles === 0}
-              >
-                Registrar Ticket
-              </button>
-            )}
-            <button
-              onClick={handleOpenWinnerModal}
-              className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
-            >
-              <TrophyIcon className="w-5 h-5" />
-              Registrar Ganador
-            </button>
-            <button
-              onClick={handleShareLink}
-              className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
-            >
-              <ShareIcon className="w-5 h-5" />
-              Compartir
-            </button>
+            ) : null}
           </div>
         </div>
-
       </div>
 
       {/* Mapa de tickets */}
@@ -442,35 +516,34 @@ export function DetalleRifa() {
 
         <div className="grid max-md:grid-cols-6 max-lg:grid-cols-10 min-lg:grid-cols-15 gap-2 max-h-100 overflow-y-scroll">
           {filteredTickets.map((ticket) => (
-            <div className="relative">
+            <div key={ticket.numero_ticket} className="relative">
               <div
-                key={ticket.numero}
                 onClick={() => handleTicketClick(ticket)}
-                title={`N°${formatTicketNumber(ticket.numero, rifa?.total_tickets)} - ${ticket.estado === "disponible" ? "Disponible - Haz clic para comprar"
-                  : ticket.estado === "apartado" ? `Apartado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
-                    : ticket.estado === "pagado" ? `Pagado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
-                      : ticket.estado === "familiares" ? "Familiares"
+                title={`N°${ticket.numero_ticket} - ${ticket.estado_ticket === "disponible" ? "Disponible - Haz clic para comprar"
+                  : ticket.estado_ticket === "apartado" ? `Apartado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
+                    : ticket.estado_ticket === "pagado" ? `Pagado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
+                      : ticket.estado_ticket === "familiares" ? "Familiares"
                         : ""
                   }`}
                 className={`
                 w-10 h-10 flex items-center justify-center rounded-lg cursor-pointer
                 text-xs font-bold transition-all duration-200 transform hover:scale-110 hover:ring-2 hover:ring-[#7c3bed] hover:shadow-lg
-                ${ticket.estado === "disponible" ? "bg-[#23283a] text-white hover:bg-[#2d3748] border border-[#4a5568]" : ""}
-                ${ticket.estado === "apartado" ? "bg-yellow-400 text-yellow-900 hover:bg-yellow-300 shadow-md border border-yellow-500" : ""}
-                ${ticket.estado === "pagado" ? "bg-green-500 text-white hover:bg-green-400 shadow-md border border-green-600" : ""}
-                ${ticket.estado === "familiares" ? "bg-purple-500 text-white hover:bg-purple-400 shadow-md border border-purple-600 opacity-75" : ""}
-                ${selectedTicketsFromMap.includes(ticket.numero) ? "!bg-[#d54ff9] ring-2 ring-white" : ""}
-                ${ganador && ganador.numero_ganador === ticket.numero ? "bg-gradient-to-br from-yellow-400 to-orange-500 text-black font-bold ring-4 ring-white shadow-2xl animate-pulse" : ""}
+                ${ticket.estado_ticket === "disponible" ? "bg-[#23283a] text-white hover:bg-[#2d3748] border border-[#4a5568]" : ""}
+                ${ticket.estado_ticket === "apartado" ? "bg-yellow-400 text-yellow-900 hover:bg-yellow-300 shadow-md border border-yellow-500" : ""}
+                ${ticket.estado_ticket === "pagado" ? "bg-green-500 text-white hover:bg-green-400 shadow-md border border-green-600" : ""}
+                ${ticket.estado_ticket === "familiares" ? "bg-purple-500 text-white hover:bg-purple-400 shadow-md border border-purple-600 opacity-75" : ""}
+                ${selectedTicketsFromMap.includes(ticket.numero_ticket) ? "!bg-[#d54ff9] ring-2 ring-white" : ""}
+                ${ganador && ganador.numero_ganador === ticket.numero_ticket ? "bg-gradient-to-br from-yellow-400 to-orange-500 text-black font-bold ring-4 ring-white shadow-2xl animate-pulse" : ""}
               `}
               >
                 <div className="flex flex-col items-center justify-center">
-                  <span className="leading-none">{formatTicketNumber(ticket.numero, rifa?.total_tickets)}</span>
-                  {ticket.estado !== "disponible" && (
+                  <span className="leading-none">{ticket.numero_ticket}</span>
+                  {ticket.estado_ticket !== "disponible" && (
                     <div className="w-1 h-1 bg-current rounded-full mt-0.5 opacity-60"></div>
                   )}
                 </div>
               </div>
-              {ganador && ganador.numero_ganador === ticket.numero && (
+              {ganador && ganador.numero_ganador === ticket.numero_ticket && (
                 <TrophyIcon className="w-4 h-4 absolute top-1 right-1 text-black/70" />
               )}
             </div>

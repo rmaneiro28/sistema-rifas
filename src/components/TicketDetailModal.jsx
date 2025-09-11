@@ -70,9 +70,14 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         setLoading(false);
     };
 
-    if (!isOpen || !ticket || !playerGroup) {
+    if (!isOpen || !ticket) {
         return null;
     }
+    
+    // Debug logging
+    console.log('Modal props:', { isOpen, ticket: !!ticket, playerGroup: !!playerGroup, rifa: !!rifa });
+    console.log('Ticket data:', ticket);
+    console.log('Player group data:', playerGroup);
 
     return (
         <>
@@ -94,7 +99,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     <div className="flex-1 p-6 overflow-y-auto">
                         <div className="space-y-6">
                             <div className="space-y-4">
-                                <h3 className="text-lg font-semibold text-white flex items-center"><TicketIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />Información del Ticket</h3>
+                                <h3 className="text-lg font-semibold text-white flex items-center"><TicketIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />Información del Tickets</h3>
                                 <div className="bg-[#23283a] rounded-lg p-4 space-y-3">
                                     <div className="flex justify-between items-center">
                                         <span className="text-gray-400">Número:</span>
@@ -105,7 +110,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                     <div className="flex justify-between items-center"><span className="text-gray-400">Precio:</span><span className="text-white font-bold">${rifa?.precio_ticket}</span></div>
                                     <div className="flex justify-between items-center">
                                         <span className="text-gray-400">Estado:</span>
-                                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${filterOptions.find(f => f.key === ticket.estado)?.color || 'bg-gray-500'} ${filterOptions.find(f => f.key === ticket.estado)?.textColor || 'text-white'}`}>{ticket.estado}</span>
+                                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${filterOptions.find(f => f.key === ticket.estado_ticket)?.color || 'bg-gray-500'} ${filterOptions.find(f => f.key === ticket.estado_ticket)?.textColor || 'text-white'}`}>{ticket.estado_ticket}</span>
                                     </div>
                                     {(ticket.fecha_creacion_ticket || ticket.created_at) && (
                                         <div className="flex justify-between items-center">
@@ -116,22 +121,27 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                 </div>
                             </div>
 
-                            <div className="space-y-4">
-                                <h3 className="text-lg font-semibold text-white flex items-center"><UserIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />Información del Jugador</h3>
-                                <div className="bg-[#23283a] rounded-lg p-4 space-y-3">
-                                    <div className="flex justify-between items-center"><span className="text-gray-400">Nombre:</span><span className="text-white font-medium">{playerGroup.info.nombre_jugador || 'No asignado'}</span></div>
-                                    <div className="flex justify-between items-center"><span className="text-gray-400">Email:</span><span className="text-white">{playerGroup.info.email_jugador || 'N/A'}</span></div>
-                                    <div className="flex justify-between items-center"><span className="text-gray-400">Teléfono:</span><span className="text-white">{formatTelephone(playerGroup.info.telefono_jugador)}</span></div>
+                            {playerGroup && (
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-semibold text-white flex items-center"><UserIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />Información del Jugador</h3>
+                                    <div className="bg-[#23283a] rounded-lg p-4 space-y-3">
+                                        <div className="flex justify-between items-center"><span className="text-gray-400">Nombre:</span><span className="text-white font-medium">{playerGroup.info.nombre_jugador || 'N/A'}</span></div>
+                                        <div className="flex justify-between items-center"><span className="text-gray-400">Cédula de Identidad:</span><span className="text-white">{playerGroup.info.cedula_jugador || 'N/A'}</span></div>
+                                        <div className="flex justify-between items-center"><span className="text-gray-400">Teléfono:</span><span className="text-white">{formatTelephone(playerGroup.info.telefono_jugador)}</span></div>
+                                        {playerGroup.info.email_jugador && (
+                                            <div className="flex justify-between items-center"><span className="text-gray-400">Email:</span><span className="text-white">{playerGroup.info.email_jugador}</span></div>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
-                            {playerGroup.tickets.filter(t => t.numero !== ticket.numero).length > 0 && (
+                            {playerGroup && playerGroup.tickets && playerGroup.tickets.filter(t => t.numero_ticket !== ticket.numero_ticket).length > 0 && (
                                 <div className="space-y-4">
                                     <h3 className="text-lg font-semibold text-white">Otros números de este jugador</h3>
                                     <div className="bg-[#23283a] rounded-lg p-4">
                                         <div className="flex flex-wrap gap-2">
-                                            {playerGroup.tickets.filter(t => t.numero !== ticket.numero).map(otherTicket => (
-                                                <span key={otherTicket.numero} className={`px-3 py-1.5 rounded-lg text-sm font-mono font-bold ${filterOptions.find(f => f.key === otherTicket.estado)?.color || 'bg-gray-600'} ${filterOptions.find(f => f.key === otherTicket.estado)?.textColor || 'text-white'}`}>{formatTicketNumber(otherTicket.numero, rifa?.total_tickets)}</span>
+                                            {playerGroup.tickets.filter(t => t.numero_ticket !== ticket.numero_ticket).map(otherTicket => (
+                                                <span key={otherTicket.numero_ticket} className={`px-3 py-1.5 rounded-lg text-sm font-mono font-bold ${filterOptions.find(f => f.key === otherTicket.estado_ticket)?.color || 'bg-gray-600'} ${filterOptions.find(f => f.key === otherTicket.estado_ticket)?.textColor || 'text-white'}`}>{formatTicketNumber(otherTicket.numero_ticket, rifa?.total_tickets)}</span>
                                             ))}
                                         </div>
                                     </div>
@@ -146,9 +156,9 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                             Cambiar estado del Ticket #{formatTicketNumber(ticket.numero, rifa?.total_tickets)}
                         </h3>
                         <div className="grid grid-cols-2 gap-3">
-                            <button onClick={() => handleUpdateSingleTicketStatus("pagado")} disabled={loading || ticket.estado === 'pagado'} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Pagado</button>
-                            <button onClick={() => handleUpdateSingleTicketStatus("apartado")} disabled={loading || ticket.estado === 'apartado'} className="w-full bg-yellow-500 hover:bg-yellow-600 text-yellow-900 py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Apartado</button>
-                            <button onClick={() => handleUpdateSingleTicketStatus("familiares")} disabled={loading || ticket.estado === 'familiares'} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Familiar</button>
+                            <button onClick={() => handleUpdateSingleTicketStatus("pagado")} disabled={loading || ticket.estado_ticket === 'pagado'} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Pagado</button>
+                            <button onClick={() => handleUpdateSingleTicketStatus("apartado")} disabled={loading || ticket.estado_ticket === 'apartado'} className="w-full bg-yellow-500 hover:bg-yellow-600 text-yellow-900 py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Apartado</button>
+                            <button onClick={() => handleUpdateSingleTicketStatus("familiares")} disabled={loading || ticket.estado_ticket === 'familiares'} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Familiar</button>
                             <button onClick={() => handleUpdateSingleTicketStatus("disponible")} disabled={loading} className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Liberar</button>
                         </div>
                     </div>

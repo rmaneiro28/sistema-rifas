@@ -47,10 +47,10 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
         }
     }, [selectedJugador, jugadores]);
 
+    // Permitir guardar los números tal cual como texto (ej: '000', '0214')
     const numerosSeleccionados = useMemo(() => {
-        const customNumbers = customNumero.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0 && n <= (rifa?.total_tickets || 1000));
-        return [...new Set(customNumbers)];
-    }, [customNumero, rifa?.total_tickets]);
+        return [...new Set(customNumero.split(',').map(n => n.trim()).filter(n => n.length > 0))];
+    }, [customNumero]);
 
     const filteredJugadores = useMemo(() => {
         if (!jugadorSearchQuery) return jugadores;
@@ -123,9 +123,9 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
     };
 
     const handleAddCustomNumber = () => {
-        const num = parseInt(singleCustomNumberInput);
-        if (isNaN(num) || num <= 0 || num > (rifa?.total_tickets || 1000)) {
-            toast.error(`Ingresa un número válido entre 1 y ${rifa?.total_tickets || 1000}.`);
+        const num = singleCustomNumberInput.trim();
+        if (!num || num.length === 0) {
+            toast.error(`Ingresa un número válido.`);
             return;
         }
         if (numerosSeleccionados.includes(num)) {
@@ -138,14 +138,14 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
             setSingleCustomNumberInput("");
             return;
         }
-        const newNumbers = [...numerosSeleccionados, num].sort((a, b) => a - b);
+        const newNumbers = [...numerosSeleccionados, num];
         setCustomNumero(newNumbers.join(', '));
         setSingleCustomNumberInput("");
     };
 
     const handleRemoveFromSelection = (numToRemove) => {
         const newNumbers = numerosSeleccionados.filter(n => n !== numToRemove);
-        setCustomNumero(newNumbers.sort((a, b) => a - b).join(', '));
+        setCustomNumero(newNumbers.join(', '));
     };
 
     const handleProceedToConfirmation = () => {
@@ -153,7 +153,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
         if (unavailableNumbers.length > 0) {
             toast.error(`Los siguientes números ya no están disponibles: ${unavailableNumbers.join(', ')}`);
             const availableNumbers = numerosSeleccionados.filter(num => !unavailableNumbers.includes(num));
-            setCustomNumero(availableNumbers.sort((a, b) => a - b).join(', '));
+            setCustomNumero(availableNumbers.join(', '));
         } else if (numerosSeleccionados.length > 0) {
             setWizardStep(3);
         } else {
@@ -169,7 +169,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
             return;
         }
 
-        const { data: taken, error: checkError } = await supabase.from("t_tickets").select("numero, jugador_id").eq("rifa_id", rifa.id_rifa).in("numero", numerosSeleccionados);
+        const { data: taken, error: checkError } = await supabase.from("t_tickets").select("numero, jugador_id").eq("rifa_id", rifa.id_rifa).in("numero", numerosSeleccionados.map(num => formatTicketNumber(num, rifa?.total_tickets)));
         if (checkError) {
             toast.error("Error al verificar los tickets: " + checkError.message);
             setLoading(false);
@@ -191,7 +191,18 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
             return;
         }
 
-        const { error: insertError } = await supabase.from("t_tickets").insert(numerosSeleccionados.map(numero => ({ rifa_id: rifa.id_rifa, jugador_id: selectedJugador, numero: numero, estado: "apartado" })));
+        // Guardar los números con formato de ceros a la izquierda para asegurar unicidad
+        const fechaApartado = new Date().toISOString();
+        const { error: insertError } = await supabase.from("t_tickets").insert(
+            numerosSeleccionados.map(numero => ({
+                rifa_id: rifa.id_rifa,
+                jugador_id: selectedJugador,
+                numero: formatTicketNumber(numero, rifa?.total_tickets), // <--- Aquí se guarda el número con formato de ceros a la izquierda
+                estado: "apartado",
+                configuracion_id: rifa.configuracion_id || null,
+                fecha_apartado: fechaApartado
+            }))
+        );
         if (!insertError) {
             toast.success(`Ticket(s) apartado(s) correctamente. Procede con el pago.`);
             onSuccess(true); // Soft refresh
@@ -204,7 +215,8 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
 
     const handleConfirmarPago = async () => {
         setLoading(true);
-        const { error } = await supabase.from("t_tickets").update({ estado: "pagado" }).eq("rifa_id", rifa.id_rifa).eq("jugador_id", selectedJugador).in("numero", numerosSeleccionados);
+    const fechaPago = new Date().toISOString();
+    const { error } = await supabase.from("t_tickets").update({ estado: "pagado", fecha_pago: fechaPago }).eq("rifa_id", rifa.id_rifa).eq("jugador_id", selectedJugador).in("numero", numerosSeleccionados.map(num => formatTicketNumber(num, rifa?.total_tickets)));
         if (!error) {
             const jugador = jugadores.find(j => j.id == selectedJugador);
             toast.success(`Pago confirmado para ${jugador?.nombre}`);
@@ -214,7 +226,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
                 jugador: `${jugador.nombre} ${jugador.apellido}`,
                 telefono: jugador.telefono,
                 rifa: rifa?.nombre,
-                numeros: numerosSeleccionados,
+                numeros: numerosSeleccionados.map(num => formatTicketNumber(num, rifa?.total_tickets)),
                 total: (rifa?.precio_ticket * numerosSeleccionados.length).toFixed(2),
                 metodoPago: metodoPago,
                 referencia: referenciaPago || 'N/A',
@@ -261,6 +273,12 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
         const message = `¡Felicidades, ${jugador}! 🎟️\nHas participado en la rifa *${nombreRifa}*.\n\n*Tus números son:* ${numeros.join(', ')}\n*Total Pagado:* $${total}\n\n¡Mucha suerte! 🍀`.trim().replace(/\n/g, '%0A');
         const whatsappUrl = `https://wa.me/${generatedTicketInfo.telefono.replace(/\D/g, '')}?text=${message}`;
         window.open(whatsappUrl, '_blank');
+    };
+
+    const formatTicketNumber = (number, totalTickets) => {
+        if (number == null || totalTickets == null) return number;
+        const numDigits = String(totalTickets - 1).length;
+        return String(number).padStart(Math.max(3, numDigits), "0");
     };
 
     if (!isOpen) return null;
@@ -317,7 +335,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
                         <div className="text-center"><div className="bg-green-500/20 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"><CreditCardIcon className="w-6 h-6 text-green-500" /></div><h2 className="text-xl font-bold text-white mb-2">Confirmar registro</h2><p className="text-gray-400 text-sm">Revisa los detalles antes de confirmar</p></div>
                         <div className="bg-[#23283a] rounded-lg p-4 space-y-3">
                             <div className="flex items-center space-x-3"><UserIcon className="w-5 h-5 text-[#7c3bed]" /><div><p className="text-sm text-gray-400">Jugador</p><p className="text-white font-medium">{jugadores.find(j => j.id == selectedJugador)?.nombre} {jugadores.find(j => j.id == selectedJugador)?.apellido}</p></div></div>
-                            <div className="flex items-start space-x-3"><TicketIcon className="w-5 h-5 text-[#7c3bed] mt-0.5" /><div><p className="text-sm text-gray-400">Números seleccionados</p><div className="flex flex-wrap gap-1 mt-1">{numerosSeleccionados.map((num, index) => (<span key={index} className="bg-[#7c3bed] text-white px-2 py-1 rounded text-sm font-mono">{num}</span>))}</div></div></div>
+                            <div className="flex items-start space-x-3"><TicketIcon className="w-5 h-5 text-[#7c3bed] mt-0.5" /><div><p className="text-sm text-gray-400">Números seleccionados</p><div className="flex flex-wrap gap-1 mt-1">{numerosSeleccionados.map((num, index) => (<span key={index} className="bg-[#7c3bed] text-white px-2 py-1 rounded text-sm font-mono">{formatTicketNumber(num, rifa?.total_tickets)}</span>))}</div></div></div>
                             <div className="flex items-center space-x-3"><CreditCardIcon className="w-5 h-5 text-[#7c3bed]" /><div><p className="text-sm text-gray-400">Total a pagar</p><p className="text-white font-medium">${(rifa?.precio_ticket * numerosSeleccionados.length).toFixed(2)}</p></div></div>
                         </div>
                         <div className="flex justify-between items-center pt-4"><button onClick={() => setWizardStep(2)} className="px-4 py-2 rounded-lg bg-[#23283a] hover:bg-[#2d3748] text-white transition-colors">Atrás</button><button onClick={handleApartarTickets} disabled={loading} className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-6 py-3 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center space-x-2">{loading ? (<><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div><span>Apartando...</span></>) : (<span>Apartar y Proceder al Pago</span>)}</button></div>
@@ -351,7 +369,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
                                 <div className="flex flex-col sm:flex-row sm:justify-between"><span className="text-gray-400">Fecha:</span><span className="text-white text-left sm:text-right">{generatedTicketInfo.fecha.toLocaleDateString('es-ES')}</span></div>
                                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center"><span className="text-gray-400">Total Pagado:</span><span className="text-green-400 font-bold text-lg sm:text-base">${generatedTicketInfo.total}</span></div>
                             </div>
-                            <div className="border-t border-solid border-gray-600 pt-4"><p className="text-gray-400 text-sm mb-2">Números Adquiridos:</p><div className="flex flex-wrap gap-2 justify-center">{generatedTicketInfo.numeros.map(num => (<span key={num} className="bg-[#7c3bed] text-white font-mono font-bold px-3 py-1.5 rounded-md text-base">{num}</span>))}</div></div>
+                            <div className="border-t border-solid border-gray-600 pt-4"><p className="text-gray-400 text-sm mb-2">Números Adquiridos:</p><div className="flex flex-wrap gap-2 justify-center">{generatedTicketInfo.numeros.map(num => (<span key={num} className="bg-[#7c3bed] text-white font-mono font-bold px-3 py-1.5 rounded-md text-base">{formatTicketNumber(num, rifa?.total_tickets)}</span>))}</div></div>
                             <div className="text-center pt-4 mt-4 border-t border-gray-700"><p className="text-xs text-gray-500">¡Mucha suerte! 🍀</p></div>
                         </div>
                         <div className="max-md:flex max-md:flex-col sm:grid sm:grid-cols-2 gap-3 pt-4">

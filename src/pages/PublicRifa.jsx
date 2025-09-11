@@ -43,6 +43,14 @@ import { TicketVerifierModal } from '../components/TicketVerifierModal.jsx';
 
 // --- Subcomponentes para mejorar la legibilidad ---
 
+const formatTicketNumber = (number, totalTickets) => {
+  if (number === null || number === undefined || !totalTickets || totalTickets <= 0) {
+    return number;
+  }
+  const numDigits = String(totalTickets - 1).length;
+  return String(number).padStart(Math.max(3, numDigits), "0");
+};
+
 const RaffleWinnerBanner = ({ ganador, premio }) => (
     <div className="relative bg-gradient-to-br from-yellow-400 to-orange-500 text-black p-8 rounded-2xl mb-10 text-center shadow-2xl animate-fade-in overflow-hidden">
         <TrophyIcon className="absolute -left-4 -top-4 w-24 h-24 text-white/20 transform rotate-[-20deg]" />
@@ -118,7 +126,7 @@ const Legend = () => (
     </div>
 );
 
-const Ticket = ({ ticket, ganador }) => {
+const Ticket = ({ ticket, ganador, totalTickets }) => {
     const getStatusClasses = () => {
         if (ganador?.numero_ganador === ticket.numero) {
             return 'bg-gradient-to-br from-yellow-400 to-orange-500 text-black ring-4 ring-white/80 animate-pulse shadow-lg shadow-yellow-500/50';
@@ -133,7 +141,7 @@ const Ticket = ({ ticket, ganador }) => {
 
     return (
         <div
-            title={`#${ticket.numero} - ${ticket.estado}`}
+            title={`#${formatTicketNumber(ticket.numero, totalTickets)} - ${ticket.estado}`}
             className={`relative w-full h-10 flex items-center justify-center rounded-lg text-sm font-bold transition-all duration-200 transform hover:scale-105 hover:z-10 ${getStatusClasses()}`}
         >
             {/* Perforations */}
@@ -143,15 +151,15 @@ const Ticket = ({ ticket, ganador }) => {
             <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 flex flex-col gap-1.5">
                 {[...Array(5)].map((_, i) => <div key={i} className="w-1 h-1 rounded-full bg-[#0f131b]" />)}
             </div>
-            <span className="drop-shadow-sm">{ticket.numero}</span>
+            <span className="drop-shadow-sm">{formatTicketNumber(ticket.numero, totalTickets)}</span>
             {ganador?.numero_ganador === ticket.numero && <TrophyIcon className="w-4 h-4 absolute top-1.5 right-1.5 text-black/70" />}
         </div>
     );
 };
 
-const TicketGrid = React.memo(({ tickets, ganador }) => (
+const TicketGrid = React.memo(({ tickets, ganador, totalTickets }) => (
     <div className="grid max-md:grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 xl:grid-cols-15 gap-2">
-        {tickets.map((ticket) => <Ticket key={ticket.numero} ticket={ticket} ganador={ganador} />)}
+        {tickets.map((ticket) => <Ticket key={ticket.numero} ticket={ticket} ganador={ganador} totalTickets={totalTickets} />)}
     </div>
 ));
 
@@ -311,7 +319,7 @@ export function PublicRifa() {
                             </select>
                         </div>
                         <div className="overflow-y-auto h-[75vh] pr-2">
-                            <TicketGrid tickets={filteredTickets} ganador={ganador} />
+                            <TicketGrid tickets={filteredTickets} ganador={ganador} totalTickets={rifa?.total_tickets} />
                         </div>
                     </div>
                 </div>

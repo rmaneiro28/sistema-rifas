@@ -189,7 +189,7 @@ export function Jugadores() {
             className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#181c24] border border-[#23283a] text-white focus:outline-none focus:border-[#7c3bed] transition"
           />
         </div>
-        <div className=" flex gap-2 max-w-full ">
+        <div className=" flex gap-2 max-w-full "> 
           <button onClick={() => handleFilter("all")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "all" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
             Todos
           </button>

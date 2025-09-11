@@ -17,8 +17,17 @@ import { LoadingScreen } from "../components/LoadingScreen";
 
 // Utilidad para formatear números telefónicos
 const formatTelephone = (phone) => {
-  if (!phone) return "N/A";
-  return phone.replace(/(\d{4})(\d{3})(\d{4})/, "+58-$1-$2-$3");
+  if (!phone) return '';
+  return phone.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+};
+
+// Utilidad para formatear números de tickets
+const formatTicketNumber = (number, totalTickets) => {
+  if (number === null || number === undefined || !totalTickets || totalTickets <= 0) {
+    return number;
+  }
+  const numDigits = String(totalTickets - 1).length;
+  return String(number).padStart(Math.max(3, numDigits), "0");
 };
 
 // Utilidad para exportar CSV
@@ -273,7 +282,7 @@ export function Tickets() {
   }, [navigate]);
 
   const handleDeleteTicket = useCallback(async (ticket) => {
-    if (window.confirm(`¿Estás seguro de eliminar el ticket #${ticket.numero_ticket}?`)) {
+    if (window.confirm(`¿Estás seguro de eliminar el ticket #${formatTicketNumber(ticket.numero_ticket, 1000)}?`)) {
       try {
         const { error } = await supabase.from("t_tickets").delete().eq("id", ticket.ticket_id);
         if (error) throw error;
