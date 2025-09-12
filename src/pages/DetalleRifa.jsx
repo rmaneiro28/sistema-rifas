@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, NavLink } from "react-router-dom";
-import { ArrowLeftIcon, Cog6ToothIcon, TicketIcon, XMarkIcon, MagnifyingGlassIcon, TrophyIcon, ShareIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, Cog6ToothIcon, TicketIcon, XMarkIcon, MagnifyingGlassIcon, TrophyIcon, ShareIcon, PencilIcon, PlusIcon } from "@heroicons/react/24/outline";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
 import { LoadingScreen } from "../components/LoadingScreen";
@@ -324,12 +324,12 @@ export function DetalleRifa() {
         </NavLink>
       </div>
       <div className="mb-6 flex justify-between gap-4">
-        <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent text-center">
+        <h1 className="text-2xl md:text-3xl font-bold text-left bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent text-center">
           {rifa?.nombre}
         </h1>
 
         <NavLink to={`/rifas/editar/${id}`} className="flex items-center gap-1 px-3 py-1 rounded-lg bg-[#23283a] text-[#d54ff9] text-xs font-semibold">
-          <Cog6ToothIcon className="w-4 h-4" />
+          <PencilIcon className="w-4 h-4" />
           <span>Editar</span>
         </NavLink>
       </div>
@@ -365,7 +365,14 @@ export function DetalleRifa() {
         </div>
         
         {/* Action buttons */}
-        <div className="flex items-end justify-end gap-4 w-full">
+        <div className="md:flex md:items-end md:justify-end max-md:grid max-md:grid-cols-3 gap-4 w-full">
+          <button 
+          onClick={handleOpenWinnerModal}
+            className="group relative overflow-hidden bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 sm:px-4 sm:py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 active:scale-95 min-h-[48px] sm:min-h-0"
+            title="Registrar ganador de la rifa"
+            aria-label="Registrar ganador de la rifa">
+            <PlusIcon className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 group-hover:animate-pulse" />
+          </button>
           <button
             onClick={handleOpenWinnerModal}
             className="group relative overflow-hidden bg-gradient-to-r from-amber-500 to-orange-600 text-white px-6 py-3 sm:px-4 sm:py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 active:scale-95 min-h-[48px] sm:min-h-0"
@@ -374,7 +381,6 @@ export function DetalleRifa() {
           >
             <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
             <TrophyIcon className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 group-hover:animate-bounce" />
-            <span className="relative z-10 text-sm sm:text-base">Ganador</span>
             <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
           </button>
           <button
@@ -385,7 +391,6 @@ export function DetalleRifa() {
           >
             <div className="absolute inset-0 bg-gradient-to-r from-sky-400 to-blue-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
             <ShareIcon className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 group-hover:animate-pulse" />
-            <span className="relative z-10 text-sm sm:text-base">Compartir</span>
             <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
           </button>
         </div>

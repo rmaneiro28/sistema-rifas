@@ -28,7 +28,7 @@ const BankDataCard = ({ logo, icon: Icon, label, value }) => {
             </div>
             <button
                 onClick={handleCopy}
-                className="ml-4 bg-yellow-500 hover:bg-yellow-600 text-black px-3 py-1 rounded-lg font-semibold flex items-center gap-1 transition-all"
+                className="ml-4 bg-purple-500 hover:bg-purple-600 text-black px-3 py-1 rounded-lg font-semibold flex items-center gap-1 transition-all"
                 title="Copiar"
             >
                 <ClipboardIcon className="w-5 h-5" />
@@ -106,27 +106,30 @@ const InfoItem = ({ icon: Icon, label, value, color }) => (
 const RaffleHeader = ({ rifa }) => (
     <div className="grid max-md:grid-cols-1 md:grid-cols-5 gap-0 items-center bg-[#181c24] border border-[#23283a] rounded-2xl overflow-hidden mb-10">
         {/* Columna de la Imagen */}
-        <div className="md:col-span-2 w-full h-full">
-            <img src={rifa.imagen_url} alt={rifa.nombre} className="w-full h-full object-cover aspect-square md:aspect-auto" />
+        <div className="md:col-span-3 w-full h-full">
+            <img src={rifa.imagen_url} alt={rifa.nombre} className="w-full h-[90vh] object-cover" />
         </div>
 
         {/* Columna del Texto */}
-        <div className="md:col-span-3 p-8">
+        <div className="md:col-span-2 p-8">
             <h1 className="text-4xl md:text-5xl font-bold text-white">{rifa.nombre}</h1>
-            <p className="text-gray-300 mt-2 max-w-3xl text-lg">{rifa.descripcion}</p>
+            <p className="text-gray-300 mt-2 max-w-3xl text-sm">{rifa.descripcion}</p>
             <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-6 text-white">
                 <div className="bg-black/20 p-4 rounded-xl border border-white/10">
                     <p className="text-sm text-gray-300 flex items-center gap-2"><GiftIcon className="w-4 h-4 text-purple-400" /> Premio</p>
                     <p className="text-xl font-bold">{rifa.premio || rifa.nombre}</p>
                 </div>
-                <div className="bg-black/20 p-4 rounded-xl border border-white/10">
-                    <p className="text-sm text-gray-300 flex items-center gap-2"><CurrencyDollarIcon className="w-4 h-4 text-green-400" /> Precio</p>
-                    <p className="text-xl font-bold">${rifa.precio_ticket}</p>
+                <div className='grid gap-2 md:grid-cols-2 '>
+                    <div className="bg-black/20 p-4 rounded-xl border border-white/10">
+                        <p className="text-sm text-gray-300 flex items-center gap-2"><CurrencyDollarIcon className="w-4 h-4 text-green-400" /> Precio</p>
+                        <p className="text-xl font-bold">${rifa.precio_ticket}</p>
+                    </div>
+                    <div className="bg-black/20 p-4 rounded-xl col-span-1 sm:col-span-2 border border-white/10">
+                        <p className="text-sm text-gray-300 flex items-center gap-2"><CalendarDaysIcon className="w-4 h-4 text-blue-400" /> Fecha del Sorteo</p>
+                        <p className="text-xl font-bold">{rifa.fecha_fin && !isNaN(new Date(rifa.fecha_fin)) ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No definida'}</p>
+                    </div>
                 </div>
-                <div className="bg-black/20 p-4 rounded-xl col-span-1 sm:col-span-2 border border-white/10">
-                    <p className="text-sm text-gray-300 flex items-center gap-2"><CalendarDaysIcon className="w-4 h-4 text-blue-400" /> Fecha del Sorteo</p>
-                    <p className="text-xl font-bold">{rifa.fecha_fin && !isNaN(new Date(rifa.fecha_fin)) ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : 'No definida'}</p>
-                </div>
+               
                 <RaffleProgressBar
                     vendidos={rifa.tickets_vendidos}
                     total={rifa.total_tickets}
@@ -339,8 +342,8 @@ export function PublicRifa() {
                             )}
                         </div>
                         
-                        <div className='bg-[#181c24] border border-[#232383a] p-4 rounded-xl mt-4'>
-                            <h3 className="font-bold text-white mb-5 text-center text-lg">Números de contacto</h3>
+                        <div className='bg-[#181c24]  p-4 rounded-xl mt-4'>
+                            <h3 className="font-bold text-white mb-5 text-center text-lg">Números de Contacto</h3>
                             <BankDataCard
                                 icon={PhoneIcon}
                                 label="Johana Márquez"
@@ -394,7 +397,7 @@ export function PublicRifa() {
                                 
                             </div>
                         </div>
-                        <div className="overflow-y-auto h-[90vh] pr-2">
+                        <div className="overflow-y-auto max-h-[90vh] pr-2">
                             <TicketGrid tickets={filteredTickets} ganador={ganador} totalTickets={rifa?.total_tickets} />
                         </div>
                     </div>

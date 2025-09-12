@@ -5,6 +5,8 @@ import {
     TicketIcon,
     XMarkIcon,
     UserIcon,
+    ChatBubbleLeftRightIcon,
+    DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
 
 const formatTicketNumber = (number, totalTickets) => {
@@ -95,6 +97,117 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         }
     };
 
+    const handleShareWhatsApp = () => {
+        if (!ticket || !rifa) return;
+        
+        const ticketNumber = formatTicketNumber(ticket.numero_ticket, rifa.total_tickets);
+        const ticketPrice = rifa.precio_ticket;
+        const raffleName = rifa.nombre;
+        
+        const message = `🎫 *TICKET DE RIFA* 🎫\n\n` +
+                       `📋 *Rifa:* ${raffleName}\n` +
+                       `🎯 *Número:* #${ticketNumber}\n` +
+                       `💰 *Precio:* $${ticketPrice}\n\n` +
+                       `¡Gracias por tu participación! 🎉`;
+        
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank');
+    };
+
+    const handleCopyTicketImage = async () => {
+        if (!ticket || !rifa) return;
+        
+        try {
+            // Create a canvas element to generate the ticket image
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas size
+            canvas.width = 400;
+            canvas.height = 600;
+            
+            // Background gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#7c3bed');
+            gradient.addColorStop(1, '#d54ff9');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // White content area with rounded corners
+            ctx.fillStyle = '#ffffff';
+            const cornerRadius = 15;
+            const x = 20;
+            const y = 20;
+            const width = canvas.width - 40;
+            const height = canvas.height - 40;
+            
+            ctx.beginPath();
+            ctx.moveTo(x + cornerRadius, y);
+            ctx.lineTo(x + width - cornerRadius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + cornerRadius);
+            ctx.lineTo(x + width, y + height - cornerRadius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - cornerRadius, y + height);
+            ctx.lineTo(x + cornerRadius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - cornerRadius);
+            ctx.lineTo(x, y + cornerRadius);
+            ctx.quadraticCurveTo(x, y, x + cornerRadius, y);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Reset for text
+            ctx.fillStyle = '#000000';
+            ctx.textAlign = 'center';
+            
+            // Title
+            ctx.font = 'bold 24px Arial';
+            ctx.fillText('TICKET DE RIFA', canvas.width / 2, 80);
+            
+            // Raffle name
+            ctx.font = '18px Arial';
+            ctx.fillText(rifa.nombre, canvas.width / 2, 120);
+            
+            // Ticket number (large)
+            ctx.font = 'bold 48px Arial';
+            ctx.fillStyle = '#7c3bed';
+            ctx.fillText(`#${formatTicketNumber(ticket.numero_ticket, rifa.total_tickets)}`, canvas.width / 2, 220);
+            
+            // Price
+            ctx.font = 'bold 20px Arial';
+            ctx.fillStyle = '#16a249';
+            ctx.fillText(`$${rifa.precio_ticket}`, canvas.width / 2, 280);
+            
+            // Status
+            ctx.font = '16px Arial';
+            ctx.fillStyle = '#000000';
+            const statusText = ticket.estado_ticket.charAt(0).toUpperCase() + ticket.estado_ticket.slice(1);
+            ctx.fillText(`Estado: ${statusText}`, canvas.width / 2, 320);
+            
+            // Date
+            if (ticket.fecha_creacion_ticket || ticket.created_at) {
+                const date = new Date(ticket.fecha_creacion_ticket || ticket.created_at);
+                ctx.font = '14px Arial';
+                ctx.fillText(`Fecha: ${date.toLocaleDateString('es-ES')}`, canvas.width / 2, 350);
+            }
+            
+            // Convert canvas to blob and copy to clipboard
+            canvas.toBlob(async (blob) => {
+                try {
+                    await navigator.clipboard.write([
+                        new ClipboardItem({ 'image/png': blob })
+                    ]);
+                    toast.success('Imagen del ticket copiada al portapapeles');
+                } catch (err) {
+                    console.error('Error copying image to clipboard:', err);
+                    toast.error('No se pudo copiar la imagen del ticket');
+                }
+            }, 'image/png');
+            
+        } catch (error) {
+            console.error('Error generating ticket image:', error);
+            toast.error('Error al generar la imagen del ticket');
+        }
+    };
+
     if (!isOpen || !ticket) {
         return null;
     }
@@ -169,6 +282,33 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    </div>
+
+                    {/* Share Actions */}
+                    <div className="p-6 border-t border-[#23283a] bg-[#0f131b]">
+                        <h3 className="text-base font-semibold text-white mb-4">
+                            Compartir Ticket
+                        </h3>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={handleShareWhatsApp}
+                                className="group relative overflow-hidden bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
+                                title="Compartir por WhatsApp"
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+                                <ChatBubbleLeftRightIcon className="w-5 h-5 relative z-10 group-hover:animate-pulse" />
+                                <span className="relative z-10 text-sm">WhatsApp</span>
+                            </button>
+                            <button
+                                onClick={handleCopyTicketImage}
+                                className="group relative overflow-hidden bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
+                                title="Copiar imagen del ticket"
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+                                <DocumentDuplicateIcon className="w-5 h-5 relative z-10 group-hover:animate-pulse" />
+                                <span className="relative z-10 text-sm">Copiar Imagen</span>
+                            </button>
                         </div>
                     </div>
 

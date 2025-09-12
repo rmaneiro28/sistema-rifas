@@ -189,12 +189,9 @@ export function Jugadores() {
             className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#181c24] border border-[#23283a] text-white focus:outline-none focus:border-[#7c3bed] transition"
           />
         </div>
-        <div className=" flex gap-2 max-w-full "> 
+        <div className="flex flex-1 min-md:max-w-xs max-md:w-full gap-2"> 
           <button onClick={() => handleFilter("all")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "all" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
             Todos
-          </button>
-          <button onClick={() => handleFilter("vip")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "vip" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
-            Destacados
           </button>
           <button onClick={() => handleFilter("active")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "active" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
             Activos
