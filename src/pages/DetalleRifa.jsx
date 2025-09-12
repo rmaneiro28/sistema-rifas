@@ -129,7 +129,7 @@ export function DetalleRifa() {
         // This ticket exists in the database, so it's occupied.
         // Map the database fields to our expected structure with formatted ticket number
         return {
-          id: existingTicket.ticket_id,
+          id: existingTicket.id || existingTicket.ticket_id, // Use id if available, fallback to ticket_id
           numero_ticket: formattedNumero,
           estado_ticket: existingTicket.estado_ticket,
           nombre_jugador: existingTicket.nombre_jugador,

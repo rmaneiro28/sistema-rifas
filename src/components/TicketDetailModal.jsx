@@ -49,25 +49,50 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         if (!ticket) return;
 
         setLoading(true);
-        const { ticket_id, numero } = ticket;
+        const { id, numero_ticket } = ticket;
         let updateData = { estado: newStatus };
 
         if (newStatus === 'disponible') {
             updateData.jugador_id = null;
         }
 
-        const { error } = await supabase
-            .from("t_tickets")
-            .update(updateData)
-            .eq("id", ticket_id);
+        console.log('Updating ticket:', { id, numero_ticket, updateData });
 
-        if (!error) {
-            toast.success(`Ticket #${numero} actualizado a ${newStatus}`);
+        try {
+            // Try to update using id first, if that fails, try ticket_id
+            let { data, error } = await supabase
+                .from("t_tickets")
+                .update(updateData)
+                .eq("id", id)
+                .select();
+
+            // If error suggests invalid column, try with ticket_id
+            if (error && error.message.includes('column "id" does not exist')) {
+                console.log('Trying with ticket_id column instead');
+                const result = await supabase
+                    .from("t_tickets")
+                    .update(updateData)
+                    .eq("ticket_id", id)
+                    .select();
+                data = result.data;
+                error = result.error;
+            }
+
+            if (error) {
+                console.error('Supabase update error:', error);
+                toast.error(`Error al actualizar el ticket: ${error.message}`);
+                return;
+            }
+
+            console.log('Update successful:', data);
+            toast.success(`Ticket #${numero_ticket} actualizado a ${newStatus}`);
             onStatusUpdate();
-        } else {
-            toast.error("Error al actualizar el ticket");
+        } catch (err) {
+            console.error('Unexpected error updating ticket:', err);
+            toast.error('Error inesperado al actualizar el ticket');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     if (!isOpen || !ticket) {
@@ -89,7 +114,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                         <div className="flex items-center space-x-3">
                             <div className="w-10 h-10 bg-[#7c3bed]/20 rounded-full flex items-center justify-center"><TicketIcon className="w-6 h-6 text-[#7c3bed]" /></div>
                             <h2 className="text-xl font-bold text-white">
-                                Detalles del Ticket #{formatTicketNumber(ticket.numero, rifa?.total_tickets)}
+                                Detalles del Ticket #{formatTicketNumber(ticket.numero_ticket, rifa?.total_tickets)}
                             </h2>
                         </div>
                         <button onClick={handleClose} className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-[#23283a]"><XMarkIcon className="w-6 h-6" /></button>
@@ -104,12 +129,12 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                     <div className="flex justify-between items-center">
                                         <span className="text-gray-400">Número:</span>
                                         <span className="text-white font-bold text-lg">
-                                            #{formatTicketNumber(ticket.numero, rifa?.total_tickets)}
+                                            #{formatTicketNumber(ticket.numero_ticket, rifa?.total_tickets)}
                                         </span>
                                     </div>
                                     <div className="flex justify-between items-center"><span className="text-gray-400">Precio:</span><span className="text-white font-bold">${rifa?.precio_ticket}</span></div>
                                     <div className="flex justify-between items-center">
-                                        <span className="text-gray-400">Estado:</span>
+                                        <span className="text-gray-400">estado_ticket:</span>
                                         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${filterOptions.find(f => f.key === ticket.estado_ticket)?.color || 'bg-gray-500'} ${filterOptions.find(f => f.key === ticket.estado_ticket)?.textColor || 'text-white'}`}>{ticket.estado_ticket}</span>
                                     </div>
                                     {(ticket.fecha_creacion_ticket || ticket.created_at) && (
@@ -128,20 +153,17 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                         <div className="flex justify-between items-center"><span className="text-gray-400">Nombre:</span><span className="text-white font-medium">{playerGroup.info.nombre_jugador || 'N/A'}</span></div>
                                         <div className="flex justify-between items-center"><span className="text-gray-400">Cédula de Identidad:</span><span className="text-white">{playerGroup.info.cedula_jugador || 'N/A'}</span></div>
                                         <div className="flex justify-between items-center"><span className="text-gray-400">Teléfono:</span><span className="text-white">{formatTelephone(playerGroup.info.telefono_jugador)}</span></div>
-                                        {playerGroup.info.email_jugador && (
-                                            <div className="flex justify-between items-center"><span className="text-gray-400">Email:</span><span className="text-white">{playerGroup.info.email_jugador}</span></div>
-                                        )}
                                     </div>
                                 </div>
                             )}
 
-                            {playerGroup && playerGroup.tickets && playerGroup.tickets.filter(t => t.numero_ticket !== ticket.numero_ticket).length > 0 && (
+                            {playerGroup && playerGroup.tickets && playerGroup.tickets.filter(t => t.numero_ticket_ticket !== ticket.numero_ticket_ticket).length > 0 && (
                                 <div className="space-y-4">
                                     <h3 className="text-lg font-semibold text-white">Otros números de este jugador</h3>
                                     <div className="bg-[#23283a] rounded-lg p-4">
                                         <div className="flex flex-wrap gap-2">
-                                            {playerGroup.tickets.filter(t => t.numero_ticket !== ticket.numero_ticket).map(otherTicket => (
-                                                <span key={otherTicket.numero_ticket} className={`px-3 py-1.5 rounded-lg text-sm font-mono font-bold ${filterOptions.find(f => f.key === otherTicket.estado_ticket)?.color || 'bg-gray-600'} ${filterOptions.find(f => f.key === otherTicket.estado_ticket)?.textColor || 'text-white'}`}>{formatTicketNumber(otherTicket.numero_ticket, rifa?.total_tickets)}</span>
+                                            {playerGroup.tickets.filter(t => t.numero_ticket_ticket !== ticket.numero_ticket_ticket).map(otherTicket => (
+                                                <span key={otherTicket.numero_ticket_ticket} className={`px-3 py-1.5 rounded-lg text-sm font-mono font-bold ${filterOptions.find(f => f.key === otherTicket.estado_ticket)?.color || 'bg-gray-600'} ${filterOptions.find(f => f.key === otherTicket.estado_ticket)?.textColor || 'text-white'}`}>{formatTicketNumber(otherTicket.numero_ticket_ticket, rifa?.total_tickets)}</span>
                                             ))}
                                         </div>
                                     </div>
@@ -153,7 +175,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     {/* Actions */}
                     <div className="p-6 border-t border-[#23283a]">
                         <h3 className="text-base font-semibold text-white mb-4">
-                            Cambiar estado del Ticket #{formatTicketNumber(ticket.numero, rifa?.total_tickets)}
+                            Cambiar estado_ticket del Ticket #{formatTicketNumber(ticket.numero_ticket, rifa?.total_tickets)}
                         </h3>
                         <div className="grid grid-cols-2 gap-3">
                             <button onClick={() => handleUpdateSingleTicketStatus("pagado")} disabled={loading || ticket.estado_ticket === 'pagado'} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Pagado</button>

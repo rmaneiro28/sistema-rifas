@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import Confetti from "react-confetti";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
-import { MagnifyingGlassIcon, GiftIcon, CalendarDaysIcon, CurrencyDollarIcon, TrophyIcon, TicketIcon, ClipboardIcon, BanknotesIcon, CurrencyEuroIcon } from "@heroicons/react/24/outline";
+import { MagnifyingGlassIcon, GiftIcon, CalendarDaysIcon, CurrencyDollarIcon, TrophyIcon, TicketIcon, ClipboardIcon, BanknotesIcon, PhoneIcon } from "@heroicons/react/24/outline";
 import bancolombiaLogo from '../assets/Bancolombia.png';
 import zelleLogo from '../assets/Zelle.png';
 import venezuelaLogo from "../assets/Bdv.jpg"
@@ -32,7 +32,6 @@ const BankDataCard = ({ logo, icon: Icon, label, value }) => {
                 title="Copiar"
             >
                 <ClipboardIcon className="w-5 h-5" />
-                Copiar
             </button>
         </div>
     );
@@ -40,9 +39,42 @@ const BankDataCard = ({ logo, icon: Icon, label, value }) => {
 import { LoadingScreen } from '../components/LoadingScreen.jsx';
 import { useWindowSize } from '../hooks/useWindowSize.js';
 import { TicketVerifierModal } from '../components/TicketVerifierModal.jsx';
+import { Footer } from '../App.jsx';
+
+const PAYMENT_METHODS = [
+    {
+        id: 'bdv',
+        logo: venezuelaLogo,
+        label: 'Banco de Venezuela',
+        details: [
+            { id: 'bdv_titular', label: 'Titular', value: 'Johana Márquez', icon: ClipboardIcon },
+            { id: 'bdv_ci', label: 'C.I.', value: 'V-21.551.764', icon: ClipboardIcon },
+            { id: 'bdv_telefono', label: 'Teléfono', value: '0416-475-1243', icon: PhoneIcon },
+            { id: 'bdv_nro_cuenta', label: 'Número de Cuenta', value: '0102-0156-0201-0981-3662', icon: BanknotesIcon },
+        ]
+    },
+    {
+        id: 'bancolombia',
+        logo: bancolombiaLogo,
+        label: 'Bancolombia',
+        details: [
+            { id: 'bancolombia_titular', label: 'Titular', value: 'Yerson Arismendy', icon: ClipboardIcon },
+            { id: 'bancolombia_ci', label: 'C.I.', value: '1049661169', icon: ClipboardIcon },
+            { id: 'bancolombia_nro_cuenta', label: 'Número de Cuenta', value: '91228187653', icon: BanknotesIcon },
+        ]
+    },
+    {
+        id: 'zelle',
+        logo: zelleLogo,
+        label: 'Zelle',
+        details: [
+            { id: 'zelle_titular', label: 'Titular', value: 'Theo Araque', icon: ClipboardIcon },
+            { id: 'zelle_ci', label: 'Teléfono', value: '+1 (631) 624-6073', icon: ClipboardIcon }
+        ]
+    }
+];
 
 // --- Subcomponentes para mejorar la legibilidad ---
-
 const formatTicketNumber = (number, totalTickets) => {
   if (number === null || number === undefined || !totalTickets || totalTickets <= 0) {
     return number;
@@ -93,8 +125,17 @@ const RaffleHeader = ({ rifa }) => (
                 </div>
                 <div className="bg-black/20 p-4 rounded-xl col-span-1 sm:col-span-2 border border-white/10">
                     <p className="text-sm text-gray-300 flex items-center gap-2"><CalendarDaysIcon className="w-4 h-4 text-blue-400" /> Fecha del Sorteo</p>
-                    <p className="text-xl font-bold">{rifa.fecha_sorteo && !isNaN(new Date(rifa.fecha_sorteo)) ? new Date(rifa.fecha_sorteo).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : 'No definida'}</p>
+                    <p className="text-xl font-bold">{rifa.fecha_fin && !isNaN(new Date(rifa.fecha_fin)) ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : 'No definida'}</p>
                 </div>
+                <RaffleProgressBar
+                    vendidos={rifa.tickets_vendidos}
+                    total={rifa.total_tickets}
+                    progreso={(rifa.tickets_vendidos / rifa.total_tickets) * 100}
+                />
+                <button onClick={() => setIsVerifierOpen(true)} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 shadow-lg hover:shadow-purple-500/50 flex items-center justify-center gap-2">
+                    <MagnifyingGlassIcon className="w-5 h-5" />
+                        Verificar mi Ticket
+                </button>
             </div>
         </div>
     </div>
@@ -114,28 +155,32 @@ const RaffleProgressBar = ({ vendidos, total, progreso }) => (
     </div>
 );
 
-const Legend = () => (
-    <div className="bg-[#181c24] border border-[#23283a] p-4 rounded-xl">
-        <h3 className="font-bold text-white mb-3 text-center">Leyenda</h3>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-green-500 border-2 border-green-400"></div><span>Pagado</span></div>
-            <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-yellow-500 border-2 border-yellow-400"></div><span>Apartado</span></div>
-            <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-purple-500 border-2 border-purple-400"></div><span>Familiar</span></div>
-            <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-[#2d3748] border-2 border-gray-500"></div><span>Disponible</span></div>
-        </div>
-    </div>
-);
+
 
 const Ticket = ({ ticket, ganador, totalTickets }) => {
+    
+    
     const getStatusClasses = () => {
         if (ganador?.numero_ganador === ticket.numero) {
-            return 'bg-gradient-to-br from-yellow-400 to-orange-500 text-black ring-4 ring-white/80 animate-pulse shadow-lg shadow-yellow-500/50';
+            return '!bg-gradient-to-br !from-yellow-400 !to-orange-500 !text-black !ring-4 !ring-white/80 animate-pulse !shadow-lg !shadow-yellow-500/50';  
         }
         switch (ticket.estado) {
-            case 'pagado': return 'bg-green-500 text-white shadow-md shadow-green-500/20';
-            case 'apartado': return 'bg-yellow-500 text-yellow-900 shadow-md shadow-yellow-500/20';
-            case 'familiares': return 'bg-purple-500 text-white shadow-md shadow-purple-500/20';
-            default: return 'bg-[#2d3748] text-gray-400';
+            case 'pagado': return '!bg-gradient-to-br !from-green-500 !to-green-600 !text-white !shadow-lg !shadow-green-500/30 !ring-1 !ring-green-400/50';
+            case 'apartado': return '!bg-gradient-to-br !from-yellow-400 !to-yellow-500 !text-yellow-900 !shadow-lg !shadow-yellow-500/30 !ring-1 !ring-yellow-400/50';
+            case 'familiares': return '!bg-gradient-to-br !from-purple-500 !to-purple-600 !text-white !shadow-lg !shadow-purple-500/30 !ring-1 !ring-purple-400/50';
+            default: return '!bg-gradient-to-br !from-gray-600 !to-gray-700 !text-gray-300 !shadow-lg !shadow-gray-500/20 !ring-1 !ring-gray-500/30';
+        }
+    };
+
+    const getStatusIcon = () => {
+        if (ganador?.numero_ganador === ticket.numero) {
+            return <TrophyIcon className="w-3 h-3 absolute top-1 right-1 text-black/70" />;
+        }
+        switch (ticket.estado) {
+            case 'pagado': return <span className="absolute top-1 right-1 w-2 h-2 bg-green-300 rounded-full"></span>;
+            case 'apartado': return <span className="absolute top-1 right-1 w-2 h-2 bg-yellow-300 rounded-full"></span>;
+            case 'familiares': return <span className="absolute top-1 right-1 w-2 h-2 bg-purple-300 rounded-full"></span>;
+            default: return null;
         }
     };
 
@@ -151,8 +196,8 @@ const Ticket = ({ ticket, ganador, totalTickets }) => {
             <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 flex flex-col gap-1.5">
                 {[...Array(5)].map((_, i) => <div key={i} className="w-1 h-1 rounded-full bg-[#0f131b]" />)}
             </div>
-            <span className="drop-shadow-sm">{formatTicketNumber(ticket.numero, totalTickets)}</span>
-            {ganador?.numero_ganador === ticket.numero && <TrophyIcon className="w-4 h-4 absolute top-1.5 right-1.5 text-black/70" />}
+            <span className="drop-shadow-sm font-mono">{formatTicketNumber(ticket.numero, totalTickets)}</span>
+            {getStatusIcon()}
         </div>
     );
 };
@@ -172,6 +217,7 @@ export function PublicRifa() {
     const { width, height } = useWindowSize();
     const [isVerifierOpen, setIsVerifierOpen] = useState(false);
     const [ticketFilter, setTicketFilter] = useState('todos');
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(PAYMENT_METHODS[0]);
 
     const fetchRaffleAndTickets = useCallback(async () => {
         setLoading(true);
@@ -199,14 +245,19 @@ export function PublicRifa() {
             const { data: ticketsData, error: ticketsError } = ticketsResult;
             if (ticketsError) throw ticketsError;
 
+            
             const ticketsMap = new Map(ticketsData.map(t => [t.numero_ticket, t]));
             const generatedTickets = Array.from({ length: rifaData.total_tickets }, (_, i) => {
-                const numero = i + 1;
-                const existingTicket = ticketsMap.get(numero);
-                return existingTicket ?
-                    { ...existingTicket, numero: existingTicket.numero_ticket, estado: existingTicket.estado_ticket } :
-                    { numero, estado: "disponible" };
+                const existingTicket = ticketsMap.get(i);
+                const ticket = existingTicket ?
+                    { ...existingTicket, numero: i, estado: existingTicket.estado } :
+                    { numero: i, estado: "disponible" };
+                
+                   
+                
+                return ticket;
             });
+            
             setAllTickets(generatedTickets);
 
         } catch (error) {
@@ -239,7 +290,6 @@ export function PublicRifa() {
 
     if (loading) return <LoadingScreen message="Cargando rifa..." />;
     if (!rifa) return <div className="flex items-center justify-center min-h-screen bg-[#0f131b] text-red-500">No se pudo encontrar la rifa.</div>;
-
     return (
         <div className="min-h-screen bg-[#0f131b] text-white font-sans bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]">
             {ganador && <Confetti width={width} height={height} recycle={false} numberOfPieces={400} />}
@@ -250,52 +300,57 @@ export function PublicRifa() {
                 {ganador && <RaffleWinnerBanner ganador={ganador} premio={rifa.premio || rifa.nombre} />}
 
                 {/* Grid Principal */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="grid max-md:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
 
                     {/* Columna Izquierda: Información */}
                     <div className="lg:col-span-1 space-y-8">
-                        <RaffleProgressBar vendidos={vendidos} total={rifa.total_tickets} progreso={progreso} />
-
-                        <button onClick={() => setIsVerifierOpen(true)} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 shadow-lg hover:shadow-purple-500/50 flex items-center justify-center gap-2">
-                            <MagnifyingGlassIcon className="w-5 h-5" />
-                            Verificar mi Ticket
-                        </button>
-
-                        <Legend />
-
                         {/* Datos Bancarios llamativos */}
                         <div className="bg-[#181c24] border border-[#23283a] p-4 rounded-xl mt-4">
                             <h3 className="font-bold text-white mb-5 text-center text-lg">Datos Bancarios</h3>
-                            <BankDataCard
-                                logo={bancolombiaLogo}
-                                label="Bancolombia"
-                                value={import.meta.env.VITE_BANCOLOMBIA}
-                            />
-                            <BankDataCard
-                                logo={zelleLogo}
-                                label="Zelle"
-                                value={import.meta.env.VITE_ZELLE}
-                            />
-                            <BankDataCard
-                                icon={BanknotesIcon}
-                                label="Pago Móvil"
-                                value={import.meta.env.VITE_PAGOMOVIL}
-                            />
-                            <BankDataCard   
-                                logo={venezuelaLogo}
-                                label="Banco de Venezuela"
-                                value={import.meta.env.VITE_BDV}
-                            />
+                            <div className="flex flex-wrap justify-center gap-4 mb-6">
+                                {PAYMENT_METHODS.map((method) => (
+                                    <button
+                                        key={method.id}
+                                        onClick={() => setSelectedPaymentMethod(method)}
+                                        className={`p-3 rounded-lg flex flex-col items-center gap-2 transition-all duration-200
+                                                    ${selectedPaymentMethod.id === method.id ? 'bg-blue-600 ring-2 ring-blue-400' : 'bg-[#2d3748] hover:bg-[#353a4d]'}`}
+                                        title={method.label}
+                                    >
+                                        {method.logo ? (
+                                            <img src={method.logo} alt={method.label} className="w-10 h-10 rounded-full bg-white p-1" />
+                                        ) : (
+                                            <method.icon className="w-10 h-10 text-white" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {selectedPaymentMethod && (
+                                <div className="mt-4 space-y-3">
+                                    {selectedPaymentMethod.details.map(detail => (
+                                        <BankDataCard
+                                            key={detail.id}
+                                            icon={detail.icon}
+                                            label={detail.label}
+                                            value={detail.value}
+                                        />
+                                    ))}
+                                </div>
+                            )}
                         </div>
                         
                         <div className='bg-[#181c24] border border-[#232383a] p-4 rounded-xl mt-4'>
                             <h3 className="font-bold text-white mb-5 text-center text-lg">Números de contacto</h3>
-                            <div className='flex items-center justify-between bg-[#23283a] rounded-xl p-4 mb-3 shadow-md border border-[#353a4d]'>
-                                <p>{import.meta.env.VITE_CONTACTO_1}</p>
-                            </div>
-                            <div className='flex items-center justify-between bg-[#23283a] rounded-xl p-4 mb-3 shadow-md border border-[#353a4d]'>
-                                <p>{import.meta.env.VITE_CONTACTO_2}</p>
-                            </div>
+                            <BankDataCard
+                                icon={PhoneIcon}
+                                label="Johana Márquez"
+                                value="0412-5044272"
+                            />
+                            <BankDataCard
+                                icon={PhoneIcon}
+                                label="Carlos Perez"
+                                value="0412-4362660"
+                            />
                         </div>
                     </div>
 
@@ -303,22 +358,43 @@ export function PublicRifa() {
                     <div className="lg:col-span-2 bg-[#181c24]/50 backdrop-blur-sm border border-[#23283a] p-6 rounded-xl flex flex-col">
                         <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2 flex-shrink-0"><TicketIcon className="w-6 h-6 text-purple-400" /> Mapa de Tickets</h2>
                         {/* Filtro de tickets */}
-                        <div className="mb-4 flex flex-wrap gap-2 items-center">
-                            <label htmlFor="ticketFilter" className="text-sm font-semibold text-gray-300">Filtrar por estado:</label>
-                            <select
-                                id="ticketFilter"
-                                value={ticketFilter}
-                                onChange={e => setTicketFilter(e.target.value)}
-                                className="bg-[#23283a] text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none"
-                            >
-                                <option value="todos">Todos</option>
-                                <option value="pagado">Pagado</option>
-                                <option value="apartado">Apartado</option>
-                                <option value="familiar">Familiar</option>
-                                <option value="disponible">Disponible</option>
-                            </select>
+                        <div className="mb-6">
+                            <label className="text-sm font-semibold text-gray-300 mb-3 block">Filtrar por estado:</label>
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    onClick={() => setTicketFilter('todos')}
+                                    className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 ${ticketFilter === 'todos' ? 'bg-blue-600 text-white ring-2 ring-blue-400' : 'bg-[#23283a] text-gray-300 hover:bg-[#2d3748]'}`}
+                                >
+                                    Todos
+                                </button>
+                                <button
+                                    onClick={() => setTicketFilter('disponible')}
+                                    className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 ${ticketFilter === 'disponible' ? 'bg-gray-600 text-white ring-2 ring-gray-400' : 'bg-[#2d3748]/50 text-gray-400 hover:bg-[#2d3748]'}`}
+                                >
+                                    Disponible
+                                </button>
+                                <button
+                                    onClick={() => setTicketFilter('pagado')}
+                                    className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 ${ticketFilter === 'pagado' ? 'bg-green-600 text-white ring-2 ring-green-400' : 'bg-green-500/20 text-green-300 hover:bg-green-500/30'}`}
+                                >
+                                    Pagado
+                                </button>
+                                <button
+                                    onClick={() => setTicketFilter('apartado')}
+                                    className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 ${ticketFilter === 'apartado' ? 'bg-yellow-500 text-yellow-900 ring-2 ring-yellow-400' : 'bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30'}`}
+                                >
+                                    Apartado
+                                </button>
+                                <button
+                                    onClick={() => setTicketFilter('familiares')}
+                                    className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 ${ticketFilter === 'familiares' ? 'bg-purple-600 text-white ring-2 ring-purple-400' : 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/30'}`}
+                                >
+                                    Familiar
+                                </button>
+                                
+                            </div>
                         </div>
-                        <div className="overflow-y-auto h-[75vh] pr-2">
+                        <div className="overflow-y-auto h-[90vh] pr-2">
                             <TicketGrid tickets={filteredTickets} ganador={ganador} totalTickets={rifa?.total_tickets} />
                         </div>
                     </div>
@@ -330,6 +406,7 @@ export function PublicRifa() {
                 onClose={() => setIsVerifierOpen(false)}
                 allTickets={allTickets}
             />
+            <Footer/>
         </div>
     );
 }

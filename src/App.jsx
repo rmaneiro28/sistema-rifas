@@ -95,7 +95,7 @@ function MainLayout({ children, sidebarOpen, setSidebarOpen }) {
   );
 }
 
-const Footer = () => {
+export const Footer = () => {
   const year = new Date().getFullYear();
   return (
     <footer className="flex justify-center items-center  h-16 bg-[#0d1016] text-white  text-center p-4">
