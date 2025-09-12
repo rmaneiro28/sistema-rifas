@@ -324,7 +324,7 @@ export function DetalleRifa() {
         </NavLink>
       </div>
       <div className="mb-6 flex justify-between gap-4">
-        <h1 className="text-2xl md:text-3xl font-bold text-left bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent text-center">
+        <h1 className="text-2xl md:text-3xl font-bold text-left bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent">
           {rifa?.nombre}
         </h1>
 
@@ -367,7 +367,7 @@ export function DetalleRifa() {
         {/* Action buttons */}
         <div className="md:flex md:items-end md:justify-end max-md:grid max-md:grid-cols-3 gap-4 w-full">
           <button 
-          onClick={handleOpenWinnerModal}
+          onClick={handleOpenRegistrationModal}
             className="group relative overflow-hidden bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 sm:px-4 sm:py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 active:scale-95 min-h-[48px] sm:min-h-0"
             title="Registrar ganador de la rifa"
             aria-label="Registrar ganador de la rifa">
