@@ -700,12 +700,12 @@ export function Tickets() {
                         <span className="text-white font-medium">{selectedTicket.nombre_jugador || 'No asignado'}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Email:</span>
-                        <span className="text-white">{selectedTicket.email_jugador || 'N/A'}</span>
+                        <span className="text-gray-400">Cédula de Identidad:</span>
+                        <span className="text-white">{selectedTicket.cedula || 'N/A'}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-gray-400">Teléfono:</span>
-                        <span className="text-white">{formatTelephone(selectedTicket.telefono_jugador)}</span>
+                        <span className="text-white">{formatTelephone(selectedTicket.telefono)}</span>
                       </div>
                     </div>
                   </div>

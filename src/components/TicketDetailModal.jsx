@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
 import {
@@ -8,6 +8,7 @@ import {
     ChatBubbleLeftRightIcon,
     DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
+import { toPng, toBlob } from "html-to-image";
 
 const formatTicketNumber = (number, totalTickets) => {
     if (number === null || number === undefined || !totalTickets) return "N/A";
@@ -31,6 +32,8 @@ const filterOptions = [
 export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, onStatusUpdate }) {
     const [isAnimating, setIsAnimating] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [generatedTicketInfo, setGeneratedTicketInfo] = useState(null);
+    const ticketRef = useRef();
 
     useEffect(() => {
         if (isOpen) {
@@ -39,6 +42,18 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
             setIsAnimating(false);
         }
     }, [isOpen]);
+
+    useEffect(() => {
+        if (ticket && playerGroup) {
+            setGeneratedTicketInfo({
+                jugador: playerGroup?.info?.nombre_jugador || ticket.jugador || 'Jugador',
+                rifa: rifa?.nombre || 'Rifa',
+                numeros: [ticket.numero_ticket],
+                total: rifa?.precio_ticket || 0,
+                telefono: playerGroup?.info?.telefono_jugador || ticket.telefono
+            });
+        }
+    }, [ticket, playerGroup, rifa]);
 
     const handleClose = () => {
         setIsAnimating(false);
@@ -97,114 +112,25 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         }
     };
 
-    const handleShareWhatsApp = () => {
-        if (!ticket || !rifa) return;
-        
-        const ticketNumber = formatTicketNumber(ticket.numero_ticket, rifa.total_tickets);
-        const ticketPrice = rifa.precio_ticket;
-        const raffleName = rifa.nombre;
-        
-        const message = `🎫 *TICKET DE RIFA* 🎫\n\n` +
-                       `📋 *Rifa:* ${raffleName}\n` +
-                       `🎯 *Número:* #${ticketNumber}\n` +
-                       `💰 *Precio:* $${ticketPrice}\n\n` +
-                       `¡Gracias por tu participación! 🎉`;
-        
-        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    const handleSendWhatsApp = () => {
+        if (!generatedTicketInfo?.telefono) return toast.error("Este jugador no tiene un número de teléfono registrado.");
+        const { jugador, rifa: nombreRifa, numeros, total } = generatedTicketInfo;
+        const message = `Gracias por tu participación ${jugador}! 🎟️\nHas participado en la rifa *${nombreRifa}*.\n\n*Tus números son:* ${numeros.join(', ')}\n*Total Pagado:* $${total}\n\n¡Mucha suerte! 🍀`.trim().replace(/\n/g, '%0A');
+        const whatsappUrl = `https://wa.me/${generatedTicketInfo.telefono.replace(/\D/g, '')}?text=${message}`;
         window.open(whatsappUrl, '_blank');
     };
 
-    const handleCopyTicketImage = async () => {
-        if (!ticket || !rifa) return;
-        
+    const handleCopyTicket = async () => {
+        if (!ticketRef.current) return toast.error("No se encontró la referencia del ticket.");
         try {
-            // Create a canvas element to generate the ticket image
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            // Set canvas size
-            canvas.width = 400;
-            canvas.height = 600;
-            
-            // Background gradient
-            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            gradient.addColorStop(0, '#7c3bed');
-            gradient.addColorStop(1, '#d54ff9');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // White content area with rounded corners
-            ctx.fillStyle = '#ffffff';
-            const cornerRadius = 15;
-            const x = 20;
-            const y = 20;
-            const width = canvas.width - 40;
-            const height = canvas.height - 40;
-            
-            ctx.beginPath();
-            ctx.moveTo(x + cornerRadius, y);
-            ctx.lineTo(x + width - cornerRadius, y);
-            ctx.quadraticCurveTo(x + width, y, x + width, y + cornerRadius);
-            ctx.lineTo(x + width, y + height - cornerRadius);
-            ctx.quadraticCurveTo(x + width, y + height, x + width - cornerRadius, y + height);
-            ctx.lineTo(x + cornerRadius, y + height);
-            ctx.quadraticCurveTo(x, y + height, x, y + height - cornerRadius);
-            ctx.lineTo(x, y + cornerRadius);
-            ctx.quadraticCurveTo(x, y, x + cornerRadius, y);
-            ctx.closePath();
-            ctx.fill();
-            
-            // Reset for text
-            ctx.fillStyle = '#000000';
-            ctx.textAlign = 'center';
-            
-            // Title
-            ctx.font = 'bold 24px Arial';
-            ctx.fillText('TICKET DE RIFA', canvas.width / 2, 80);
-            
-            // Raffle name
-            ctx.font = '18px Arial';
-            ctx.fillText(rifa.nombre, canvas.width / 2, 120);
-            
-            // Ticket number (large)
-            ctx.font = 'bold 48px Arial';
-            ctx.fillStyle = '#7c3bed';
-            ctx.fillText(`#${formatTicketNumber(ticket.numero_ticket, rifa.total_tickets)}`, canvas.width / 2, 220);
-            
-            // Price
-            ctx.font = 'bold 20px Arial';
-            ctx.fillStyle = '#16a249';
-            ctx.fillText(`$${rifa.precio_ticket}`, canvas.width / 2, 280);
-            
-            // Status
-            ctx.font = '16px Arial';
-            ctx.fillStyle = '#000000';
-            const statusText = ticket.estado_ticket.charAt(0).toUpperCase() + ticket.estado_ticket.slice(1);
-            ctx.fillText(`Estado: ${statusText}`, canvas.width / 2, 320);
-            
-            // Date
-            if (ticket.fecha_creacion_ticket || ticket.created_at) {
-                const date = new Date(ticket.fecha_creacion_ticket || ticket.created_at);
-                ctx.font = '14px Arial';
-                ctx.fillText(`Fecha: ${date.toLocaleDateString('es-ES')}`, canvas.width / 2, 350);
+            const blob = await toBlob(ticketRef.current, { cacheBust: true, quality: 0.95, pixelRatio: 2, backgroundColor: '#0f131b' });
+            if (blob) {
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                toast.success('¡Imagen del ticket copiada al portapapeles!');
             }
-            
-            // Convert canvas to blob and copy to clipboard
-            canvas.toBlob(async (blob) => {
-                try {
-                    await navigator.clipboard.write([
-                        new ClipboardItem({ 'image/png': blob })
-                    ]);
-                    toast.success('Imagen del ticket copiada al portapapeles');
-                } catch (err) {
-                    console.error('Error copying image to clipboard:', err);
-                    toast.error('No se pudo copiar la imagen del ticket');
-                }
-            }, 'image/png');
-            
         } catch (error) {
-            console.error('Error generating ticket image:', error);
-            toast.error('Error al generar la imagen del ticket');
+            console.error('Error al copiar la imagen:', error);
+            toast.error('No se pudo copiar la imagen. Tu navegador podría no ser compatible.');
         }
     };
 
@@ -219,6 +145,178 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
 
     return (
         <>
+            {/* Hidden ticket element for copying */}
+            <div ref={ticketRef} style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
+                {ticket && rifa && (
+                    <div style={{ 
+                        width: '400px', 
+                        height: '700px', 
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+                        borderRadius: '20px', 
+                        padding: '20px', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        fontFamily: 'Arial, sans-serif', 
+                        color: 'white', 
+                        position: 'relative', 
+                        overflow: 'hidden',
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
+                    }}>
+                        {/* Decorative elements */}
+                        <div style={{ 
+                            position: 'absolute', 
+                            top: '-50px', 
+                            right: '-50px', 
+                            width: '150px', 
+                            height: '150px', 
+                            background: 'rgba(255,255,255,0.1)', 
+                            borderRadius: '50%' 
+                        }}></div>
+                        <div style={{ 
+                            position: 'absolute', 
+                            bottom: '-30px', 
+                            left: '-30px', 
+                            width: '100px', 
+                            height: '100px', 
+                            background: 'rgba(255,255,255,0.05)', 
+                            borderRadius: '50%' 
+                        }}></div>
+                        
+                        {/* Main ticket content */}
+                        <div style={{ 
+                            background: 'white', 
+                            borderRadius: '15px', 
+                            padding: '40px 30px', 
+                            width: '100%', 
+                            height: '100%', 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            alignItems: 'center', 
+                            justifyContent: 'space-between', 
+                            position: 'relative',
+                            boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.1)'
+                        }}>
+                            {/* Header */}
+                            <div style={{ textAlign: 'center', width: '100%' }}>
+                                <div style={{ 
+                                    fontSize: '14px', 
+                                    fontWeight: 'bold', 
+                                    color: '#666', 
+                                    marginBottom: '8px', 
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '2px'
+                                }}>RifasPlus</div>
+                                <h2 style={{ 
+                                    fontSize: '28px', 
+                                    fontWeight: 'bold', 
+                                    marginBottom: '15px', 
+                                    color: '#667eea',
+                                    textShadow: '2px 2px 4px rgba(0,0,0,0.1)'
+                                }}>TICKET DE RIFA</h2>
+                                <div style={{ 
+                                    width: '60px', 
+                                    height: '3px', 
+                                    background: 'linear-gradient(90deg, #667eea, #764ba2)', 
+                                    margin: '0 auto 20px',
+                                    borderRadius: '2px'
+                                }}></div>
+                            </div>
+                            
+                            {/* Raffle Info */}
+                            <div style={{ textAlign: 'center', width: '100%' }}>
+                                <h3 style={{ 
+                                    fontSize: '20px', 
+                                    marginBottom: '25px', 
+                                    textAlign: 'center', 
+                                    color: '#333',
+                                    fontWeight: '600',
+                                    lineHeight: '1.4'
+                                }}>{rifa.nombre}</h3>
+                                
+                                {/* Ticket Number */}
+                                <div style={{ 
+                                    background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                                    color: 'white',
+                                    fontSize: '56px', 
+                                    fontWeight: 'bold', 
+                                    marginBottom: '15px',
+                                    padding: '20px',
+                                    borderRadius: '15px',
+                                    boxShadow: '0 8px 20px rgba(102, 126, 234, 0.3)',
+                                    textShadow: '2px 2px 4px rgba(0,0,0,0.2)',
+                                    fontFamily: 'Courier New, monospace'
+                                }}>
+                                    #{formatTicketNumber(ticket.numero_ticket, rifa.total_tickets)}
+                                </div>
+                                
+                                {/* Price */}
+                                <div style={{ 
+                                    fontSize: '32px', 
+                                    fontWeight: 'bold', 
+                                    color: '#16a34a', 
+                                    marginBottom: '20px',
+                                    fontFamily: 'Arial, sans-serif'
+                                }}>
+                                    ${rifa.precio_ticket}
+                                </div>
+                            </div>
+                            
+                            {/* Footer Info */}
+                            <div style={{ width: '100%', textAlign: 'center' }}>
+                                <div style={{ 
+                                    fontSize: '16px', 
+                                    color: '#666', 
+                                    marginBottom: '12px',
+                                    fontWeight: '600'
+                                }}>
+                                    Estado: <span style={{ 
+                                        color: ticket.estado_ticket === 'pagado' ? '#16a34a' : 
+                                               ticket.estado_ticket === 'apartado' ? '#f59e0b' : 
+                                               ticket.estado_ticket === 'disponible' ? '#6b7280' : '#8b5cf6',
+                                        fontWeight: 'bold'
+                                    }}>{ticket.estado_ticket.toUpperCase()}</span>
+                                </div>
+                                
+                                {playerGroup?.info?.nombre_jugador && (
+                                    <div style={{ 
+                                        fontSize: '14px', 
+                                        color: '#666', 
+                                        marginBottom: '8px',
+                                        fontWeight: '500'
+                                    }}>
+                                        Jugador: {playerGroup.info.nombre_jugador}
+                                    </div>
+                                )}
+                                
+                                {(ticket.fecha_creacion_ticket || ticket.created_at) && (
+                                    <div style={{ 
+                                        fontSize: '12px', 
+                                        color: '#999',
+                                        marginTop: '8px'
+                                    }}>
+                                        Fecha: {new Date(ticket.fecha_creacion_ticket || ticket.created_at).toLocaleDateString('es-ES', {
+                                            year: 'numeric',
+                                            month: 'long',
+                                            day: 'numeric'
+                                        })}
+                                    </div>
+                                )}
+                                
+                                <div style={{ 
+                                    fontSize: '10px', 
+                                    color: '#bbb',
+                                    marginTop: '15px',
+                                    fontStyle: 'italic'
+                                }}>
+                                    ¡Mucha suerte! 🍀
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
             <div className="fixed inset-0 z-40 bg-black/60 transition-opacity duration-300" onClick={handleClose} />
             <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-[#181c24] border-l border-[#23283a] shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isAnimating ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="flex flex-col h-full">
@@ -234,7 +332,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     </div>
 
                     {/* Content */}
-                    <div className="flex-1 p-6 overflow-y-auto">
+                    <div className="flex-1 p-6">
                         <div className="space-y-6">
                             <div className="space-y-4">
                                 <h3 className="text-lg font-semibold text-white flex items-center"><TicketIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />Información del Tickets</h3>
@@ -292,7 +390,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                         </h3>
                         <div className="grid grid-cols-2 gap-3">
                             <button
-                                onClick={handleShareWhatsApp}
+                                onClick={handleSendWhatsApp}
                                 className="group relative overflow-hidden bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
                                 title="Compartir por WhatsApp"
                             >
@@ -301,7 +399,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                 <span className="relative z-10 text-sm">WhatsApp</span>
                             </button>
                             <button
-                                onClick={handleCopyTicketImage}
+                                onClick={handleCopyTicket}
                                 className="group relative overflow-hidden bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
                                 title="Copiar imagen del ticket"
                             >
@@ -314,9 +412,6 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
 
                     {/* Actions */}
                     <div className="p-6 border-t border-[#23283a]">
-                        <h3 className="text-base font-semibold text-white mb-4">
-                            Cambiar estado_ticket del Ticket #{formatTicketNumber(ticket.numero_ticket, rifa?.total_tickets)}
-                        </h3>
                         <div className="grid grid-cols-2 gap-3">
                             <button onClick={() => handleUpdateSingleTicketStatus("pagado")} disabled={loading || ticket.estado_ticket === 'pagado'} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Pagado</button>
                             <button onClick={() => handleUpdateSingleTicketStatus("apartado")} disabled={loading || ticket.estado_ticket === 'apartado'} className="w-full bg-yellow-500 hover:bg-yellow-600 text-yellow-900 py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Apartado</button>

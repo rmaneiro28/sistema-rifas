@@ -14,21 +14,37 @@ export default function Analytics() {
       label: "Ingresos Totales",
       value: "$0",
       icon: <FiDollarSign className="w-6 h-6 text-[#16a249]" />,
+      trend: null,
     },
     {
       label: "Jugadores Activos",
       value: "0",
       icon: <UserGroupIcon className="w-6 h-6 text-[#7c3bed]" />,
+      trend: null,
     },
     {
       label: "Tickets Vendidos",
       value: "0",
       icon: <TicketIcon className="w-6 h-6 text-[#16a249]" />,
+      trend: null,
     },
     {
-      label: "Rifas Completadas",
+      label: "Tasa de Conversión",
+      value: "0%",
+      icon: <ChartBarIcon className="w-6 h-6 text-[#f59e0b]" />,
+      trend: null,
+    },
+    {
+      label: "Ticket Promedio",
+      value: "$0",
+      icon: <TicketIcon className="w-6 h-6 text-[#06b6d4]" />,
+      trend: null,
+    },
+    {
+      label: "Rifas Activas",
       value: "0",
-      icon: <TrophyIcon className="w-6 h-6 text-[#16a249]" />,
+      icon: <TrophyIcon className="w-6 h-6 text-[#8b5cf6]" />,
+      trend: null,
     },
   ]);
   const [topRaffles, setTopRaffles] = useState([]);
@@ -105,17 +121,26 @@ export default function Analytics() {
           return;
         }
 
-        // --- Calculations ---
+        // --- Enhanced Calculations ---
 
-        // Stats Cards
+        // Basic Stats
         const totalRevenue = periodTickets.reduce((acc, ticket) => acc + (ticket.precio_ticket || 0), 0);
         const ticketsSold = periodTickets.length;
         const rafflesCompleted = periodRifas.filter(r => r.estado === 'finalizada').length;
-        const totalPlayers = jugadores.length;
-
+        const rafflesActive = allRifas.filter(r => r.estado === 'activa').length;
+        
+        // Enhanced Stats
+        const activePlayersInPeriod = new Set(periodTickets.filter(t => t.jugador_id).map(t => t.jugador_id)).size;
+        const paidTickets = periodTickets.filter(t => t.estado === 'pagado').length;
+        const conversionRate = ticketsSold > 0 ? ((paidTickets / ticketsSold) * 100).toFixed(1) : 0;
+        const averageTicketValue = ticketsSold > 0 ? (totalRevenue / ticketsSold).toFixed(0) : 0;
+        
         // Previous period stats
         const previousTotalRevenue = (previousPeriodTicketsData || []).reduce((acc, ticket) => acc + (ticket.precio_ticket || 0), 0);
         const previousTicketsSold = (previousPeriodTicketsData || []).length;
+        const previousPaidTickets = (previousPeriodTicketsData || []).filter(t => t.estado === 'pagado').length;
+        const previousConversionRate = previousTicketsSold > 0 ? ((previousPaidTickets / previousTicketsSold) * 100).toFixed(1) : 0;
+        const previousAverageTicketValue = previousTicketsSold > 0 ? (previousTotalRevenue / previousTicketsSold).toFixed(0) : 0;
 
         // Calculate percentage change
         const calculateChange = (current, previous) => {
@@ -130,12 +155,16 @@ export default function Analytics() {
 
         const revenueChange = calculateChange(totalRevenue, previousTotalRevenue);
         const ticketsSoldChange = calculateChange(ticketsSold, previousTicketsSold);
+        const conversionChange = calculateChange(parseFloat(conversionRate), parseFloat(previousConversionRate));
+        const avgTicketChange = calculateChange(parseFloat(averageTicketValue), parseFloat(previousAverageTicketValue));
 
         setStats(prevStats => [
-          { ...prevStats[0], value: `$${totalRevenue.toLocaleString()}`, change: filter !== 'allTime' ? revenueChange : null },
-          { ...prevStats[1], value: totalPlayers },
-          { ...prevStats[2], value: ticketsSold, change: filter !== 'allTime' ? ticketsSoldChange : null },
-          { ...prevStats[3], value: rafflesCompleted },
+          { ...prevStats[0], value: `$${totalRevenue.toLocaleString()}`, trend: filter !== 'allTime' ? revenueChange : null },
+          { ...prevStats[1], value: activePlayersInPeriod },
+          { ...prevStats[2], value: ticketsSold, trend: filter !== 'allTime' ? ticketsSoldChange : null },
+          { ...prevStats[3], value: `${conversionRate}%`, trend: filter !== 'allTime' ? conversionChange : null },
+          { ...prevStats[4], value: `$${parseInt(averageTicketValue).toLocaleString()}`, trend: filter !== 'allTime' ? avgTicketChange : null },
+          { ...prevStats[5], value: rafflesActive },
         ]);
 
         // Top Performing Raffles (based on revenue in the period)
@@ -240,7 +269,6 @@ export default function Analytics() {
         const sortedTopPlayers = Object.values(playersData)
           .sort((a, b) => b.revenue - a.revenue)
           .slice(0, 5)
-          .reverse();
         setTopPlayersChartData(sortedTopPlayers);
       } finally {
         setLoading(false);
@@ -345,22 +373,35 @@ export default function Analytics() {
       </div>
       <p className="text-gray-400 mb-6">Monitorea el rendimiento y las estadísticas de tus campañas de rifas.</p>
 
-      {/* Stats Cards */}
-      <div className="grid max-md:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      {/* Enhanced Stats Cards */}
+      <div className="grid max-md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
         {stats.map((stat, idx) => (
-          <div key={stat.label || idx} className="flex items-center gap-4 px-4 py-6 bg-[#0f131b] border border-[#23283a] p-4 rounded-lg">
-            <div className="flex items-center gap-2 bg-[#7c3bed]/20 p-2 rounded-lg">
-              {stat.icon}
-            </div>
-            <div className="flex flex-col">
-              <span className="text-gray-400 text-xs">{stat.label}</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-white text-2xl font-bold">{stat.value}</span>
-                {stat.change && stat.change.type !== 'neutral' && (
-                  <span className={`flex items-center text-xs font-semibold ${stat.change.type === 'increase' ? 'text-green-400' : 'text-red-400'}`}>
-                    {stat.change.type === 'increase' ? <ArrowUpIcon className="w-3 h-3" /> : <ArrowDownIcon className="w-3 h-3" />}
-                    {stat.change.percentage}%
-                  </span>
+          <div key={stat.label || idx} className="group relative overflow-hidden bg-[#0f131b] border border-[#23283a] rounded-lg p-4 hover:border-[#7c3bed]/50 transition-all duration-200 hover:shadow-lg hover:shadow-[#7c3bed]/10">
+            {/* Background accent */}
+            <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-[#7c3bed]/10 to-transparent rounded-full blur-xl transform translate-x-1/2 -translate-y-1/2" />
+            
+            <div className="relative z-10">
+              {/* Icon */}
+              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-[#7c3bed]/20 to-[#d54ff9]/20 rounded-lg mb-3 group-hover:scale-105 transition-transform duration-200">
+                {stat.icon}
+              </div>
+              
+              {/* Content */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400 text-xs font-medium">{stat.label}</span>
+                  {stat.trend && stat.trend.type !== 'neutral' && (
+                    <span className={`flex items-center text-xs font-semibold ${stat.trend.type === 'increase' ? 'text-green-400' : 'text-red-400'}`}>
+                      {stat.trend.type === 'increase' ? <ArrowUpIcon className="w-3 h-3" /> : <ArrowDownIcon className="w-3 h-3" />}
+                      {stat.trend.percentage}%
+                    </span>
+                  )}
+                </div>
+                
+                <span className="text-white text-xl font-bold tracking-tight">{stat.value}</span>
+                
+                {stat.subtitle && (
+                  <span className="text-gray-500 text-xs">{stat.subtitle}</span>
                 )}
               </div>
             </div>
@@ -429,6 +470,121 @@ export default function Analytics() {
               No hay datos de jugadores para este período.
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Additional Insights Section */}
+      <div className="grid md:grid-cols-3 gap-4 mb-6">
+        {/* Ticket Status Distribution */}
+        <div className="bg-[#0f131b] border border-[#23283a] p-4 rounded-lg">
+          <h2 className="text-white text-lg font-bold mb-4 flex items-center gap-2">
+            <ChartBarIcon className="w-5 h-5 text-[#7c3bed]" /> Distribución de Tickets
+          </h2>
+          {ticketStatusData.length > 0 ? (
+            <div className="space-y-3">
+              {ticketStatusData.map((item, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="text-gray-300 text-sm">{item.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white font-medium">{item.value}</span>
+                    <span className="text-gray-500 text-xs">
+                      {((item.value / ticketStatusData.reduce((acc, curr) => acc + curr.value, 0)) * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-[120px] text-gray-500">
+              No hay datos de estado de tickets.
+            </div>
+          )}
+        </div>
+
+        {/* Top Performing Raffles */}
+        <div className="bg-[#0f131b] border border-[#23283a] p-4 rounded-lg">
+          <h2 className="text-white text-lg font-bold mb-4 flex items-center gap-2">
+            <TrophyIcon className="w-5 h-5 text-[#d54ff9]" /> Mejores Rifas
+          </h2>
+          {topRaffles.length > 0 ? (
+            <div className="space-y-3">
+              {topRaffles.slice(0, 3).map((rifa, index) => (
+                <div key={index} className="flex items-center justify-between p-2 bg-[#23283a] rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                      index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : 'bg-orange-600'
+                    }`}>
+                      {index + 1}
+                    </div>
+                    <div>
+                      <p className="text-white text-sm font-medium truncate max-w-[120px]">{rifa.name}</p>
+                      <p className="text-gray-400 text-xs">{rifa.tickets} tickets</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-green-400 text-sm font-bold">${rifa.revenue.toLocaleString()}</p>
+                    <p className="text-gray-500 text-xs">{rifa.sales_percentage.toFixed(1)}%</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-[120px] text-gray-500">
+              No hay datos de rifas.
+            </div>
+          )}
+        </div>
+
+        {/* Performance Metrics */}
+        <div className="bg-[#0f131b] border border-[#23283a] p-4 rounded-lg">
+          <h2 className="text-white text-lg font-bold mb-4 flex items-center gap-2">
+            <StarIcon className="w-5 h-5 text-[#16a249]" /> Métricas Clave
+          </h2>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-2 bg-[#23283a] rounded-lg">
+              <div>
+                <p className="text-gray-400 text-xs">Eficiencia de Ventas</p>
+                <p className="text-white text-sm font-medium">
+                  {topRaffles.length > 0 ? 
+                    (topRaffles.reduce((acc, r) => acc + r.sales_percentage, 0) / topRaffles.length).toFixed(1) : 0}%
+                </p>
+              </div>
+              <div className="text-green-400">
+                <ArrowUpIcon className="w-4 h-4" />
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between p-2 bg-[#23283a] rounded-lg">
+              <div>
+                <p className="text-gray-400 text-xs">Ingresos por Rifa</p>
+                <p className="text-white text-sm font-medium">
+                  {topRaffles.length > 0 ? 
+                    `$${(topRaffles.reduce((acc, r) => acc + r.revenue, 0) / topRaffles.length).toFixed(0)}` : '$0'
+                  }
+                </p>
+              </div>
+              <div className="text-blue-400">
+                <FiDollarSign className="w-4 h-4" />
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between p-2 bg-[#23283a] rounded-lg">
+              <div>
+                <p className="text-gray-400 text-xs">Participación Promedio</p>
+                <p className="text-white text-sm font-medium">
+                  {topPlayersChartData.length > 0 ? 
+                    (topPlayersChartData.reduce((acc, p) => acc + p.ticketsCount, 0) / topPlayersChartData.length).toFixed(1) : 0
+                  } tickets
+                </p>
+              </div>
+              <div className="text-purple-400">
+                <TicketIcon className="w-4 h-4" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
