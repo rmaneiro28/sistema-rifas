@@ -47,15 +47,91 @@ export function WinnerRegistrationModal({ isOpen, onClose, rifa, allTickets, onS
             return;
         }
 
-        const winnerTicket = allTickets.find(t => t.numero === parseInt(winningNumber, 10));
+        console.log('=== DEPURACIÓN DETALLADA ===');
+        console.log('Buscando ticket ganador:', { winningNumber, allTickets: allTickets?.length });
+        
+        if (!allTickets || allTickets.length === 0) {
+            console.error('❌ No hay tickets disponibles');
+            toast.error('No hay tickets disponibles para esta rifa.');
+            return;
+        }
+        
+        console.log('📋 Estructura del primer ticket:', JSON.stringify(allTickets[0], null, 2));
+        console.log('📋 Todos los tickets (solo IDs y números):', allTickets.map(t => ({
+            id: t.id,
+            numero_ticket: t.numero_ticket,
+            numero: t.numero,
+            numero_ticket_ticket: t.numero_ticket_ticket,
+            jugador_id: t.jugador_id
+        })));
+        
+        const searchNumber = parseInt(winningNumber, 10);
+        console.log('🔍 Número a buscar:', searchNumber, '(tipo:', typeof searchNumber + ')');
+        
+        // Buscar en diferentes propiedades posibles
+        let foundTicket = null;
+        for (let i = 0; i < allTickets.length; i++) {
+            const ticket = allTickets[i];
+            console.log(`\n🎫 Ticket ${i}:`, JSON.stringify({
+                numero_ticket: ticket.numero_ticket,
+                numero: ticket.numero,
+                numero_ticket_ticket: ticket.numero_ticket_ticket,
+                id: ticket.id
+            }, null, 2));
+            
+            // Convertir todos los valores a números para comparación
+            const ticketNumero = parseInt(ticket.numero_ticket, 10) || parseInt(ticket.numero, 10) || parseInt(ticket.numero_ticket_ticket, 10) || parseInt(ticket.id, 10);
+            const ticketNumeroStr = String(ticket.numero_ticket) || String(ticket.numero) || String(ticket.numero_ticket_ticket) || String(ticket.id);
+            
+            console.log(`🔍 Comparando: ${searchNumber} (buscado) vs ${ticketNumero} (ticket número) vs '${ticketNumeroStr}' (ticket string)`);
+            
+            if (
+                ticketNumero === searchNumber ||
+                ticketNumeroStr === winningNumber ||
+                ticketNumeroStr === String(searchNumber).padStart(3, '0') ||
+                ticketNumeroStr === String(searchNumber)
+            ) {
+                foundTicket = {
+                    ...ticket,
+                    jugador_id: ticket.id // Usar el ID del ticket como jugador_id
+                };
+                console.log('✅ ¡TICKET ENCONTRADO!:');
+                break;
+            }
+        }
+        
+        console.log('🎯 Resultado final:', foundTicket ? 'ENCONTRADO' : 'NO ENCONTRADO');
+        if (foundTicket) {
+            console.log('📝 Ticket encontrado:', JSON.stringify(foundTicket, null, 2));
+        }
 
-        if (!winnerTicket || !winnerTicket.jugador_id) {
-            toast.error('El número ingresado no corresponde a un ticket vendido válido.');
+        if (!foundTicket) {
+            toast.error(`No se encontró el ticket #${winningNumber}.`);
             return;
         }
 
-        if (winnerTicket.estado !== 'pagado') {
-            toast.error(`El ticket #${winningNumber} no está pagado. Su estado es: ${winnerTicket.estado}.`);
+        console.log('👤 Propiedades del jugador:', JSON.stringify({
+            jugador_id: foundTicket.jugador_id,
+            jugador: foundTicket.jugador,
+            nombre_jugador: foundTicket.nombre_jugador,
+            telefono: foundTicket.telefono,
+            telefono_jugador: foundTicket.telefono_jugador,
+            id_jugador: foundTicket.id_jugador,
+            jugador_id: foundTicket.jugador_id
+        }, null, 2));
+
+        // Verificar si tiene alguna propiedad relacionada con jugador
+        const hasPlayer = foundTicket.jugador_id || foundTicket.jugador || foundTicket.nombre_jugador || foundTicket.id_jugador;
+        
+        if (!hasPlayer) {
+            toast.error('El ticket no tiene un jugador asignado.');
+            return;
+        }
+
+        console.log('✅ Ticket tiene jugador asignado');
+
+        if (foundTicket.estado_ticket !== 'pagado' && foundTicket.estado !== 'pagado') {
+            toast.error(`El ticket #${winningNumber} no está pagado. Su estado es: ${foundTicket.estado_ticket || foundTicket.estado}.`);
             return;
         }
 
@@ -80,9 +156,9 @@ export function WinnerRegistrationModal({ isOpen, onClose, rifa, allTickets, onS
         }
 
         setWinnerInfo({
-            numero: winnerTicket.numero,
-            jugador: winnerTicket.nombre_jugador,
-            telefono: winnerTicket.telefono_jugador,
+            numero: foundTicket.numero_ticket,
+            jugador: foundTicket.jugador || foundTicket.nombre_jugador || 'Jugador',
+            telefono: foundTicket.telefono || foundTicket.telefono_jugador,
         });
 
         setAnnouncementStep('countdown');
@@ -97,17 +173,54 @@ export function WinnerRegistrationModal({ isOpen, onClose, rifa, allTickets, onS
                 setAnnouncementStep('reveal');
 
                 (async () => {
+                    // Buscar jugador existente por cédula (no crear nuevos jugadores)
+                    console.log('🔍 Buscando jugador existente por cédula:', foundTicket.cedula_jugador);
+                    
+                    let jugadorId = null;
+                    
+                    // Buscar jugador por cédula
+                    const { data: existingPlayer, error: checkError } = await supabase
+                        .from('t_jugadores')
+                        .select('id')
+                        .eq('cedula', foundTicket.cedula_jugador)
+                        .single();
+                    
+                    console.log('📋 Resultado de búsqueda de jugador:', { existingPlayer, checkError });
+                    
+                    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows found
+                        console.error('Error al verificar jugador:', checkError);
+                    }
+                    
+                    if (existingPlayer) {
+                        jugadorId = existingPlayer.id;
+                        console.log('✅ Jugador encontrado:', existingPlayer);
+                    } else {
+                        console.error('❌ No se encontró jugador con cédula:', foundTicket.cedula_jugador);
+                        toast.error('No se encontró un jugador registrado con la cédula: ' + foundTicket.cedula_jugador);
+                        setLoading(false);
+                        return;
+                    }
+                    
+                    console.log('Insertando ganador:', {
+                        rifa_id: rifa.id_rifa,
+                        ticket_id: foundTicket.id,
+                        jugador_id: jugadorId,
+                        numero_ganador: foundTicket.numero_ticket,
+                        premio: rifa.nombre
+                    });
+                    
                     const { error: insertError } = await supabase
                         .from('t_ganadores')
                         .insert([{
                             rifa_id: rifa.id_rifa,
-                            ticket_id: winnerTicket.ticket_id,
-                            jugador_id: winnerTicket.jugador_id,
-                            numero_ganador: winnerTicket.numero,
+                            ticket_id: foundTicket.id,
+                            jugador_id: jugadorId,
+                            numero_ganador: foundTicket.numero_ticket,
                             premio: rifa.nombre
                         }]);
-
+                    
                     if (insertError) {
+                        console.error('Error al insertar ganador:', insertError);
                         toast.error('Error al registrar el ganador: ' + insertError.message);
                         setLoading(false);
                         return;
@@ -122,7 +235,11 @@ export function WinnerRegistrationModal({ isOpen, onClose, rifa, allTickets, onS
                         toast.error('Ganador registrado, pero hubo un error al actualizar el estado de la rifa.');
                     } else {
                         toast.success(`¡Ganador #${winningNumber} registrado exitosamente!`);
-                        onSuccess();
+                        
+                        // Esperar 5 segundos antes de cerrar para que el usuario vea el resultado
+                        setTimeout(() => {
+                            onSuccess();
+                        }, 5000);
                     }
                     setLoading(false);
                 })();
@@ -135,10 +252,11 @@ export function WinnerRegistrationModal({ isOpen, onClose, rifa, allTickets, onS
             toast.error("Este jugador no tiene un número de teléfono registrado.");
             return;
         }
+        console.log("INFO: ", winnerInfo.numero)
 
         const message = `
 ¡Felicidades, ${winnerInfo.jugador}! 🏆
-Has ganado la rifa *${rifa.nombre}* con el número *#${winnerInfo.numero}*.
+Has ganado la rifa *${rifa.nombre}* con el número *${winnerInfo.numero}*.
 
 ¡Nos pondremos en contacto contigo pronto para coordinar la entrega del premio! 🎉
     `.trim().replace(/\n/g, '%0A');

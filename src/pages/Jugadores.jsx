@@ -6,10 +6,82 @@ import { PlusIcon } from "@heroicons/react/16/solid";
 import { toast } from "sonner";
 import { Pagination } from "../components/Pagination";
 import { LoadingScreen } from "../components/LoadingScreen";
+
 const STATUS_BADGES = {
-  vip: { label: "VIP", color: "bg-[#a21caf] text-white" },
-  active: { label: "ACTIVE", color: "bg-[#23283a] text-white" },
-  winner: { label: "WINNER", color: "bg-[#0ea5e9] text-white" },
+  winner: { label: "GANADOR", color: "bg-[#0ea5e9] text-white" },
+  active: { label: "ACTIVO", color: "bg-[#23283a] text-white" },
+  inactive: { label: "INACTIVO", color: "bg-[#6b7280] text-white" },
+  new: { label: "NUEVO", color: "bg-[#a21caf] text-white" },
+};
+
+// Componente SortIndicator
+const SortIndicator = ({ direction }) => {
+  return direction === 'ascending' ? '↑' : '↓';
+};
+
+// Función para calcular el status dinámico del jugador basado en su actividad
+const calculatePlayerStatus = (jugador, isWinner, winnerInfo, ultimaActividad = null) => {
+  const now = new Date();
+  const diasInactividad = ultimaActividad ? 
+    Math.floor((now - new Date(ultimaActividad)) / (1000 * 60 * 60 * 24)) : 999;
+  
+  // 1. Si es ganador, status es 'winner' (prioridad más alta)
+  if (isWinner) {
+    return {
+      status: 'winner',
+      badge: 'GANADOR',
+      color: 'bg-[#0ea5e9] text-white',
+      description: `Ganó: ${winnerInfo?.premio || 'Premio'}`,
+      premio: winnerInfo?.premio || null,
+      numero_ganador: winnerInfo?.numero_ganador || null
+    };
+  }
+  
+  // 2. Si tiene tickets comprados recientemente (últimos 30 días)
+  if (jugador.total_tickets_comprados > 0 && diasInactividad <= 30) {
+    return {
+      status: 'active',
+      badge: 'ACTIVO',
+      color: 'bg-[#23283a] text-white',
+      description: `${jugador.total_tickets_comprados} ticket(s) comprado(s)`,
+      premio: null,
+      numero_ganador: null
+    };
+  }
+  
+  // 3. Si tiene tickets pero está inactivo (más de 30 días sin actividad)
+  if (jugador.total_tickets_comprados > 0 && diasInactividad > 30) {
+    return {
+      status: 'inactive',
+      badge: 'INACTIVO',
+      color: 'bg-[#6b7280] text-white',
+      description: `Inactivo hace ${diasInactividad} día(s)`,
+      premio: null,
+      numero_ganador: null
+    };
+  }
+  
+  // 4. Si nunca ha comprado tickets
+  if (jugador.total_tickets_comprados === 0) {
+    return {
+      status: 'new',
+      badge: 'NUEVO',
+      color: 'bg-[#a21caf] text-white',
+      description: 'Sin tickets comprados',
+      premio: null,
+      numero_ganador: null
+    };
+  }
+  
+  // Status por defecto
+  return {
+    status: 'active',
+    badge: 'ACTIVO',
+    color: 'bg-[#23283a] text-white',
+    description: 'Jugador registrado',
+    premio: null,
+    numero_ganador: null
+  };
 };
 
 export function Jugadores() {
@@ -20,39 +92,102 @@ export function Jugadores() {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(12); // 12 tarjetas por página
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
 
   const fetchPlayers = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("vw_jugadores")
-      .select("*")
-      .order("id");
-    if (error) {
-      console.error("Error fetching players:", error);
-      toast.error("Error al cargar los jugadores.");
-    } else {
-      // Asegura que numeros_favoritos sea siempre un array
-      setPlayers(
-        data.map(j => ({
-          ...j,
-          numeros_favoritos: Array.isArray(j.numeros_favoritos)
-            ? j.numeros_favoritos
-            : typeof j.numeros_favoritos === "string"
-              ? j.numeros_favoritos.split(",").map(n => n.trim()).filter(Boolean)
+    
+    try {
+      // Obtener jugadores
+      const { data: players, error: playersError } = await supabase
+        .from("vw_jugadores")
+        .select("*")
+        .order("id");
+      
+      if (playersError) {
+        console.error("Error fetching players:", playersError);
+        toast.error("Error al cargar los jugadores.");
+        setLoading(false);
+        return;
+      }
+      
+      // Obtener ganadores para determinar el status de los jugadores
+      const { data: winners, error: winnersError } = await supabase
+        .from("t_ganadores")
+        .select("jugador_id, premio, numero_ganador");
+      
+      if (winnersError) {
+        console.error("Error fetching winners:", winnersError);
+        toast.error("Error al cargar información de ganadores.");
+        setLoading(false);
+        return;
+      }
+      
+      // Obtener última actividad de cada jugador (último ticket comprado)
+      const { data: lastActivity, error: activityError } = await supabase
+        .from("t_tickets")
+        .select("jugador_id, created_at")
+        .order("created_at", { ascending: false });
+      
+      if (activityError) {
+        console.error("Error fetching last activity:", activityError);
+        toast.error("Error al cargar actividad de jugadores.");
+        setLoading(false);
+        return;
+      }
+      
+      // Crear un mapa de ganadores para búsqueda rápida
+      const winnersMap = new Map();
+      winners.forEach(winner => {
+        winnersMap.set(winner.jugador_id, winner);
+      });
+      
+      // Crear un mapa de última actividad
+      const lastActivityMap = new Map();
+      lastActivity.forEach(ticket => {
+        if (!lastActivityMap.has(ticket.jugador_id)) {
+          lastActivityMap.set(ticket.jugador_id, ticket.created_at);
+        }
+      });
+      
+      // Procesar jugadores y asignar status dinámico
+      const processedPlayers = players.map(jugador => {
+        const isWinner = winnersMap.has(jugador.id);
+        const winnerInfo = winnersMap.get(jugador.id);
+        const ultimaActividad = lastActivityMap.get(jugador.id);
+        
+        // Calcular status dinámico
+        const statusInfo = calculatePlayerStatus(jugador, isWinner, winnerInfo, ultimaActividad);
+        
+        return {
+          ...jugador,
+          ...statusInfo,
+          numeros_favoritos: Array.isArray(jugador.numeros_favoritos)
+            ? jugador.numeros_favoritos
+            : typeof jugador.numeros_favoritos === "string"
+              ? jugador.numeros_favoritos.split(",").map(n => n.trim()).filter(Boolean)
               : []
-        }))
-      );
+        };
+      });
+      
+      setPlayers(processedPlayers);
+    } catch (error) {
+      console.error("Error in fetchPlayers:", error);
+      toast.error("Error inesperado al cargar los jugadores.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     fetchPlayers();
   }, []);
 
-  // Filtros (status y búsqueda)
+  // Filtros (status y búsqueda) y ordenamiento
   useEffect(() => {
     let filtered = [...players];
+    
+    // Aplicar filtros
     if (isActive !== "all") {
       filtered = filtered.filter((p) => p.status === isActive);
     }
@@ -64,9 +199,38 @@ export function Jugadores() {
           p.email.toLowerCase().includes(s)
       );
     }
+    
+    // Aplicar ordenamiento
+    if (sortConfig.key) {
+      filtered.sort((a, b) => {
+        let aValue = a[sortConfig.key] || '';
+        let bValue = b[sortConfig.key] || '';
+        
+        // Manejar valores numéricos
+        if (sortConfig.key === 'total_tickets_comprados' || sortConfig.key === 'monto_total_gastado') {
+          aValue = Number(aValue) || 0;
+          bValue = Number(bValue) || 0;
+        }
+        
+        // Manejar strings (nombre completo)
+        if (sortConfig.key === 'nombre') {
+          aValue = `${a.nombre} ${a.apellido || ''}`.toLowerCase();
+          bValue = `${b.nombre} ${b.apellido || ''}`.toLowerCase();
+        }
+        
+        if (aValue < bValue) {
+          return sortConfig.direction === 'ascending' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'ascending' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    
     setFilteredPlayers(filtered);
-    setCurrentPage(1); // Reiniciar a la primera página al filtrar
-  }, [players, isActive, search]);
+    setCurrentPage(1); // Reiniciar a la primera página al filtrar u ordenar
+  }, [players, isActive, search, sortConfig]);
 
   const totalPages = useMemo(() =>
     Math.ceil(filteredPlayers.length / pageSize) || 1,
@@ -83,6 +247,14 @@ export function Jugadores() {
 
   const handleFilter = (filter) => {
     setIsActive(filter);
+  };
+
+  const handleSort = (key) => {
+    let direction = 'ascending';
+    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
   };
   const [modalOpen, setModalOpen] = useState(false);
   const [editPlayer, setEditPlayer] = useState(null);
@@ -162,7 +334,7 @@ export function Jugadores() {
   }
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in max-md:w-[85%]">
       <div className="flex mb-6 max-sm:flex-col min-md:flex-row min-md:items-center min-md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent">Jugadores</h1>
@@ -178,18 +350,19 @@ export function Jugadores() {
       </div>
 
       {/* Filtros y búsqueda */}
-      <div className="max-md:flex-col flex items-center  gap-4 mb-8">
-        <div className="relative flex-1 min-md:max-w-xs max-md:w-full">
-          <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+      <div className="mb-8">
+        {/* Barra de búsqueda */}
+        <div className="relative mb-6">
+          <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Buscar jugadores..."
+            placeholder="Buscar jugadores por nombre o email..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#181c24] border border-[#23283a] text-white focus:outline-none focus:border-[#7c3bed] transition"
+            className="w-full pl-12 pr-4 py-4 rounded-xl bg-[#181c24] border border-[#23283a] text-white placeholder-gray-400 focus:outline-none focus:border-[#7c3bed] focus:ring-2 focus:ring-[#7c3bed]/20 transition-all text-base"
           />
         </div>
-        <div className="flex flex-1 min-md:max-w-xs max-md:w-full gap-2"> 
+        <div className="flex flex-1 w-full bg-black min-md:max-w-xs  gap-2 max-md:overflow-x-auto"> 
           <button onClick={() => handleFilter("all")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "all" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
             Todos
           </button>
@@ -198,6 +371,31 @@ export function Jugadores() {
           </button>
           <button onClick={() => handleFilter("winner")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "winner" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
             Ganadores
+          </button>
+          <button onClick={() => handleFilter("inactive")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "inactive" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
+            Inactivos
+          </button>
+          <button onClick={() => handleFilter("news")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "news" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
+            Nuevos
+          </button>
+        </div>
+      </div>
+
+      {/* Controles de Ordenamiento */}
+      <div className="md:flex items-center justify-between mt-6 mb-4">
+        <p className="text-sm text-gray-400">
+          Mostrando <span className="font-bold text-white">{filteredPlayers.length}</span> jugadores.
+        </p>
+        <div className="flex items-center gap-2 text-xs text-gray-400">
+          <span className="font-semibold">Ordenar por:</span>
+          <button className={`px-3 py-1 rounded-md transition-colors ${sortConfig.key === 'nombre' ? 'bg-[#23283a] text-white' : 'hover:bg-[#23283a]'}`} onClick={() => handleSort('nombre')}>
+            Nombre {sortConfig.key === 'nombre' && <SortIndicator direction={sortConfig.direction} />}
+          </button>
+          <button className={`px-3 py-1 rounded-md transition-colors ${sortConfig.key === 'total_tickets_comprados' ? 'bg-[#23283a] text-white' : 'hover:bg-[#23283a]'}`} onClick={() => handleSort('total_tickets_comprados')}>
+            Tickets {sortConfig.key === 'total_tickets_comprados' && <SortIndicator direction={sortConfig.direction} />}
+          </button>
+          <button className={`px-3 py-1 rounded-md transition-colors ${sortConfig.key === 'monto_total_gastado' ? 'bg-[#23283a] text-white' : 'hover:bg-[#23283a]'}`} onClick={() => handleSort('monto_total_gastado')}>
+            Gastado {sortConfig.key === 'monto_total_gastado' && <SortIndicator direction={sortConfig.direction} />}
           </button>
         </div>
       </div>
@@ -531,3 +729,5 @@ export function Jugadores() {
     </div>
   );
 }
+
+export default Jugadores;

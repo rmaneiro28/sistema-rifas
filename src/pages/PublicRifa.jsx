@@ -1,12 +1,17 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams } from "react-router-dom";
 import Confetti from "react-confetti";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
-import { MagnifyingGlassIcon, GiftIcon, CalendarDaysIcon, CurrencyDollarIcon, TrophyIcon, TicketIcon, ClipboardIcon, BanknotesIcon, PhoneIcon } from "@heroicons/react/24/outline";
+import { MagnifyingGlassIcon, GiftIcon, CalendarDaysIcon, CurrencyDollarIcon, TrophyIcon, TicketIcon, ClipboardIcon, BanknotesIcon, PhoneIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import bancolombiaLogo from '../assets/Bancolombia.png';
 import zelleLogo from '../assets/Zelle.png';
-import venezuelaLogo from "../assets/Bdv.jpg"
+import venezuelaLogo from "../assets/Bdv.jpg";
+import { LoadingScreen } from '../components/LoadingScreen.jsx';
+import { useWindowSize } from '../hooks/useWindowSize.js';
+import { TicketVerifierModal } from '../components/TicketVerifierModal.jsx';
+import { Footer } from '../App.jsx';
+
 // Componente para mostrar y copiar datos bancarios con íconos/logos y notificación
 const BankDataCard = ({ logo, icon: Icon, label, value }) => {
     const handleCopy = () => {
@@ -19,7 +24,7 @@ const BankDataCard = ({ logo, icon: Icon, label, value }) => {
                 {logo ? (
                     <img src={logo} alt={label} className="w-8 h-8 rounded-full bg-white p-1 border border-gray-300" />
                 ) : (
-                    <Icon className="w-7 h-7 text-yellow-400" />
+                    <Icon className="w-7 h-7 text-purple-400" />
                 )}
                 <div>
                     <div className="font-bold text-white text-base flex items-center gap-1">{label}</div>
@@ -28,7 +33,7 @@ const BankDataCard = ({ logo, icon: Icon, label, value }) => {
             </div>
             <button
                 onClick={handleCopy}
-                className="ml-4 bg-purple-500 hover:bg-purple-600 text-black px-3 py-1 rounded-lg font-semibold flex items-center gap-1 transition-all"
+                className="ml-4 bg-yellow-500 hover:bg-yellow-600 text-black px-3 py-1 rounded-lg font-semibold flex items-center gap-1 transition-all"
                 title="Copiar"
             >
                 <ClipboardIcon className="w-5 h-5" />
@@ -36,10 +41,6 @@ const BankDataCard = ({ logo, icon: Icon, label, value }) => {
         </div>
     );
 };
-import { LoadingScreen } from '../components/LoadingScreen.jsx';
-import { useWindowSize } from '../hooks/useWindowSize.js';
-import { TicketVerifierModal } from '../components/TicketVerifierModal.jsx';
-import { Footer } from '../App.jsx';
 
 const PAYMENT_METHODS = [
     {
@@ -160,56 +161,6 @@ const RaffleProgressBar = ({ vendidos, total, progreso }) => (
 
 
 
-const Ticket = ({ ticket, ganador, totalTickets }) => {
-    
-    
-    const getStatusClasses = () => {
-        if (ganador?.numero_ganador === ticket.numero) {
-            return '!bg-gradient-to-br !from-yellow-400 !to-orange-500 !text-black !ring-4 !ring-white/80 animate-pulse !shadow-lg !shadow-yellow-500/50';  
-        }
-        switch (ticket.estado) {
-            case 'pagado': return '!bg-gradient-to-br !from-green-500 !to-green-600 !text-white !shadow-lg !shadow-green-500/30 !ring-1 !ring-green-400/50';
-            case 'apartado': return '!bg-gradient-to-br !from-yellow-400 !to-yellow-500 !text-yellow-900 !shadow-lg !shadow-yellow-500/30 !ring-1 !ring-yellow-400/50';
-            case 'familiares': return '!bg-gradient-to-br !from-purple-500 !to-purple-600 !text-white !shadow-lg !shadow-purple-500/30 !ring-1 !ring-purple-400/50';
-            default: return '!bg-gradient-to-br !from-gray-600 !to-gray-700 !text-gray-300 !shadow-lg !shadow-gray-500/20 !ring-1 !ring-gray-500/30';
-        }
-    };
-
-    const getStatusIcon = () => {
-        if (ganador?.numero_ganador === ticket.numero) {
-            return <TrophyIcon className="w-3 h-3 absolute top-1 right-1 text-black/70" />;
-        }
-        switch (ticket.estado) {
-            case 'pagado': return <span className="absolute top-1 right-1 w-2 h-2 bg-green-300 rounded-full"></span>;
-            case 'apartado': return <span className="absolute top-1 right-1 w-2 h-2 bg-yellow-300 rounded-full"></span>;
-            case 'familiares': return <span className="absolute top-1 right-1 w-2 h-2 bg-purple-300 rounded-full"></span>;
-            default: return null;
-        }
-    };
-
-    return (
-        <div
-            title={`#${formatTicketNumber(ticket.numero, totalTickets)} - ${ticket.estado}`}
-            className={`relative w-full h-10 flex items-center justify-center rounded-lg text-sm font-bold transition-all duration-200 transform hover:scale-105 hover:z-10 ${getStatusClasses()}`}
-        >
-            {/* Perforations */}
-            <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 flex flex-col gap-1.5">
-                {[...Array(5)].map((_, i) => <div key={i} className="w-1 h-1 rounded-full bg-[#0f131b]" />)}
-            </div>
-            <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 flex flex-col gap-1.5">
-                {[...Array(5)].map((_, i) => <div key={i} className="w-1 h-1 rounded-full bg-[#0f131b]" />)}
-            </div>
-            <span className="drop-shadow-sm font-mono">{formatTicketNumber(ticket.numero, totalTickets)}</span>
-            {getStatusIcon()}
-        </div>
-    );
-};
-
-const TicketGrid = React.memo(({ tickets, ganador, totalTickets }) => (
-    <div className="grid max-md:grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 xl:grid-cols-15 gap-2">
-        {tickets.map((ticket) => <Ticket key={ticket.numero} ticket={ticket} ganador={ganador} totalTickets={totalTickets} />)}
-    </div>
-));
 
 export function PublicRifa() {
     const { id } = useParams();
@@ -219,8 +170,16 @@ export function PublicRifa() {
     const [loading, setLoading] = useState(true);
     const { width, height } = useWindowSize();
     const [isVerifierOpen, setIsVerifierOpen] = useState(false);
-    const [ticketFilter, setTicketFilter] = useState('todos');
+    const [ticketFilter, setTicketFilter] = useState('all');
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(PAYMENT_METHODS[0]);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [selectedTicketsFromMap, setSelectedTicketsFromMap] = useState([]);
+    const pdfRef = useRef();
+
+    // Función para formatear números de tickets con ceros a la izquierda
+    const formatTicketNumber = (number) => {
+        return number.toString().padStart(4, '0');
+    };
 
     const fetchRaffleAndTickets = useCallback(async () => {
         setLoading(true);
@@ -248,18 +207,29 @@ export function PublicRifa() {
             const { data: ticketsData, error: ticketsError } = ticketsResult;
             if (ticketsError) throw ticketsError;
 
-            
+            console.log('🎫 DEBUG - ticketsData:', ticketsData);
+            console.log('🎫 DEBUG - Primer ticket:', ticketsData?.[0]);
+            console.log('🎫 DEBUG - Estructura de ticketsData:', ticketsData?.map(t => ({
+                numero_ticket: t.numero_ticket,
+                estado_ticket: t.estado_ticket,
+                nombre_jugador: t.nombre_jugador
+            })));
+
             const ticketsMap = new Map(ticketsData.map(t => [t.numero_ticket, t]));
+            console.log('🎫 DEBUG - ticketsMap keys:', Array.from(ticketsMap.keys()));
+            
             const generatedTickets = Array.from({ length: rifaData.total_tickets }, (_, i) => {
-                const existingTicket = ticketsMap.get(i);
+                const existingTicket = ticketsMap.get(i + 1); // Los tickets probablemente empiezan en 1, no en 0
                 const ticket = existingTicket ?
-                    { ...existingTicket, numero: i, estado: existingTicket.estado } :
-                    { numero: i, estado: "disponible" };
-                
-                   
+                    { ...existingTicket, numero: i, estado: existingTicket.estado_ticket, numero_ticket: existingTicket.numero_ticket, estado_ticket: existingTicket.estado_ticket, nombre_jugador: existingTicket.nombre_jugador } :
+                    { numero: i, estado: "disponible", numero_ticket: i, estado_ticket: "disponible" };
                 
                 return ticket;
             });
+            
+            console.log('🎫 DEBUG - generatedTickets (primeros 10):', generatedTickets.slice(0, 10));
+            console.log('🎫 DEBUG - generatedTickets (últimos 10):', generatedTickets.slice(-10));
+            console.log('🎫 DEBUG - Estados encontrados:', [...new Set(generatedTickets.map(t => t.estado))]);
             
             setAllTickets(generatedTickets);
 
@@ -284,12 +254,58 @@ export function PublicRifa() {
         };
     }, [allTickets, rifa]);
 
-    // Filtrar tickets según el estado seleccionado (hook debe ir antes de cualquier return)
+    // Handle keyboard shortcuts for search
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape' && searchQuery) {
+                setSearchQuery("");
+            }
+            if (event.ctrlKey && event.key === 'f') {
+                event.preventDefault();
+                document.querySelector('input[placeholder*="Buscar"]')?.focus();
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [searchQuery]);
+
+    const handleTicketClick = (ticket) => {
+        // En la vista pública, los tickets no son seleccionables, solo informativos
+        const ticketNumber = ticket.numero_ticket || ticket.numero;
+        const ticketStatus = ticket.estado_ticket || ticket.estado;
+        toast.info(`Ticket #${formatTicketNumber(ticketNumber)} - ${ticketStatus === "disponible" ? "Disponible" : ticketStatus === "apartado" ? "Apartado" : ticketStatus === "pagado" ? "Pagado" : ticketStatus === "familiares" ? "Familiares" : ""}`);
+    };
+
+    // Filtrar tickets según el estado seleccionado y búsqueda
     const filteredTickets = useMemo(() => {
-        if (ticketFilter === 'todos') return allTickets;
-        if (ticketFilter === 'familiar') return allTickets.filter(t => t.estado === 'familiares');
-        return allTickets.filter(t => t.estado === ticketFilter);
-    }, [allTickets, ticketFilter]);
+        let filtered = allTickets;
+        
+        if (ticketFilter !== 'all') {
+            const filterMap = {
+                'disponible': 'disponible',
+                'apartado': 'apartado',
+                'pagado': 'pagado',
+                'familiares': 'familiares'
+            };
+            filtered = filtered.filter(t => t.estado === filterMap[ticketFilter]);
+        }
+        
+        if (searchQuery) {
+            filtered = filtered.filter(ticket => 
+                ticket.numero_ticket?.toString().includes(searchQuery)
+            );
+        }
+        
+        console.log('🎫 DEBUG - filteredTickets:', {
+            total: filtered.length,
+            ticketFilter,
+            searchQuery,
+            muestra: filtered.slice(0, 5).map(t => ({ numero: t.numero, estado: t.estado }))
+        });
+        
+        return filtered;
+    }, [allTickets, ticketFilter, searchQuery]);
 
     if (loading) return <LoadingScreen message="Cargando rifa..." />;
     if (!rifa) return <div className="flex items-center justify-center min-h-screen bg-[#0f131b] text-red-500">No se pudo encontrar la rifa.</div>;
@@ -359,46 +375,152 @@ export function PublicRifa() {
 
                     {/* Columna Derecha: Mapa de Tickets */}
                     <div className="lg:col-span-2 bg-[#181c24]/50 backdrop-blur-sm border border-[#23283a] p-6 rounded-xl flex flex-col">
-                        <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2 flex-shrink-0"><TicketIcon className="w-6 h-6 text-purple-400" /> Mapa de Tickets</h2>
-                        {/* Filtro de tickets */}
-                        <div className="mb-6">
-                            <label className="text-sm font-semibold text-gray-300 mb-3 block">Filtrar por estado:</label>
-                            <div className="flex flex-wrap gap-2">
-                                <button
-                                    onClick={() => setTicketFilter('todos')}
-                                    className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 ${ticketFilter === 'todos' ? 'bg-blue-600 text-white ring-2 ring-blue-400' : 'bg-[#23283a] text-gray-300 hover:bg-[#2d3748]'}`}
-                                >
-                                    Todos
-                                </button>
-                                <button
-                                    onClick={() => setTicketFilter('disponible')}
-                                    className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 ${ticketFilter === 'disponible' ? 'bg-gray-600 text-white ring-2 ring-gray-400' : 'bg-[#2d3748]/50 text-gray-400 hover:bg-[#2d3748]'}`}
-                                >
-                                    Disponible
-                                </button>
-                                <button
-                                    onClick={() => setTicketFilter('pagado')}
-                                    className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 ${ticketFilter === 'pagado' ? 'bg-green-600 text-white ring-2 ring-green-400' : 'bg-green-500/20 text-green-300 hover:bg-green-500/30'}`}
-                                >
-                                    Pagado
-                                </button>
-                                <button
-                                    onClick={() => setTicketFilter('apartado')}
-                                    className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 ${ticketFilter === 'apartado' ? 'bg-yellow-500 text-yellow-900 ring-2 ring-yellow-400' : 'bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30'}`}
-                                >
-                                    Apartado
-                                </button>
-                                <button
-                                    onClick={() => setTicketFilter('familiares')}
-                                    className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 ${ticketFilter === 'familiares' ? 'bg-purple-600 text-white ring-2 ring-purple-400' : 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/30'}`}
-                                >
-                                    Familiar
-                                </button>
-                                
+                        {/* Mapa de tickets */}
+                        <div ref={pdfRef} className="bg-[#0f131b] border border-[#23283a] p-4 rounded-lg overflow-auto">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+                                <div>
+                                    <h2 className="text-white text-lg font-bold mb-1 sm:mb-0">
+                                        Mapa de Tickets
+                                    </h2>
+                                    {(searchQuery || ticketFilter !== "todos") && (
+                                        <p className="text-gray-400 text-sm">
+                                            {searchQuery && `Buscando: "${searchQuery}" • `}
+                                            Mostrando {filteredTickets.length} de {allTickets.length} tickets
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Leyenda de colores */}
+                                <div className="flex flex-wrap gap-3 text-xs">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-4 h-4 bg-[#23283a] border border-[#4a5568] rounded"></div>
+                                        <span className="text-gray-300">Disponible</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-4 h-4 bg-yellow-400 border border-yellow-500 rounded"></div>
+                                        <span className="text-gray-300">Apartado</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-4 h-4 bg-green-500 border border-green-600 rounded"></div>
+                                        <span className="text-gray-300">Pagado</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-4 h-4 bg-purple-500 border border-purple-600 rounded opacity-75"></div>
+                                        <span className="text-gray-300">Familiares</span>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                        <div className="overflow-y-auto max-h-[90vh] pr-2">
-                            <TicketGrid tickets={filteredTickets} ganador={ganador} totalTickets={rifa?.total_tickets} />
+
+                            {/* Barra de búsqueda y filtros */}
+                            <div className="max-md:grid max-md:grid-cols-1 min-md:flex gap-4 mb-6">
+                                <div className="relative flex-1 max-w-prose">
+                                    <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar tickets..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#181c24] border border-[#23283a] text-white focus:outline-none focus:border-[#7c3bed] transition"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-5 gap-2">
+                                    <button
+                                        onClick={() => setTicketFilter("all")}
+                                        className={`px-3 py-2 rounded-lg text-xs font-semibold ${ticketFilter === "all" ? "bg-[#7c3bed] text-white" : "bg-[#23283a] text-white border border-[#7c3bed]"}`}
+                                    >
+                                        Todos
+                                    </button>
+                                    <button
+                                        onClick={() => setTicketFilter("disponible")}
+                                        className={`px-3 py-2 rounded-lg text-xs font-semibold ${ticketFilter === "disponible" ? "bg-gray-600 text-white" : "bg-[#23283a] text-white border border-gray-600"}`}
+                                    >
+                                        Disponible
+                                    </button>
+                                    <button
+                                        onClick={() => setTicketFilter("apartado")}
+                                        className={`px-3 py-2 rounded-lg text-xs font-semibold ${ticketFilter === "apartado" ? "bg-yellow-500 text-yellow-900" : "bg-[#23283a] text-white border border-yellow-500"}`}
+                                    >
+                                        Apartado
+                                    </button>
+                                    <button
+                                        onClick={() => setTicketFilter("pagado")}
+                                        className={`px-3 py-2 rounded-lg text-xs font-semibold ${ticketFilter === "pagado" ? "bg-green-500 text-white" : "bg-[#23283a] text-white border border-green-500"}`}
+                                    >
+                                        Pagado
+                                    </button>
+                                    <button
+                                        onClick={() => setTicketFilter("familiares")}
+                                        className={`px-3 py-2 rounded-lg text-xs font-semibold ${ticketFilter === "familiares" ? "bg-purple-500 text-white" : "bg-[#23283a] text-white border border-purple-500"}`}
+                                    >
+                                        Familiares
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="grid max-md:grid-cols-6 max-lg:grid-cols-10 min-lg:grid-cols-15 gap-2 max-h-100 overflow-y-scroll">
+                                {filteredTickets.map((ticket) => (
+                                    <div key={ticket.numero} className="relative">
+                                        <div
+                                            onClick={() => handleTicketClick(ticket)}
+                                            title={`N°${formatTicketNumber(ticket.numero)} - ${ticket.estado_ticket === "disponible" ? "Disponible - Haz clic para ver información"
+                                                : ticket.estado_ticket === "apartado" ? `Apartado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
+                                                    : ticket.estado_ticket === "pagado" ? `Pagado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
+                                                        : ticket.estado_ticket === "familiares" ? "Familiares - Haz clic para ver detalles"
+                                                            : ""
+                                                }`}
+                                            className={`
+                                            w-10 h-10 flex items-center justify-center rounded-lg cursor-pointer
+                                            text-xs font-bold transition-all duration-200 transform hover:scale-110 hover:ring-2 hover:ring-[#7c3bed] hover:shadow-lg
+                                            ${ticket.estado_ticket === "disponible" ? "bg-[#23283a] text-white hover:bg-[#2d3748] border border-[#4a5568]" : ""}
+                                            ${ticket.estado_ticket === "apartado" ? "bg-yellow-400 text-yellow-900 hover:bg-yellow-300 shadow-md border border-yellow-500" : ""}
+                                            ${ticket.estado_ticket === "pagado" ? "bg-green-500 text-green-900 hover:bg-green-400 shadow-md border border-green-600" : ""}
+                                            ${ticket.estado_ticket === "familiares" ? "bg-purple-500 text-purple-100 hover:bg-purple-400 shadow-md border border-purple-600 opacity-75" : ""}
+                                            ${selectedTicketsFromMap.includes(ticket.numero) ? "!bg-[#d54ff9] ring-2 ring-white" : ""}
+                                            ${ganador && ganador.numero_ganador === ticket.numero ? "bg-gradient-to-br from-yellow-400 to-orange-500 text-black font-bold ring-4 ring-white shadow-2xl animate-pulse" : ""}
+                                          `}
+                                        >
+                                            <div className="flex flex-col items-center justify-center">
+                                                <span className="leading-none">{formatTicketNumber(ticket.numero)}</span>
+                                                {ticket.estado !== "disponible" && (
+                                                    <div className="w-1 h-1 bg-current rounded-full mt-0.5 opacity-60"></div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {ganador && ganador.numero_ganador === ticket.numero && (
+                                            <TrophyIcon className="w-4 h-4 absolute top-1 right-1 text-black/70" />
+                                        )}
+                                    </div>
+                                ))}
+
+                                {/* Mensaje cuando no hay resultados */}
+                                {filteredTickets.length === 0 && (
+                                    <div className="col-span-full w-full text-center py-12">
+                                        <div className="bg-[#23283a] rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                                            <MagnifyingGlassIcon className="w-8 h-8 text-gray-400" /> 
+                                        </div>
+                                        <h3 className="text-white text-lg font-semibold mb-2">
+                                            No se encontraron tickets
+                                        </h3>
+                                        <p className="text-gray-400 text-sm mb-4">
+                                            {searchQuery
+                                                ? `No hay tickets que coincidan con "${searchQuery}"`
+                                                : `No hay tickets con el estado "${ticketFilter === "all" ? "disponible" : ticketFilter}"`
+                                            }
+                                        </p>
+                                        {(searchQuery || ticketFilter !== "all") && (
+                                            <button
+                                                onClick={() => {
+                                                    setSearchQuery("");
+                                                    setTicketFilter("all");
+                                                }}
+                                                className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                                            >
+                                                Limpiar filtros
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

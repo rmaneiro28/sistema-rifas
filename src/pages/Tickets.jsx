@@ -32,11 +32,11 @@ const formatTicketNumber = (number, totalTickets) => {
 
 // Utilidad para exportar CSV
 const exportToCSV = (data, filename) => {
-  const headers = ["ID Jugador", "Jugador", "Email", "Ticket", "Rifa", "Precio", "Fecha", "Estado"];
+  const headers = ["ID Jugador", "Jugador", "Telefono", "Ticket", "Rifa", "Precio", "Fecha", "Estado"];
   const csvData = data.map(ticket => [
     ticket.jugador_id,
     ticket.nombre_jugador || "Sin asignar",
-    ticket.email_jugador || "Sin email",
+    ticket.telefono || "Sin telefono",
     ticket.numero_ticket,
     ticket.nombre_rifa,
     ticket.precio_ticket,
@@ -92,7 +92,7 @@ export function Tickets() {
       const s = debouncedSearch.toLowerCase();
       result = result.filter(group =>
         group.nombre_jugador.toLowerCase().includes(s) ||
-        (group.email_jugador && group.email_jugador.toLowerCase().includes(s)) ||
+        (group.telefono && group.telefono.toLowerCase().includes(s)) ||
         group.tickets.some(t => String(t.numero_ticket).includes(s))
       );
     }
@@ -127,6 +127,8 @@ export function Tickets() {
     paymentRequests.filter(req => req.estado === "pendiente").length,
     [paymentRequests]
   );
+
+  console.log(paginatedGroups)
 
   // Debounce para la búsqueda
   useEffect(() => {
@@ -178,7 +180,7 @@ export function Tickets() {
             jugador_id: ticket.jugador_id,
             nombre_jugador: ticket.nombre_jugador,
             email_jugador: ticket.email_jugador,
-            telefono_jugador: ticket.telefono_jugador,
+            telefono: ticket.telefono,
             tickets: [],
             total_gastado: 0,
           };
@@ -442,7 +444,7 @@ export function Tickets() {
             rafflesList={rafflesList}
           />
           {/* Controles de Ordenamiento */}
-          <div className="hidden md:flex items-center justify-between mt-6 mb-4">
+          <div className="md:flex items-center justify-between mt-6 mb-4">
             <p className="text-sm text-gray-400">
               Mostrando <span className="font-bold text-white">{filteredTickets.length}</span> grupos de tickets.
             </p>
@@ -484,7 +486,7 @@ export function Tickets() {
                           </div>
                           <div className="min-w-0">
                             <h3 className="font-semibold text-white truncate">{group.nombre_jugador}</h3>
-                            <p className="text-sm text-gray-400 truncate">{group.email_jugador || 'Sin email'}</p>
+                            <p className="text-sm text-gray-400 truncate">{group.telefono || 'Sin telefono'}</p>
                           </div>
                         </div>
                         <div className="p-1 rounded-full hover:bg-[#23283a] transition-colors -mt-1 -mr-1 flex-shrink-0">

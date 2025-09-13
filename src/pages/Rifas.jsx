@@ -25,6 +25,8 @@ export function Rifas() {
 
     if (filter === "featured") {
       query = query.eq("destacada", true);
+    } else if (filter === "finalizada") {
+      query = query.eq("estado", "finalizada");
     }
     const { data, error } = await query;
     if (!error) setRaffles(data);

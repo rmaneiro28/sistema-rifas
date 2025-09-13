@@ -123,7 +123,20 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
     const handleCopyTicket = async () => {
         if (!ticketRef.current) return toast.error("No se encontró la referencia del ticket.");
         try {
-            const blob = await toBlob(ticketRef.current, { cacheBust: true, quality: 0.95, pixelRatio: 2, backgroundColor: '#0f131b' });
+            // Forzar un pequeño retraso para asegurar que el DOM esté completamente renderizado
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            const blob = await toBlob(ticketRef.current, { 
+                cacheBust: true, 
+                quality: 0.95, 
+                pixelRatio: 2,
+                backgroundColor: null, // Usar null para mantener el fondo transparente o el fondo original
+                style: {
+                    transform: 'scale(1)',
+                    transformOrigin: 'top left'
+                }
+            });
+            
             if (blob) {
                 await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
                 toast.success('¡Imagen del ticket copiada al portapapeles!');
@@ -146,7 +159,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
     return (
         <>
             {/* Hidden ticket element for copying */}
-            <div ref={ticketRef} style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
+            <div ref={ticketRef} style={{ position: 'absolute', left: '-9999px', top: '-9999px', visibility: 'hidden' }}>
                 {ticket && rifa && (
                     <div style={{ 
                         width: '400px', 
@@ -162,7 +175,8 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                         color: 'white', 
                         position: 'relative', 
                         overflow: 'hidden',
-                        boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+                        boxSizing: 'border-box'
                     }}>
                         {/* Decorative elements */}
                         <div style={{ 
@@ -196,7 +210,8 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                             alignItems: 'center', 
                             justifyContent: 'space-between', 
                             position: 'relative',
-                            boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.1)'
+                            boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.1)',
+                            boxSizing: 'border-box'
                         }}>
                             {/* Header */}
                             <div style={{ textAlign: 'center', width: '100%' }}>
@@ -318,10 +333,10 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                 )}
             </div>
             <div className="fixed inset-0 z-40 bg-black/60 transition-opacity duration-300" onClick={handleClose} />
-            <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-[#181c24] border-l border-[#23283a] shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isAnimating ? 'translate-x-0' : 'translate-x-full'}`}>
+            <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-[#181c24] border-l border-[#23283a] shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isAnimating ? 'translate-x-0' : 'translate-x-full'} overflow-hidden`}>
                 <div className="flex flex-col h-full">
                     {/* Header */}
-                    <div className="flex items-center justify-between p-6 border-b border-[#23283a] bg-[#0f131b]">
+                    <div className="flex items-center justify-between p-4 border-b border-[#23283a] bg-[#0f131b] flex-shrink-0">
                         <div className="flex items-center space-x-3">
                             <div className="w-10 h-10 bg-[#7c3bed]/20 rounded-full flex items-center justify-center"><TicketIcon className="w-6 h-6 text-[#7c3bed]" /></div>
                             <h2 className="text-xl font-bold text-white">
@@ -332,7 +347,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     </div>
 
                     {/* Content */}
-                    <div className="flex-1 p-6">
+                    <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                         <div className="space-y-6">
                             <div className="space-y-4">
                                 <h3 className="text-lg font-semibold text-white flex items-center"><TicketIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />Información del Tickets</h3>
@@ -345,7 +360,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                     </div>
                                     <div className="flex justify-between items-center"><span className="text-gray-400">Precio:</span><span className="text-white font-bold">${rifa?.precio_ticket}</span></div>
                                     <div className="flex justify-between items-center">
-                                        <span className="text-gray-400">estado_ticket:</span>
+                                        <span className="text-gray-400">Estado:</span>
                                         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${filterOptions.find(f => f.key === ticket.estado_ticket)?.color || 'bg-gray-500'} ${filterOptions.find(f => f.key === ticket.estado_ticket)?.textColor || 'text-white'}`}>{ticket.estado_ticket}</span>
                                     </div>
                                     {(ticket.fecha_creacion_ticket || ticket.created_at) && (
@@ -384,39 +399,42 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     </div>
 
                     {/* Share Actions */}
-                    <div className="p-6 border-t border-[#23283a] bg-[#0f131b]">
-                        <h3 className="text-base font-semibold text-white mb-4">
+                    <div className="p-4 border-t border-[#23283a] bg-[#0f131b]">
+                        <h3 className="text-base font-semibold text-white mb-3">
                             Compartir Ticket
                         </h3>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 gap-2">
                             <button
                                 onClick={handleSendWhatsApp}
-                                className="group relative overflow-hidden bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
+                                className="group relative overflow-hidden bg-gradient-to-r from-green-500 to-emerald-600 text-white py-2 px-3 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 text-sm"
                                 title="Compartir por WhatsApp"
                             >
                                 <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
-                                <ChatBubbleLeftRightIcon className="w-5 h-5 relative z-10 group-hover:animate-pulse" />
-                                <span className="relative z-10 text-sm">WhatsApp</span>
+                                <ChatBubbleLeftRightIcon className="w-4 h-4 relative z-10 group-hover:animate-pulse" />
+                                <span className="relative z-10">WhatsApp</span>
                             </button>
                             <button
                                 onClick={handleCopyTicket}
-                                className="group relative overflow-hidden bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
+                                className="group relative overflow-hidden bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-2 px-3 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 text-sm"
                                 title="Copiar imagen del ticket"
                             >
                                 <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
-                                <DocumentDuplicateIcon className="w-5 h-5 relative z-10 group-hover:animate-pulse" />
-                                <span className="relative z-10 text-sm">Copiar Imagen</span>
+                                <DocumentDuplicateIcon className="w-4 h-4 relative z-10 group-hover:animate-pulse" />
+                                <span className="relative z-10">Copiar Imagen</span>
                             </button>
                         </div>
                     </div>
 
                     {/* Actions */}
-                    <div className="p-6 border-t border-[#23283a]">
-                        <div className="grid grid-cols-2 gap-3">
-                            <button onClick={() => handleUpdateSingleTicketStatus("pagado")} disabled={loading || ticket.estado_ticket === 'pagado'} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Pagado</button>
-                            <button onClick={() => handleUpdateSingleTicketStatus("apartado")} disabled={loading || ticket.estado_ticket === 'apartado'} className="w-full bg-yellow-500 hover:bg-yellow-600 text-yellow-900 py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Apartado</button>
-                            <button onClick={() => handleUpdateSingleTicketStatus("familiares")} disabled={loading || ticket.estado_ticket === 'familiares'} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Familiar</button>
-                            <button onClick={() => handleUpdateSingleTicketStatus("disponible")} disabled={loading} className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Liberar</button>
+                    <div className="p-4 border-t border-[#23283a] bg-[#0f131b]">
+                        <h3 className="text-base font-semibold text-white mb-3">
+                            Cambiar Estado
+                        </h3>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button onClick={() => handleUpdateSingleTicketStatus("pagado")} disabled={loading || ticket.estado_ticket === 'pagado'} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Pagado</button>
+                            <button onClick={() => handleUpdateSingleTicketStatus("apartado")} disabled={loading || ticket.estado_ticket === 'apartado'} className="w-full bg-yellow-500 hover:bg-yellow-600 text-yellow-900 py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Apartado</button>
+                            <button onClick={() => handleUpdateSingleTicketStatus("familiares")} disabled={loading || ticket.estado_ticket === 'familiares'} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Familiar</button>
+                            <button onClick={() => handleUpdateSingleTicketStatus("disponible")} disabled={loading} className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Liberar</button>
                         </div>
                     </div>
                 </div>

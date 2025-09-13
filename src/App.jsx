@@ -98,9 +98,9 @@ function MainLayout({ children, sidebarOpen, setSidebarOpen }) {
 export const Footer = () => {
   const year = new Date().getFullYear();
   return (
-    <footer className="flex justify-center items-center  h-16 bg-[#0d1016] text-white  text-center p-4">
+    <footer className="max-md:w-[85%] flex justify-center items-center  text-white  text-center p-4">
       <img className="w-16 object-contain" src={Logo} alt="" />
-      <p className="text-xs">&copy; {year} Rifas Plus. Desarrollado por <a href="https://wa.me/584123397066">Rúbel Maneiro</a> y Sneider Araque</p>
+      <p className="text-xs">&copy; {year} Rifas Plus. Desarrollado por <a href="https://wa.me/584123397066">Rúbel Maneiro</a> y <a href="https://wa.me/584122530766">Sneider Araque</a></p>
     </footer>
   );
 };

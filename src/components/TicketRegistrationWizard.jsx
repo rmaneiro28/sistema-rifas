@@ -41,11 +41,14 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
     useEffect(() => {
         if (selectedJugador) {
             const jugador = jugadores.find(j => j.id == selectedJugador);
-            setFavoritos(jugador?.numeros_favoritos || []);
+            const rawFavoritos = jugador?.numeros_favoritos || [];
+            // Formatear los números favoritos según el formato de la rifa
+            const formattedFavoritos = rawFavoritos.map(num => formatTicketNumber(num, rifa?.total_tickets));
+            setFavoritos(formattedFavoritos);
         } else {
             setFavoritos([]);
         }
-    }, [selectedJugador, jugadores]);
+    }, [selectedJugador, jugadores, rifa?.total_tickets]);
 
     // Permitir guardar los números tal cual como texto (ej: '000', '0214')
     const numerosSeleccionados = useMemo(() => {
@@ -99,20 +102,20 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
         setLoading(false);
     };
 
-    const handleFavNumberToggle = (num) => {
-        const newNumbers = numerosSeleccionados.includes(num) ? numerosSeleccionados.filter(n => n !== num) : [...numerosSeleccionados, num];
-        setCustomNumero(newNumbers.sort((a, b) => a - b).join(', '));
+    const handleFavNumberToggle = (formattedNum) => {
+        const newNumbers = numerosSeleccionados.includes(formattedNum) ? numerosSeleccionados.filter(n => n !== formattedNum) : [...numerosSeleccionados, formattedNum];
+        setCustomNumero(newNumbers.sort((a, b) => parseInt(a) - parseInt(b)).join(', '));
     };
 
     const handleSelectAllFavoritos = () => {
-        const unavailable = favoritos.filter(num => ticketStatusMap.get(num) !== 'disponible');
+        const unavailable = favoritos.filter(formattedNum => ticketStatusMap.get(formattedNum) !== 'disponible');
         if (unavailable.length > 0) toast.info(`Los números favoritos ${unavailable.join(', ')} no están disponibles.`);
 
-        const available = favoritos.filter(num => ticketStatusMap.get(num) === 'disponible');
-        const newNumbersToAdd = available.filter(num => !numerosSeleccionados.includes(num));
+        const available = favoritos.filter(formattedNum => ticketStatusMap.get(formattedNum) === 'disponible');
+        const newNumbersToAdd = available.filter(formattedNum => !numerosSeleccionados.includes(formattedNum));
 
         if (newNumbersToAdd.length > 0) {
-            const newSelection = [...numerosSeleccionados, ...newNumbersToAdd].sort((a, b) => a - b);
+            const newSelection = [...numerosSeleccionados, ...newNumbersToAdd].sort((a, b) => parseInt(a) - parseInt(b));
             setCustomNumero(newSelection.join(', '));
             toast.success(`${newNumbersToAdd.length} número(s) favorito(s) agregado(s).`);
         } else if (available.length > 0) {
@@ -128,18 +131,22 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
             toast.error(`Ingresa un número válido.`);
             return;
         }
-        if (numerosSeleccionados.includes(num)) {
-            toast.info(`El número ${num} ya está en tu selección.`);
+        
+        // Formatear el número según el formato de la rifa
+        const formattedNum = formatTicketNumber(num, rifa?.total_tickets);
+        
+        if (numerosSeleccionados.includes(formattedNum)) {
+            toast.info(`El número ${formattedNum} ya está en tu selección.`);
             setSingleCustomNumberInput("");
             return;
         }
-        if (ticketStatusMap.get(num) !== 'disponible') {
-            toast.error(`El número ${num} no está disponible.`);
+        if (ticketStatusMap.get(formattedNum) !== 'disponible') {
+            toast.error(`El número ${formattedNum} no está disponible.`);
             setSingleCustomNumberInput("");
             return;
         }
-        const newNumbers = [...numerosSeleccionados, num];
-        setCustomNumero(newNumbers.join(', '));
+        const newNumbers = [...numerosSeleccionados, formattedNum];
+        setCustomNumero(newNumbers.sort((a, b) => parseInt(a) - parseInt(b)).join(', '));
         setSingleCustomNumberInput("");
     };
 
@@ -149,11 +156,11 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
     };
 
     const handleProceedToConfirmation = () => {
-        const unavailableNumbers = numerosSeleccionados.filter(num => ticketStatusMap.get(num) !== 'disponible');
+        const unavailableNumbers = numerosSeleccionados.filter(formattedNum => ticketStatusMap.get(formattedNum) !== 'disponible');
         if (unavailableNumbers.length > 0) {
             toast.error(`Los siguientes números ya no están disponibles: ${unavailableNumbers.join(', ')}`);
-            const availableNumbers = numerosSeleccionados.filter(num => !unavailableNumbers.includes(num));
-            setCustomNumero(availableNumbers.join(', '));
+            const availableNumbers = numerosSeleccionados.filter(formattedNum => !unavailableNumbers.includes(formattedNum));
+            setCustomNumero(availableNumbers.sort((a, b) => parseInt(a) - parseInt(b)).join(', '));
         } else if (numerosSeleccionados.length > 0) {
             setWizardStep(3);
         } else {
@@ -169,7 +176,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
             return;
         }
 
-        const { data: taken, error: checkError } = await supabase.from("t_tickets").select("numero, jugador_id").eq("rifa_id", rifa.id_rifa).in("numero", numerosSeleccionados.map(num => formatTicketNumber(num, rifa?.total_tickets)));
+        const { data: taken, error: checkError } = await supabase.from("t_tickets").select("numero, jugador_id").eq("rifa_id", rifa.id_rifa).in("numero", numerosSeleccionados);
         if (checkError) {
             toast.error("Error al verificar los tickets: " + checkError.message);
             setLoading(false);
@@ -197,7 +204,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
             numerosSeleccionados.map(numero => ({
                 rifa_id: rifa.id_rifa,
                 jugador_id: selectedJugador,
-                numero: formatTicketNumber(numero, rifa?.total_tickets), // <--- Aquí se guarda el número con formato de ceros a la izquierda
+                numero: numero, // <--- Los números ya están formateados
                 estado: "apartado",
                 configuracion_id: rifa.configuracion_id || null,
                 fecha_apartado: fechaApartado
@@ -216,7 +223,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
     const handleConfirmarPago = async () => {
         setLoading(true);
     const fechaPago = new Date().toISOString();
-    const { error } = await supabase.from("t_tickets").update({ estado: "pagado", fecha_pago: fechaPago }).eq("rifa_id", rifa.id_rifa).eq("jugador_id", selectedJugador).in("numero", numerosSeleccionados.map(num => formatTicketNumber(num, rifa?.total_tickets)));
+    const { error } = await supabase.from("t_tickets").update({ estado: "pagado", fecha_pago: fechaPago }).eq("rifa_id", rifa.id_rifa).eq("jugador_id", selectedJugador).in("numero", numerosSeleccionados);
         if (!error) {
             const jugador = jugadores.find(j => j.id == selectedJugador);
             toast.success(`Pago confirmado para ${jugador?.nombre}`);
@@ -226,7 +233,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
                 jugador: `${jugador.nombre} ${jugador.apellido}`,
                 telefono: jugador.telefono,
                 rifa: rifa?.nombre,
-                numeros: numerosSeleccionados.map(num => formatTicketNumber(num, rifa?.total_tickets)),
+                numeros: numerosSeleccionados,
                 total: (rifa?.precio_ticket * numerosSeleccionados.length).toFixed(2),
                 metodoPago: metodoPago,
                 referencia: referenciaPago || 'N/A',

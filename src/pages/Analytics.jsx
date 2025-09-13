@@ -132,14 +132,15 @@ export default function Analytics() {
         // Enhanced Stats
         const activePlayersInPeriod = new Set(periodTickets.filter(t => t.jugador_id).map(t => t.jugador_id)).size;
         const paidTickets = periodTickets.filter(t => t.estado === 'pagado').length;
-        const conversionRate = ticketsSold > 0 ? ((paidTickets / ticketsSold) * 100).toFixed(1) : 0;
+        const totalPlayers = jugadores?.length || 0;
+        const conversionRate = totalPlayers > 0 ? ((activePlayersInPeriod / totalPlayers) * 100).toFixed(1) : 0;
         const averageTicketValue = ticketsSold > 0 ? (totalRevenue / ticketsSold).toFixed(0) : 0;
         
         // Previous period stats
         const previousTotalRevenue = (previousPeriodTicketsData || []).reduce((acc, ticket) => acc + (ticket.precio_ticket || 0), 0);
         const previousTicketsSold = (previousPeriodTicketsData || []).length;
-        const previousPaidTickets = (previousPeriodTicketsData || []).filter(t => t.estado === 'pagado').length;
-        const previousConversionRate = previousTicketsSold > 0 ? ((previousPaidTickets / previousTicketsSold) * 100).toFixed(1) : 0;
+        const previousActivePlayers = new Set((previousPeriodTicketsData || []).filter(t => t.jugador_id).map(t => t.jugador_id)).size;
+        const previousConversionRate = totalPlayers > 0 ? ((previousActivePlayers / totalPlayers) * 100).toFixed(1) : 0;
         const previousAverageTicketValue = previousTicketsSold > 0 ? (previousTotalRevenue / previousTicketsSold).toFixed(0) : 0;
 
         // Calculate percentage change
@@ -481,24 +482,60 @@ export default function Analytics() {
             <ChartBarIcon className="w-5 h-5 text-[#7c3bed]" /> Distribución de Tickets
           </h2>
           {ticketStatusData.length > 0 ? (
-            <div className="space-y-3">
-              {ticketStatusData.map((item, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="text-gray-300 text-sm">{item.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-white font-medium">{item.value}</span>
-                    <span className="text-gray-500 text-xs">
-                      {((item.value / ticketStatusData.reduce((acc, curr) => acc + curr.value, 0)) * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                </div>
-              ))}
+            <div className="h-[240px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={ticketStatusData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {ticketStatusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                    <LabelList
+                      dataKey="value"
+                      position="outside"
+                      fill="#ffffff"
+                      fontSize={12}
+                      fontWeight="bold"
+                    />
+                  </Pie>
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        const total = ticketStatusData.reduce((acc, curr) => acc + curr.value, 0);
+                        const percentage = ((data.value / total) * 100).toFixed(1);
+                        return (
+                          <div className="bg-[#23283a] p-3 rounded-lg border border-[#2d3748] shadow-lg text-sm">
+                            <p className="text-white font-semibold mb-1">{data.name}</p>
+                            <p className="text-gray-300">{data.value} tickets</p>
+                            <p className="text-gray-400">{percentage}% del total</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    height={36}
+                    iconType="circle"
+                    formatter={(value, entry, index) => (
+                      <span className="text-gray-300 text-xs">{value}</span>
+                    )}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-[120px] text-gray-500">
+            <div className="flex items-center justify-center h-[240px] text-gray-500">
               No hay datos de estado de tickets.
             </div>
           )}
