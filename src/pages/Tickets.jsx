@@ -388,7 +388,7 @@ export function Tickets() {
 
   const SortIndicator = ({ direction }) => {
     if (!direction) return null;
-    return direction === 'asc' ? ' ▲' : ' ▼';
+    return direction === 'asc' ? '↑' : '↓';
   };
 
   return (

@@ -10,8 +10,7 @@ import { LoadingScreen } from "../components/LoadingScreen";
 const STATUS_BADGES = {
   winner: { label: "GANADOR", color: "bg-[#0ea5e9] text-white" },
   active: { label: "ACTIVO", color: "bg-[#23283a] text-white" },
-  inactive: { label: "INACTIVO", color: "bg-[#6b7280] text-white" },
-  new: { label: "NUEVO", color: "bg-[#a21caf] text-white" },
+  inactive: { label: "INACTIVO", color: "bg-[#6b7280] text-white" }
 };
 
 // Componente SortIndicator
@@ -61,17 +60,6 @@ const calculatePlayerStatus = (jugador, isWinner, winnerInfo, ultimaActividad = 
     };
   }
   
-  // 4. Si nunca ha comprado tickets
-  if (jugador.total_tickets_comprados === 0) {
-    return {
-      status: 'new',
-      badge: 'NUEVO',
-      color: 'bg-[#a21caf] text-white',
-      description: 'Sin tickets comprados',
-      premio: null,
-      numero_ganador: null
-    };
-  }
   
   // Status por defecto
   return {
@@ -334,7 +322,7 @@ export function Jugadores() {
   }
 
   return (
-    <div className="animate-fade-in max-md:w-[85%]">
+    <div className="animate-fade-in max-md:w-full">
       <div className="flex mb-6 max-sm:flex-col min-md:flex-row min-md:items-center min-md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent">Jugadores</h1>
@@ -362,7 +350,7 @@ export function Jugadores() {
             className="w-full pl-12 pr-4 py-4 rounded-xl bg-[#181c24] border border-[#23283a] text-white placeholder-gray-400 focus:outline-none focus:border-[#7c3bed] focus:ring-2 focus:ring-[#7c3bed]/20 transition-all text-base"
           />
         </div>
-        <div className="flex flex-1 w-full bg-black min-md:max-w-xs  gap-2 max-md:overflow-x-auto"> 
+        <div className="flex flex-1 w-full min-md:max-w-xs  gap-2 max-md:overflow-x-auto"> 
           <button onClick={() => handleFilter("all")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "all" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
             Todos
           </button>
@@ -374,9 +362,6 @@ export function Jugadores() {
           </button>
           <button onClick={() => handleFilter("inactive")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "inactive" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
             Inactivos
-          </button>
-          <button onClick={() => handleFilter("news")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "news" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
-            Nuevos
           </button>
         </div>
       </div>

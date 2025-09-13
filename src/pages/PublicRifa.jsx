@@ -24,7 +24,7 @@ const BankDataCard = ({ logo, icon: Icon, label, value }) => {
                 {logo ? (
                     <img src={logo} alt={label} className="w-8 h-8 rounded-full bg-white p-1 border border-gray-300" />
                 ) : (
-                    <Icon className="w-7 h-7 text-purple-400" />
+                    <Icon className="w-7 h-7 text-white" />
                 )}
                 <div>
                     <div className="font-bold text-white text-base flex items-center gap-1">{label}</div>
@@ -104,11 +104,11 @@ const InfoItem = ({ icon: Icon, label, value, color }) => (
     </div>
 );
 
-const RaffleHeader = ({ rifa }) => (
+const RaffleHeader = ({ rifa, vendidos, total, progreso, setIsVerifierOpen }) => (
     <div className="grid max-md:grid-cols-1 md:grid-cols-5 gap-0 items-center bg-[#181c24] border border-[#23283a] rounded-2xl overflow-hidden mb-10">
         {/* Columna de la Imagen */}
         <div className="md:col-span-3 w-full h-full">
-            <img src={rifa.imagen_url} alt={rifa.nombre} className="w-full h-[90vh] object-cover" />
+            <img src={rifa.imagen_url} alt={rifa.nombre} className="w-full min-md:h-[90vh] max-md:h-[30vh] object-cover" />
         </div>
 
         {/* Columna del Texto */}
@@ -132,9 +132,9 @@ const RaffleHeader = ({ rifa }) => (
                 </div>
                
                 <RaffleProgressBar
-                    vendidos={rifa.tickets_vendidos}
-                    total={rifa.total_tickets}
-                    progreso={(rifa.tickets_vendidos / rifa.total_tickets) * 100}
+                    vendidos={vendidos}
+                    total={total}
+                    progreso={progreso}
                 />
                 <button onClick={() => setIsVerifierOpen(true)} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 shadow-lg hover:shadow-purple-500/50 flex items-center justify-center gap-2">
                     <MagnifyingGlassIcon className="w-5 h-5" />
@@ -239,12 +239,23 @@ export function PublicRifa() {
                         estado: existingTicket.estado_ticket, 
                         numero_ticket: ticketNumberFormatted, 
                         estado_ticket: existingTicket.estado_ticket, 
-                        nombre_jugador: existingTicket.nombre_jugador 
+                        nombre_jugador: existingTicket.nombre_jugador,
+                        telefono_jugador: existingTicket.telefono,
+                        cedula_jugador: existingTicket.cedula,
+                        monto_pagado: existingTicket.monto_pagado,
+                        fecha_compra: existingTicket.fecha_compra || existingTicket.fecha_pago,
+                        fecha_pago: existingTicket.fecha_pago || existingTicket.fecha_compra
                     } :
                     { 
                         estado: "disponible", 
                         numero_ticket: ticketNumberFormatted, 
-                        estado_ticket: "disponible" 
+                        estado_ticket: "disponible",
+                        nombre_jugador: null,
+                        telefono_jugador: null,
+                        cedula_jugador: null,
+                        monto_pagado: null,
+                        fecha_compra: null,
+                        fecha_pago: null
                     };
                 
                 // Debug específico para tickets 0002 y 0003
@@ -285,13 +296,14 @@ export function PublicRifa() {
 
     useEffect(() => { fetchRaffleAndTickets(); }, [fetchRaffleAndTickets]);
 
-    const { vendidos, disponibles, progreso } = useMemo(() => {
+    const { vendidos, disponibles, progreso, total } = useMemo(() => {
         const vendidosCount = allTickets.filter(t => t.estado !== 'disponible').length;
-        const total = rifa?.total_tickets || 0;
+        const totalTickets = rifa?.total_tickets || 0;
         return {
             vendidos: vendidosCount,
-            disponibles: total - vendidosCount,
-            progreso: total > 0 ? (vendidosCount / total) * 100 : 0,
+            disponibles: totalTickets - vendidosCount,
+            progreso: totalTickets > 0 ? (vendidosCount / totalTickets) * 100 : 0,
+            total: totalTickets,
         };
     }, [allTickets, rifa]);
 
@@ -358,7 +370,7 @@ export function PublicRifa() {
         <div className="min-h-screen bg-[#0f131b] text-white font-sans bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))] overflow-x-hidden">
             {ganador && <Confetti width={width} height={height} recycle={false} numberOfPieces={400} />}
             <div className="container mx-auto p-4 sm:p-8 max-w-full overflow-x-hidden">
-                <RaffleHeader rifa={rifa} />
+                <RaffleHeader rifa={rifa} vendidos={vendidos} total={total} progreso={progreso} setIsVerifierOpen={setIsVerifierOpen} />
 
                 {/* Anuncio del Ganador */}
                 {ganador && <RaffleWinnerBanner ganador={ganador} premio={rifa.premio || rifa.nombre} />}
@@ -433,26 +445,6 @@ export function PublicRifa() {
                                             Mostrando {filteredTickets.length} de {allTickets.length} tickets
                                         </p>
                                     )}
-                                </div>
-
-                                {/* Leyenda de colores */}
-                                <div className="flex flex-wrap gap-3 text-xs">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-4 h-4 bg-[#23283a] border border-[#4a5568] rounded"></div>
-                                        <span className="text-gray-300">Disponible</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-4 h-4 bg-yellow-400 border border-yellow-500 rounded"></div>
-                                        <span className="text-gray-300">Apartado</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-4 h-4 bg-green-500 border border-green-600 rounded"></div>
-                                        <span className="text-gray-300">Pagado</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-4 h-4 bg-purple-500 border border-purple-600 rounded opacity-75"></div>
-                                        <span className="text-gray-300">Familiares</span>
-                                    </div>
                                 </div>
                             </div>
 
@@ -580,6 +572,7 @@ export function PublicRifa() {
                 isOpen={isVerifierOpen}
                 onClose={() => setIsVerifierOpen(false)}
                 allTickets={allTickets}
+                rifa={rifa}
             />
             <Footer/>
         </div>

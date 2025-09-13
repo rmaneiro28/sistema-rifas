@@ -15,7 +15,7 @@ import NotFound from './pages/NotFound';
 import { NuevaRifa } from "./pages/NuevaRifa";
 import { EditarRifa } from "./pages/EditarRifa";
 import { Jugadores } from "./pages/Jugadores";
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
 import { DetalleRifa } from "./pages/DetalleRifa";
 import Analytics from "./pages/Analytics";
 import { supabase } from "./api/supabaseClient";
@@ -23,7 +23,9 @@ import { Toaster } from 'sonner';
 import Configuracion from "./pages/Configuracion";
 import { PublicRifa } from "./pages/PublicRifa";
 import { LoadingScreen } from "./components/LoadingScreen";
-import Logo from "./assets/Logo RifasPlus.png"
+import Logo from "./assets/Logo RifasPlus.png";
+import ScrollToTop from './components/ScrollToTop';
+
 // Dashboard page layout
 function Dashboard() {
   const [raffles, setRaffles] = useState([]);
@@ -110,6 +112,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   return (
     <Router>
+      <ScrollToTop />
       <Toaster richColors />
       <Routes>
         <Route path="/public-rifa/:id" element={<PublicRifa />} />

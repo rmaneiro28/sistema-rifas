@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MagnifyingGlassIcon, XMarkIcon, CheckCircleIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
+import { MagnifyingGlassIcon, XMarkIcon, CheckCircleIcon, InformationCircleIcon, TicketIcon, UserIcon, PhoneIcon, CreditCardIcon, CalendarIcon } from "@heroicons/react/24/outline";
 
 const formatTicketNumber = (number, totalTickets) => {
     if (number === null || number === undefined || !totalTickets) return "N/A";
@@ -8,10 +8,11 @@ const formatTicketNumber = (number, totalTickets) => {
     return String(number).padStart(numDigits, "0");
 };
 
-export function TicketVerifierModal({ isOpen, onClose, allTickets }) {
+export function TicketVerifierModal({ isOpen, onClose, allTickets, rifa }) {
     const [query, setQuery] = useState("");
     const [result, setResult] = useState(null);
     const [isVerifying, setIsVerifying] = useState(false);
+    const [selectedTicket, setSelectedTicket] = useState(null);
 
     const handleVerify = () => {
         if (!query) {
@@ -25,10 +26,10 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets }) {
             const phoneQuery = searchQuery.replace(/\D/g, '');
             const ticketPhone = ticket.telefono_jugador?.replace(/\D/g, '');
 
-            return ticket.numero.toString().includes(searchQuery) ||
-                (ticket.nombre_jugador?.toLowerCase().includes(searchQuery)) ||
-                (ticket.cedula_jugador?.includes(searchQuery)) ||
-                (ticketPhone && phoneQuery && ticketPhone.includes(phoneQuery));
+            return (ticket.numero_ticket || ticket.numero || '').toString() === searchQuery ||
+                (ticket.nombre_jugador?.toLowerCase() === searchQuery) ||
+                (ticket.cedula_jugador === searchQuery) ||
+                (ticketPhone && phoneQuery && ticketPhone === phoneQuery);
         });
 
         setTimeout(() => {
@@ -37,9 +38,9 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets }) {
             } else {
                 const isNumericQuery = /^\d+$/.test(searchQuery);
                 if (isNumericQuery) {
-                    const ticket = allTickets.find(t => t.numero.toString() === searchQuery);
+                    const ticket = allTickets.find(t => (t.numero_ticket || t.numero || '').toString() === searchQuery);
                     if (ticket && ticket.estado === 'disponible') {
-                        setResult({ status: 'available', message: `El ticket #${searchQuery} está disponible. ¡Anímate a comprarlo!` });
+                        setResult({ status: 'available', message: `El ticket #${formatTicketNumber(searchQuery, rifa?.total_tickets)} está disponible. ¡Anímate a comprarlo!` });
                     } else {
                         setResult({ status: 'not_found', message: 'No se encontraron tickets con ese criterio.' });
                     }
@@ -48,7 +49,7 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets }) {
                 }
             }
             setIsVerifying(false);
-        }, 500); // Simula un retraso de red para una mejor UX
+        }, 800); // Simula un retraso de red para una mejor UX
     };
 
     const handleClose = () => {
@@ -56,29 +57,212 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets }) {
         setTimeout(() => {
             setQuery("");
             setResult(null);
+            setSelectedTicket(null);
         }, 300);
+    };
+
+    const handleViewTicket = (ticket) => {
+        setSelectedTicket(ticket);
+    };
+
+    const handleBackToResults = () => {
+        setSelectedTicket(null);
     };
 
     if (!isOpen) return null;
 
+    // Vista detallada del ticket
+    if (selectedTicket) {
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={handleClose}>
+                <div className="bg-[#181c24] border border-[#23283a] rounded-xl w-full max-w-lg shadow-2xl relative overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                    {/* Imagen de fondo del premio */}
+                    <div className="absolute inset-0 opacity-10">
+                        <img 
+                            src={rifa?.imagen_url || '/default-prize.jpg'} 
+                            alt="Premio" 
+                            className="w-full h-full object-cover"
+                        />
+                    </div>
+                    
+                    <div className="relative z-10 p-6">
+                        <button onClick={handleClose} className="absolute top-3 right-3 text-gray-400 hover:text-white p-1 rounded-full hover:bg-[#2d3748]"><XMarkIcon className="w-6 h-6" /></button>
+                        <button onClick={handleBackToResults} className="absolute top-3 left-3 text-gray-400 hover:text-white p-1 rounded-full hover:bg-[#2d3748]">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                            </svg>
+                        </button>
+                        
+                        <div className="text-center mb-6">
+                            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full mb-4">
+                                <TicketIcon className="w-8 h-8 text-white" />
+                            </div>
+                            <h2 className="text-3xl font-bold text-white mb-2">Ticket #{formatTicketNumber(selectedTicket.numero_ticket || selectedTicket.numero, rifa?.total_tickets)}</h2>
+                            <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full">
+                                <span className="text-white font-semibold capitalize">{selectedTicket.estado}</span>
+                            </div>
+                        </div>
+                        
+                        <div className="bg-[#23283a]/80 backdrop-blur-sm rounded-xl p-6 border border-[#353a4d]">
+                            <div className="grid grid-cols-1 gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex-shrink-0 w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                                        <UserIcon className="w-5 h-5 text-purple-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-400">Nombre del Jugador</p>
+                                        <p className="text-white font-semibold">{selectedTicket.nombre_jugador || 'No especificado'}</p>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-3">
+                                    <div className="flex-shrink-0 w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                                        <PhoneIcon className="w-5 h-5 text-blue-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-400">Teléfono</p>
+                                        <p className="text-white font-semibold">
+                                            {selectedTicket.telefono_jugador 
+                                                ? selectedTicket.telefono_jugador.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3') 
+                                                : 'No especificado'}
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-3">
+                                    <div className="flex-shrink-0 w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                                        <CreditCardIcon className="w-5 h-5 text-green-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-400">Monto Pagado</p>
+                                        <p className="text-white font-semibold">${selectedTicket.monto_pagado || '0'}</p>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-3">
+                                    <div className="flex-shrink-0 w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center">
+                                        <CalendarIcon className="w-5 h-5 text-orange-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-400">Fecha de Pago</p>
+                                        <p className="text-white font-semibold">
+                                            {selectedTicket.fecha_pago ? new Date(selectedTicket.fecha_pago).toLocaleDateString('es-ES', {
+                                                year: 'numeric',
+                                                month: 'short',
+                                                day: 'numeric'
+                                            }) : selectedTicket.fecha_compra ? new Date(selectedTicket.fecha_compra).toLocaleDateString('es-ES', {
+                                                year: 'numeric',
+                                                month: 'short',
+                                                day: 'numeric'
+                                            }) : 'No especificada'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="mt-6 text-center">
+                            <p className="text-sm text-gray-400 mb-2">Participando en:</p>
+                            <p className="text-lg font-bold text-white">{rifa?.nombre || 'Rifa'}</p>
+                            <p className="text-sm text-gray-300 mt-1">{rifa?.premio || 'Premio'}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Vista de búsqueda
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={handleClose}>
             <div className="bg-[#181c24] border border-[#23283a] rounded-xl w-full max-w-md p-6 shadow-2xl relative" onClick={(e) => e.stopPropagation()}>
                 <button onClick={handleClose} className="absolute top-3 right-3 text-gray-400 hover:text-white p-1 rounded-full hover:bg-[#2d3748]"><XMarkIcon className="w-6 h-6" /></button>
-                <h2 className="text-2xl font-bold text-white mb-4 text-center">Verifica tu Ticket</h2>
-                <p className="text-gray-400 text-center mb-6 text-sm">Ingresa tu número de ticket, nombre o teléfono.</p>
-
-                <div className="flex gap-2">
-                    <input type="text" placeholder="Ej: 123 o Juan Perez" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleVerify()} className="flex-grow w-full pl-4 pr-4 py-3 rounded-lg bg-[#23283a] border border-[#2d3748] text-white focus:outline-none focus:border-purple-500 transition-colors" />
-                    <button onClick={handleVerify} disabled={isVerifying} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-5 rounded-lg transition-colors disabled:opacity-50">{isVerifying ? '...' : 'Buscar'}</button>
+                <div className="text-center mb-6">
+                    <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full mb-4">
+                        <MagnifyingGlassIcon className="w-6 h-6 text-white" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-2">Verifica tu Ticket</h2>
+                    <p className="text-gray-400 text-sm">Ingresa tu número de ticket, nombre o teléfono.</p>
                 </div>
 
-                <div className="mt-6 min-h-[150px]">
-                    {isVerifying && <div className="text-center text-gray-400 pt-10">Buscando...</div>}
+                <div className="flex gap-2 mb-6">
+                    <input 
+                        type="text" 
+                        placeholder="Ej: 0001 o Juan Pérez" 
+                        value={query} 
+                        onChange={(e) => setQuery(e.target.value)} 
+                        onKeyDown={(e) => e.key === 'Enter' && handleVerify()} 
+                        className="flex-grow w-full pl-4 pr-4 py-3 rounded-lg bg-[#23283a] border border-[#2d3748] text-white focus:outline-none focus:border-purple-500 transition-colors" 
+                    />
+                    <button 
+                        onClick={handleVerify} 
+                        disabled={isVerifying} 
+                        className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-6 rounded-lg transition-all disabled:opacity-50 shadow-lg"
+                    >
+                        {isVerifying ? (
+                            <div className="flex items-center gap-2">
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                Buscando
+                            </div>
+                        ) : 'Buscar'}
+                    </button>
+                </div>
+
+                <div className="min-h-[200px]">
+                    {isVerifying && (
+                        <div className="text-center text-gray-400 pt-8">
+                            <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                            <p>Buscando tu ticket...</p>
+                        </div>
+                    )}
+                    
                     {result && !isVerifying && (
-                        <div className="space-y-4 animate-fade-in">{result.status === 'found' && (<><h3 className="text-lg font-semibold text-green-400">¡Tickets Encontrados!</h3>{result.tickets.map(ticket => (<div key={ticket.numero} className="bg-[#23283a] p-4 rounded-lg border-l-4 border-green-500"><div className="flex justify-between items-center"><span className="text-2xl font-bold text-white">#{formatTicketNumber(ticket.numero, ticket.total_tickets_rifa)}</span><span className="capitalize text-sm font-semibold px-2 py-1 bg-green-500/20 text-green-400 rounded-full">{ticket.estado}</span></div><p className="text-gray-300 mt-2">A nombre de: <span className="font-medium text-white">{ticket.nombre_jugador}</span></p></div>))}</>)}
-                            {result.status === 'available' && (<div className="text-center bg-[#23283a] p-6 rounded-lg border border-blue-500/50"><CheckCircleIcon className="w-12 h-12 text-blue-400 mx-auto mb-3" /><p className="text-blue-300">{result.message}</p></div>)}
-                            {(result.status === 'not_found' || result.status === 'info') && (<div className="text-center bg-[#23283a] p-6 rounded-lg border border-yellow-500/50"><InformationCircleIcon className="w-12 h-12 text-yellow-400 mx-auto mb-3" /><p className="text-yellow-300">{result.message}</p></div>)}
+                        <div className="space-y-4 animate-fade-in">
+                            {result.status === 'found' && (
+                                <>
+                                    <h3 className="text-lg font-semibold text-green-400 text-center mb-4">¡Tickets Encontrados!</h3>
+                                    <div className="space-y-3">
+                                        {result.tickets.map(ticket => (
+                                            <div 
+                                                key={ticket.numero_ticket || ticket.numero} 
+                                                className="bg-[#23283a] p-4 rounded-lg border-l-4 border-green-500 hover:bg-[#2a2f3a] transition-colors cursor-pointer group"
+                                                onClick={() => handleViewTicket(ticket)}
+                                            >
+                                                <div className="flex justify-between items-center">
+                                                    <div>
+                                                        <span className="text-2xl font-bold text-white group-hover:text-purple-400 transition-colors">
+                                                            #{formatTicketNumber(ticket.numero_ticket || ticket.numero, rifa?.total_tickets)}
+                                                        </span>
+                                                        <p className="text-gray-300 text-sm mt-1">
+                                                            A nombre de: <span className="font-medium text-white">{ticket.nombre_jugador}</span>
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="capitalize text-sm font-semibold px-3 py-1 bg-green-500/20 text-green-400 rounded-full">
+                                                            {ticket.estado}
+                                                        </span>
+                                                        <p className="text-xs text-gray-400 mt-1">Ver detalles →</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                            
+                            {result.status === 'available' && (
+                                <div className="text-center bg-[#23283a] p-6 rounded-lg border border-blue-500/50">
+                                    <CheckCircleIcon className="w-12 h-12 text-blue-400 mx-auto mb-3" />
+                                    <p className="text-blue-300 font-medium">{result.message}</p>
+                                </div>
+                            )}
+                            
+                            {(result.status === 'not_found' || result.status === 'info') && (
+                                <div className="text-center bg-[#23283a] p-6 rounded-lg border border-yellow-500/50">
+                                    <InformationCircleIcon className="w-12 h-12 text-yellow-400 mx-auto mb-3" />
+                                    <p className="text-yellow-300 font-medium">{result.message}</p>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
