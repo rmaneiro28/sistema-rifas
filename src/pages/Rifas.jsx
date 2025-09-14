@@ -16,20 +16,41 @@ import { LoadingScreen } from "../components/LoadingScreen";
 export function Rifas() {
   const [search, setSearch] = useState("");
   const [raffles, setRaffles] = useState([]);
-  const [filter, setFilter] = useState("all"); // all, featured
+  const [filter, setFilter] = useState("all"); // all, active, finalizada
   const [loading, setLoading] = useState(true);
 
   const fetchRaffles = async () => {
     setLoading(true);
-    let query = supabase.from("vw_rifas").select("*");
-
-    if (filter === "featured") {
-      query = query.eq("destacada", true);
+    
+    if (filter === "all") {
+      // Obtener todas las rifas, pero ordenar: activas primero, luego finalizadas
+      const { data: activeRaffles, error: activeError } = await supabase
+        .from("vw_rifas")
+        .select("*")
+        .eq("estado", "activa")
+        .order("fecha_inicio", { ascending: false });
+        
+      const { data: finishedRaffles, error: finishedError } = await supabase
+        .from("vw_rifas")
+        .select("*")
+        .eq("estado", "finalizada")
+        .order("fecha_inicio", { ascending: false });
+        
+      if (!activeError && !finishedError) {
+        setRaffles([...(activeRaffles || []), ...(finishedRaffles || [])]);
+      }
+    } else if (filter === "active") {
+      // Solo rifas activas ordenadas por fecha_inicio
+      let query = supabase.from("vw_rifas").select("*").eq("estado", "activa").order("fecha_inicio", { ascending: false });
+      const { data, error } = await query;
+      if (!error) setRaffles(data);
     } else if (filter === "finalizada") {
-      query = query.eq("estado", "finalizada");
+      // Solo rifas finalizadas
+      let query = supabase.from("vw_rifas").select("*").eq("estado", "finalizada").order("fecha_inicio", { ascending: false });
+      const { data, error } = await query;
+      if (!error) setRaffles(data);
     }
-    const { data, error } = await query;
-    if (!error) setRaffles(data);
+    
     setLoading(false);
   };
 
@@ -102,17 +123,20 @@ export function Rifas() {
         <div className="grid grid-cols-3 gap-4">
           <button
             onClick={() => handleFilterChange("all")}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold ${filter === "all" ? "bg-[#7c3bed] text-white" : "bg-[#23283a] text-white border border-[#7c3bed]"}`}>
+            className={`px-4 py-2 rounded-lg text-xs font-semibold ${filter === "all" ? "bg-[#7c3bed] text-white" : "bg-[#23283a] text-white border border-[#7c3bed]"}`}
+          >
             Todos
           </button>
           <button
-            onClick={() => handleFilterChange("featured")}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold ${filter === "featured" ? "bg-[#d54ff9] text-white" : "bg-[#23283a] text-white border border-[#d54ff9]"}`}>
-            Destacadas
+            onClick={() => handleFilterChange("active")}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold ${filter === "active" ? "bg-[#d54ff9] text-white" : "bg-[#23283a] text-white border border-[#d54ff9]"}`}
+          >
+            Activas
           </button>
           <button
             onClick={() => handleFilterChange("finalizada")}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold ${filter === "finalizada" ? "bg-[#d54ff9] text-white" : "bg-[#23283a] text-white border border-[#d54ff9]"}`}>
+            className={`px-4 py-2 rounded-lg text-xs font-semibold ${filter === "finalizada" ? "bg-[#d54ff9] text-white" : "bg-[#23283a] text-white border border-[#d54ff9]"}`}
+          >
             Finalizadas
           </button>
         </div>

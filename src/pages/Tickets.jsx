@@ -6,6 +6,7 @@ import {
   XMarkIcon,
   UserIcon,
   TicketIcon,
+  PlusIcon,
 } from "@heroicons/react/24/outline";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
@@ -14,6 +15,7 @@ import { Pagination } from "./../components/Pagination";
 import { SearchAndFilter } from "./../components/SearchAndFilter";
 import { useNavigate } from "react-router-dom";
 import { LoadingScreen } from "../components/LoadingScreen";
+import { TicketCreator } from "../components/TicketCreator";
 
 // Utilidad para formatear números telefónicos
 const formatTelephone = (phone) => {
@@ -72,6 +74,8 @@ export function Tickets() {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showTicketModal, setShowTicketModal] = useState(false);
+  const [showTicketCreator, setShowTicketCreator] = useState(false);
+  const [selectedRaffleForCreation, setSelectedRaffleForCreation] = useState(null);
   const [isModalAnimating, setIsModalAnimating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingRequests, setLoadingRequests] = useState(true);
@@ -386,6 +390,21 @@ export function Tickets() {
     toggleGroup(group.jugador_id);
   };
 
+  const handleOpenTicketCreator = useCallback((raffle = null) => {
+    setSelectedRaffleForCreation(raffle);
+    setShowTicketCreator(true);
+  }, []);
+
+  const handleCloseTicketCreator = useCallback(() => {
+    setShowTicketCreator(false);
+    setSelectedRaffleForCreation(null);
+  }, []);
+
+  const handleTicketCreatorSuccess = useCallback(() => {
+    // Refresh the tickets list
+    fetchAndGroupTickets();
+  }, [fetchAndGroupTickets]);
+
   const SortIndicator = ({ direction }) => {
     if (!direction) return null;
     return direction === 'asc' ? '↑' : '↓';
@@ -402,14 +421,23 @@ export function Tickets() {
             Visualiza y gestiona todos los tickets vendidos.
           </p>
         </div>
-        <button
-          onClick={handleExportCSV}
-          className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white text-sm px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50"
-          disabled={groupedTickets.length === 0}
-        >
-          <ArrowDownTrayIcon className="w-5 h-5 inline-block mr-2" />
-          Exportar CSV
-        </button>
+        <div className="flex space-x-3">
+          <button
+            onClick={() => handleOpenTicketCreator()}
+            className="bg-green-600 hover:bg-green-700 text-white text-sm px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors"
+          >
+            <PlusIcon className="w-5 h-5" />
+            <span>Crear Tickets</span>
+          </button>
+          <button
+            onClick={handleExportCSV}
+            className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white text-sm px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50"
+            disabled={groupedTickets.length === 0}
+          >
+            <ArrowDownTrayIcon className="w-5 h-5" />
+            <span>Exportar CSV</span>
+          </button>
+        </div>
       </div>
 
       {/* Tabs para Tickets y Solicitudes */}
@@ -609,6 +637,16 @@ export function Tickets() {
         onCopy={copyToClipboard}
         formatTelephone={formatTelephone}
       />
+
+      {/* Ticket Creator Modal */}
+      {showTicketCreator && (
+        <TicketCreator
+          isOpen={showTicketCreator}
+          onClose={handleCloseTicketCreator}
+          raffle={selectedRaffleForCreation || { id_rifa: selectedRaffle !== "all" ? selectedRaffle : null, nombre: "Todas las rifas" }}
+          onSuccess={handleTicketCreatorSuccess}
+        />
+      )}
 
       {/* Panel lateral de detalles del ticket */}
       {showTicketModal && selectedTicket && (

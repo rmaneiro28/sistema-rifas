@@ -8,6 +8,19 @@ const formatTicketNumber = (number, totalTickets) => {
     return String(number).padStart(numDigits, "0");
 };
 
+const formatPartialPhone = (phone) => {
+    if (!phone) return 'No especificado';
+    // Eliminar todos los caracteres no numéricos
+    const cleanPhone = phone.replace(/\D/g, '');
+    // Si tiene al menos 4 dígitos, mostrar solo los últimos 4
+    if (cleanPhone.length >= 4) {
+        const lastFour = cleanPhone.slice(-4);
+        return `***-***-${lastFour}`;
+    }
+    // Si tiene menos de 4 dígitos, mostrar asteriscos para todos excepto el último
+    return cleanPhone.length > 0 ? `${'*'.repeat(cleanPhone.length - 1)}${cleanPhone.slice(-1)}` : 'No especificado';
+};
+
 export function TicketVerifierModal({ isOpen, onClose, allTickets, rifa }) {
     const [query, setQuery] = useState("");
     const [result, setResult] = useState(null);
@@ -122,20 +135,18 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets, rifa }) {
                                     <div>
                                         <p className="text-xs text-gray-400">Teléfono</p>
                                         <p className="text-white font-semibold">
-                                            {selectedTicket.telefono_jugador 
-                                                ? selectedTicket.telefono_jugador.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3') 
-                                                : 'No especificado'}
+                                            {formatPartialPhone(selectedTicket.telefono_jugador)}
                                         </p>
                                     </div>
                                 </div>
                                 
                                 <div className="flex items-center gap-3">
                                     <div className="flex-shrink-0 w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
-                                        <CreditCardIcon className="w-5 h-5 text-green-400" />
+                                        <CheckCircleIcon className="w-5 h-5 text-green-400" />
                                     </div>
                                     <div>
-                                        <p className="text-xs text-gray-400">Monto Pagado</p>
-                                        <p className="text-white font-semibold">${selectedTicket.monto_pagado || '0'}</p>
+                                        <p className="text-xs text-gray-400">Status</p>
+                                        <p className="text-white font-semibold capitalize">{selectedTicket.estado || 'disponible'}</p>
                                     </div>
                                 </div>
                                 

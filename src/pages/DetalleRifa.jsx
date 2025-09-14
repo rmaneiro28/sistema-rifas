@@ -178,6 +178,13 @@ export function DetalleRifa() {
 
   const handleTicketClick = (ticket) => {
     console.log('Ticket clicked:', ticket);
+    
+    // Validación para evitar abrir modal con ticket null
+    if (!ticket) {
+      console.error('Ticket is null in handleTicketClick');
+      return;
+    }
+    
     console.log('Ticket estado:', ticket.estado_ticket);
     console.log('Ticket jugador_id:', ticket.jugador_id);
     console.log('Ticket nombre_jugador:', ticket.nombre_jugador);
@@ -198,6 +205,13 @@ export function DetalleRifa() {
   const openTicketDetail = (ticket) => {
     console.log('Opening ticket detail for:', ticket);
     
+    // Validación para evitar abrir modal con ticket null
+    if (!ticket) {
+      console.error('Ticket is null in openTicketDetail');
+      toast.error('Error: No se pudo cargar la información del ticket');
+      return;
+    }
+    
     // Si no hay jugador_id pero hay información del jugador, crear un playerGroup con los datos disponibles
     if (!ticket.jugador_id) {
       console.log('No jugador_id found, but creating player group with available data');
@@ -208,7 +222,9 @@ export function DetalleRifa() {
           cedula_jugador: ticket.cedula_jugador || 'N/A',
           telefono_jugador: ticket.telefono_jugador || ticket.email_jugador || 'N/A',
           email_jugador: ticket.email_jugador || 'N/A',
-          jugador_id: ticket.jugador_id || null
+          jugador_id: ticket.jugador_id || null,
+          metodo_pago: ticket.metodo_pago || 'N/A',
+          referencia_pago: ticket.referencia_pago || ticket.referencia || 'N/A'
         },
         tickets: [ticket] // Solo este ticket ya que no podemos agrupar por jugador_id
       };
@@ -231,7 +247,9 @@ export function DetalleRifa() {
           cedula_jugador: ticket.cedula_jugador || 'N/A',
           telefono_jugador: ticket.telefono_jugador || ticket.email_jugador || 'N/A',
           email_jugador: ticket.email_jugador || 'N/A',
-          jugador_id: ticket.jugador_id
+          jugador_id: ticket.jugador_id,
+          metodo_pago: ticket.metodo_pago || 'N/A',
+          referencia_pago: ticket.referencia_pago || ticket.referencia || 'N/A'
         },
         tickets: [ticket]
       };
@@ -248,7 +266,9 @@ export function DetalleRifa() {
         cedula_jugador: ticket.cedula_jugador,
         telefono_jugador: ticket.telefono_jugador,
         email_jugador: ticket.email_jugador,
-        jugador_id: ticket.jugador_id
+        jugador_id: ticket.jugador_id,
+        metodo_pago: ticket.metodo_pago || 'N/A',
+        referencia_pago: ticket.referencia_pago || ticket.referencia || 'N/A'
       },
       tickets: playerTickets.sort((a, b) => a.numero_ticket - b.numero_ticket)
     };
