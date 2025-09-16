@@ -34,12 +34,21 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets, rifa }) {
         }
         setIsVerifying(true);
         const searchQuery = query.toLowerCase().trim();
+        
+        // Convertir búsqueda numérica a formato padded
+        let paddedSearchQuery = searchQuery;
+        const searchNumber = parseInt(searchQuery, 10);
+        if (!isNaN(searchNumber)) {
+            paddedSearchQuery = String(searchNumber).padStart(4, '0');
+        }
+        
         const results = allTickets.filter(ticket => {
             if (ticket.estado === 'disponible') return false;
             const phoneQuery = searchQuery.replace(/\D/g, '');
             const ticketPhone = ticket.telefono_jugador?.replace(/\D/g, '');
+            const ticketNumber = (ticket.numero_ticket || ticket.numero || '').toString();
 
-            return (ticket.numero_ticket || ticket.numero || '').toString() === searchQuery ||
+            return ticketNumber === paddedSearchQuery ||
                 (ticket.nombre_jugador?.toLowerCase() === searchQuery) ||
                 (ticket.cedula_jugador === searchQuery) ||
                 (ticketPhone && phoneQuery && ticketPhone === phoneQuery);
@@ -51,9 +60,12 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets, rifa }) {
             } else {
                 const isNumericQuery = /^\d+$/.test(searchQuery);
                 if (isNumericQuery) {
-                    const ticket = allTickets.find(t => (t.numero_ticket || t.numero || '').toString() === searchQuery);
+                    const ticket = allTickets.find(t => {
+                        const ticketNumber = (t.numero_ticket || t.numero || '').toString();
+                        return ticketNumber === paddedSearchQuery;
+                    });
                     if (ticket && ticket.estado === 'disponible') {
-                        setResult({ status: 'available', message: `El ticket #${formatTicketNumber(searchQuery, rifa?.total_tickets)} está disponible. ¡Anímate a comprarlo!` });
+                        setResult({ status: 'available', message: `El ticket #${formatTicketNumber(searchNumber, rifa?.total_tickets)} está disponible. ¡Anímate a comprarlo!` });
                     } else {
                         setResult({ status: 'not_found', message: 'No se encontraron tickets con ese criterio.' });
                     }

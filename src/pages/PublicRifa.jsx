@@ -33,7 +33,7 @@ const BankDataCard = ({ logo, icon: Icon, label, value }) => {
             </div>
             <button
                 onClick={handleCopy}
-                className="ml-4 bg-yellow-500 hover:bg-yellow-600 text-black px-3 py-1 rounded-lg font-semibold flex items-center gap-1 transition-all"
+                className="ml-4 bg-white hover:bg-gray-300 text-black px-3 py-1 rounded-lg font-semibold flex items-center gap-1 transition-all"
                 title="Copiar"
             >
                 <ClipboardIcon className="w-5 h-5" />
@@ -207,13 +207,6 @@ export function PublicRifa() {
             const { data: ticketsData, error: ticketsError } = ticketsResult;
             if (ticketsError) throw ticketsError;
 
-            console.log('🎫 DEBUG - ticketsData:', ticketsData);
-            console.log('🎫 DEBUG - Primer ticket:', ticketsData?.[0]);
-            console.log('🎫 DEBUG - Estructura de ticketsData:', ticketsData?.map(t => ({
-                numero_ticket: t.numero_ticket,
-                estado_ticket: t.estado_ticket,
-                nombre_jugador: t.nombre_jugador
-            })));
 
             // Crear Map con los tickets existentes usando el numero_ticket formateado como clave
             const ticketsMap = new Map();
@@ -221,13 +214,6 @@ export function PublicRifa() {
                 const formattedTicketNumber = formatTicketNumber(ticket.numero_ticket);
                 ticketsMap.set(formattedTicketNumber, ticket);
             });
-            
-            console.log('🎫 DEBUG - ticketsMap keys (formateadas):', Array.from(ticketsMap.keys()));
-            console.log('🎫 DEBUG - ticketsData con formato:', ticketsData.map(t => ({
-                original: t.numero_ticket,
-                formateado: formatTicketNumber(t.numero_ticket),
-                estado: t.estado_ticket
-            })));
             
             const generatedTickets = Array.from({ length: rifaData.total_tickets }, (_, i) => {
                 const ticketNumberFormatted = formatTicketNumber(i); // Formato 4 dígitos, comienza en 0
@@ -258,31 +244,10 @@ export function PublicRifa() {
                         fecha_pago: null
                     };
                 
-                // Debug específico para tickets 0002 y 0003
-                if (ticketNumberFormatted === '0002' || ticketNumberFormatted === '0003') {
-                    console.log('🎯 DEBUG - Ticket crítico:', {
-                        indice: i,
-                        ticketNumberFormatted,
-                        existingTicket: existingTicket ? {
-                            original_numero_ticket: existingTicket.numero_ticket,
-                            estado_ticket: existingTicket.estado_ticket,
-                            nombre_jugador: existingTicket.nombre_jugador
-                        } : null,
-                        ticketGenerado: {
-                            numero_ticket: ticket.numero_ticket,
-                            estado: ticket.estado,
-                            estado_ticket: ticket.estado_ticket
-                        }
-                    });
-                }
+                
                 
                 return ticket;
             });
-            
-            console.log('🎫 DEBUG - generatedTickets (primeros 10):', generatedTickets.slice(0, 10));
-            console.log('🎫 DEBUG - generatedTickets (últimos 10):', generatedTickets.slice(-10));
-            console.log('🎫 DEBUG - Estados encontrados:', [...new Set(generatedTickets.map(t => t.estado))]);
-            
             setAllTickets(generatedTickets);
 
         } catch (error) {
@@ -332,8 +297,14 @@ export function PublicRifa() {
 
     // Filtrar tickets según el estado seleccionado y búsqueda
     const filteredTickets = useMemo(() => {
-        let filtered = allTickets;
+        // Verificar si hay datos para filtrar
+        if (!allTickets || allTickets.length === 0) {
+            return [];
+        }
         
+        let filtered = [...allTickets];
+        
+        // Aplicar filtro por estado
         if (ticketFilter !== 'all') {
             const filterMap = {
                 'disponible': 'disponible',
@@ -341,25 +312,30 @@ export function PublicRifa() {
                 'pagado': 'pagado',
                 'familiares': 'familiares'
             };
+            const beforeFilter = filtered.length;
             filtered = filtered.filter(t => t.estado === filterMap[ticketFilter]);
         }
         
-        if (searchQuery) {
+        // Aplicar búsqueda
+        if (searchQuery && searchQuery.trim() !== '') {
             filtered = filtered.filter(ticket => {
-                // Buscar específicamente en el campo numero_ticket (formato 4 dígitos)
                 const ticketNumber = ticket.numero_ticket || '';
                 
-                // Buscar coincidencia exacta primero, luego parcial
-                return ticketNumber === searchQuery || ticketNumber.includes(searchQuery);
+                // Convertir el searchQuery a número y formatearlo a 4 dígitos
+                const searchNumber = parseInt(searchQuery.trim(), 10);
+                
+                if (!isNaN(searchNumber)) {
+                    // Si es un número válido, formatearlo a 4 dígitos con ceros a la izquierda
+                    const paddedSearch = String(searchNumber).padStart(4, '0');
+                    
+                    // Comparar directamente con el numero_ticket que está en formato padded
+                    return ticketNumber === paddedSearch;
+                }
+                
+                // Si no es un número, buscar coincidencia parcial
+                return ticketNumber.includes(searchQuery.trim());
             });
         }
-        
-        console.log('🎫 DEBUG - filteredTickets:', {
-            total: filtered.length,
-            ticketFilter,
-            searchQuery,
-            muestra: filtered.slice(0, 5).map(t => ({ numero_ticket: t.numero_ticket, estado: t.estado }))
-        });
         
         return filtered;
     }, [allTickets, ticketFilter, searchQuery]);
@@ -431,138 +407,138 @@ export function PublicRifa() {
                     </div>
 
                     {/* Columna Derecha: Mapa de Tickets */}
-                    <div className="lg:col-span-2 bg-[#181c24]/50 backdrop-blur-sm border border-[#23283a] p-6 rounded-xl flex flex-col">
-                        {/* Mapa de tickets */}
-                        <div ref={pdfRef} className="bg-[#0f131b] border border-[#23283a] p-4 rounded-lg overflow-auto">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
-                                <div>
-                                    <h2 className="text-white text-lg font-bold mb-1 sm:mb-0">
-                                        Mapa de Tickets
-                                    </h2>
-                                    {(searchQuery || ticketFilter !== "todos") && (
-                                        <p className="text-gray-400 text-sm">
-                                            {searchQuery && `Buscando: "${searchQuery}" • `}
-                                            Mostrando {filteredTickets.length} de {allTickets.length} tickets
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Barra de búsqueda y filtros */}
-                            <div className="space-y-4 mb-6">
-                                {/* Barra de búsqueda */}
-                                <div className="relative flex-1 max-w-prose">
-                                    <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                                    <input
-                                        type="text"
-                                        placeholder="Buscar tickets..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#181c24] border border-[#23283a] text-white focus:outline-none focus:border-[#7c3bed] transition"
-                                    />
-                                </div>
-                                
-                                {/* Filtros con scroll horizontal */}
-                                <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-[#181c24] pb-2 -mx-4 px-4">
-                                    <div className="flex gap-2 min-w-max">
-                                        <button
-                                            onClick={() => setTicketFilter("all")}
-                                            className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "all" ? "bg-[#7c3bed] text-white" : "bg-[#23283a] text-white border border-[#7c3bed] hover:bg-[#2a2f3a] transition-colors"}`}
-                                        >
-                                            Todos
-                                        </button>
-                                        <button
-                                            onClick={() => setTicketFilter("disponible")}
-                                            className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "disponible" ? "bg-gray-600 text-white" : "bg-[#23283a] text-white border border-gray-600 hover:bg-[#2a2f3a] transition-colors"}`}
-                                        >
-                                            Disponible
-                                        </button>
-                                        <button
-                                            onClick={() => setTicketFilter("apartado")}
-                                            className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "apartado" ? "bg-yellow-500 text-yellow-900" : "bg-[#23283a] text-white border border-yellow-500 hover:bg-[#2a2f3a] transition-colors"}`}
-                                        >
-                                            Apartado
-                                        </button>
-                                        <button
-                                            onClick={() => setTicketFilter("pagado")}
-                                            className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "pagado" ? "bg-green-500 text-white" : "bg-[#23283a] text-white border border-green-500 hover:bg-[#2a2f3a] transition-colors"}`}
-                                        >
-                                            Pagado
-                                        </button>
-                                        <button
-                                            onClick={() => setTicketFilter("familiares")}
-                                            className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "familiares" ? "bg-purple-500 text-white" : "bg-[#23283a] text-white border border-purple-500 hover:bg-[#2a2f3a] transition-colors"}`}
-                                        >
-                                            Familiares
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="grid max-md:grid-cols-6 max-lg:grid-cols-10 min-lg:grid-cols-15 gap-2 max-h-100 overflow-y-scroll">
-                                {filteredTickets.map((ticket) => (
-                                    <div key={ticket.numero_ticket} className="relative">
-                                        <div
-                                            onClick={() => handleTicketClick(ticket)}
-                                            title={`N°${ticket.numero_ticket} - ${ticket.estado_ticket === "disponible" ? "Disponible - Haz clic para ver información"
-                                                : ticket.estado_ticket === "apartado" ? `Apartado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
-                                                    : ticket.estado_ticket === "pagado" ? `Pagado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
-                                                        : ticket.estado_ticket === "familiares" ? "Familiares - Haz clic para ver detalles"
-                                                            : ""
-                                                }`}
-                                            className={`
-                                            w-10 h-10 flex items-center justify-center rounded-lg cursor-pointer
-                                            text-xs font-bold transition-all duration-200 transform hover:scale-110 hover:ring-2 hover:ring-[#7c3bed] hover:shadow-lg
-                                            ${ticket.estado_ticket === "disponible" ? "bg-[#23283a] text-white hover:bg-[#2d3748] border border-[#4a5568]" : ""}
-                                            ${ticket.estado_ticket === "apartado" ? "bg-yellow-400 text-yellow-900 hover:bg-yellow-300 shadow-md border border-yellow-500" : ""}
-                                            ${ticket.estado_ticket === "pagado" ? "bg-green-500 text-green-900 hover:bg-green-400 shadow-md border border-green-600" : ""}
-                                            ${ticket.estado_ticket === "familiares" ? "bg-purple-500 text-purple-100 hover:bg-purple-400 shadow-md border border-purple-600 opacity-75" : ""}
-                                            ${selectedTicketsFromMap.includes(ticket.numero_ticket) ? "!bg-[#d54ff9] ring-2 ring-white" : ""}
-                                            ${ganador && ganador.numero_ganador === ticket.numero_ticket ? "bg-gradient-to-br from-yellow-400 to-orange-500 text-black font-bold ring-4 ring-white shadow-2xl animate-pulse" : ""}
-                                          `}
-                                        >
-                                            <div className="flex flex-col items-center justify-center">
-                                                <span className="leading-none">{ticket.numero_ticket}</span>
-                                                {ticket.estado_ticket !== "disponible" && (
-                                                    <div className="w-1 h-1 bg-current rounded-full mt-0.5 opacity-60"></div>
-                                                )}
-                                            </div>
-                                        </div>
-                                        {ganador && ganador.numero_ganador === ticket.numero_ticket && (
-                                            <TrophyIcon className="w-4 h-4 absolute top-1 right-1 text-black/70" />
-                                        )}
-                                    </div>
-                                ))}
-
-                                {/* Mensaje cuando no hay resultados */}
-                                {filteredTickets.length === 0 && (
-                                    <div className="col-span-full w-full text-center py-12">
-                                        <div className="bg-[#23283a] rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                                            <MagnifyingGlassIcon className="w-8 h-8 text-gray-400" /> 
-                                        </div>
-                                        <h3 className="text-white text-lg font-semibold mb-2">
-                                            No se encontraron tickets
-                                        </h3>
-                                        <p className="text-gray-400 text-sm mb-4">
-                                            {searchQuery
-                                                ? `No hay tickets que coincidan con "${searchQuery}"`
-                                                : `No hay tickets con el estado "${ticketFilter === "all" ? "disponible" : ticketFilter}"`
-                                            }
-                                        </p>
-                                        {(searchQuery || ticketFilter !== "all") && (
-                                            <button
-                                                onClick={() => {
-                                                    setSearchQuery("");
-                                                    setTicketFilter("all");
-                                                }}
-                                                className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-                                            >
-                                                Limpiar filtros
-                                            </button>
-                                        )}
-                                    </div>
+                    {/* Mapa de tickets */}
+                    <div ref={pdfRef} className="lg:col-span-2 bg-[#181c24]/50 backdrop-blur-sm border  flex flex-col border-[#23283a] p-4 rounded-lg overflow-auto">
+                        <div className="flex sm:items-center max-md:items-start max-md:justify-start sm:justify-between justify-between mb-4">
+                            <div>
+                                <h2 className="text-white text-lg font-bold mb-1 sm:mb-0">
+                                    Mapa de Tickets
+                                </h2>
+                                {(searchQuery || ticketFilter !== "todos") && (
+                                    <p className="text-gray-400 text-sm">
+                                        {searchQuery && `Buscando: "${searchQuery}" • `}
+                                        Mostrando {filteredTickets.length} de {allTickets.length} tickets
+                                    </p>
                                 )}
                             </div>
+                        </div>
+
+                        {/* Barra de búsqueda y filtros */}
+                        <div className="space-y-4 mb-6">
+                            {/* Barra de búsqueda */}
+                            <div className="relative flex-1 max-w-dvw">
+                                <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar tickets..."
+                                    value={searchQuery}
+                                    onChange={(e) => {
+                                        setSearchQuery(e.target.value);
+                                    }}
+                                    className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#181c24] border border-[#23283a] text-white focus:outline-none focus:border-[#7c3bed] transition"
+                                />
+                            </div>
+                            
+                            
+                            <div className="pb-2 -mx-4 px-4">
+                                <div className="flex flex-wrap gap-2 ">
+                                    <button
+                                        onClick={() => setTicketFilter("all")}
+                                        className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "all" ? "bg-[#7c3bed] text-white" : "bg-[#23283a] text-white border border-[#7c3bed] hover:bg-[#2a2f3a] transition-colors"}`}
+                                    >
+                                        Todos
+                                    </button>
+                                    <button
+                                        onClick={() => setTicketFilter("disponible")}
+                                        className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "disponible" ? "bg-gray-600 text-white" : "bg-[#23283a] text-white border border-gray-600 hover:bg-[#2a2f3a] transition-colors"}`}
+                                    >
+                                        Disponible
+                                    </button>
+                                    <button
+                                        onClick={() => setTicketFilter("apartado")}
+                                        className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "apartado" ? "bg-yellow-500 text-yellow-900" : "bg-[#23283a] text-white border border-yellow-500 hover:bg-[#2a2f3a] transition-colors"}`}
+                                    >
+                                        Apartado
+                                    </button>
+                                    <button
+                                        onClick={() => setTicketFilter("pagado")}
+                                        className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "pagado" ? "bg-green-500 text-white" : "bg-[#23283a] text-white border border-green-500 hover:bg-[#2a2f3a] transition-colors"}`}
+                                    >
+                                        Pagado
+                                    </button>
+                                    <button
+                                        onClick={() => setTicketFilter("familiares")}
+                                        className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "familiares" ? "bg-purple-500 text-white" : "bg-[#23283a] text-white border border-purple-500 hover:bg-[#2a2f3a] transition-colors"}`}
+                                    >
+                                        Familiares
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid max-md:grid-cols-6 max-lg:grid-cols-10 min-lg:grid-cols-15 gap-2 max-md:max-h-100 min-md:h-[100vh] overflow-y-scroll">
+                            {filteredTickets.map((ticket) => (
+                                <div key={ticket.numero_ticket} className="relative">
+                                    <div
+                                        onClick={() => handleTicketClick(ticket)}
+                                        title={`N°${ticket.numero_ticket} - ${ticket.estado_ticket === "disponible" ? "Disponible - Haz clic para ver información"
+                                            : ticket.estado_ticket === "apartado" ? `Apartado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
+                                                : ticket.estado_ticket === "pagado" ? `Pagado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
+                                                    : ticket.estado_ticket === "familiares" ? "Familiares - Haz clic para ver detalles"
+                                                        : ""
+                                            }`}
+                                        className={`
+                                        w-10 h-10 flex items-center justify-center rounded-lg cursor-pointer
+                                        text-xs font-bold transition-all duration-200 transform hover:scale-110 hover:ring-2 hover:ring-[#7c3bed] hover:shadow-lg
+                                        ${ticket.estado_ticket === "disponible" ? "bg-[#23283a] text-white hover:bg-[#2d3748] border border-[#4a5568]" : ""}
+                                        ${ticket.estado_ticket === "apartado" ? "bg-yellow-400 text-yellow-900 hover:bg-yellow-300 shadow-md border border-yellow-500" : ""}
+                                        ${ticket.estado_ticket === "pagado" ? "bg-green-500 text-green-900 hover:bg-green-400 shadow-md border border-green-600" : ""}
+                                        ${ticket.estado_ticket === "familiares" ? "bg-purple-500 text-purple-100 hover:bg-purple-400 shadow-md border border-purple-600 opacity-75" : ""}
+                                        ${selectedTicketsFromMap.includes(ticket.numero_ticket) ? "!bg-[#d54ff9] ring-2 ring-white" : ""}
+                                        ${ganador && ganador.numero_ganador === ticket.numero_ticket ? "bg-gradient-to-br from-yellow-400 to-orange-500 text-black font-bold ring-4 ring-white shadow-2xl animate-pulse" : ""}
+                                        `}
+                                    >
+                                        <div className="flex flex-col items-center justify-center">
+                                            <span className="leading-none">{ticket.numero_ticket}</span>
+                                            {ticket.estado_ticket !== "disponible" && (
+                                                <div className="w-1 h-1 bg-current rounded-full mt-0.5 opacity-60"></div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    {ganador && ganador.numero_ganador === ticket.numero_ticket && (
+                                        <TrophyIcon className="w-4 h-4 absolute top-1 right-1 text-black/70" />
+                                    )}
+                                </div>
+                            ))}
+
+                            {/* Mensaje cuando no hay resultados */}
+                            {filteredTickets.length === 0 && (
+                                <div className="col-span-full w-full text-center py-12">
+                                    <div className="bg-[#23283a] rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                                        <MagnifyingGlassIcon className="w-8 h-8 text-gray-400" /> 
+                                    </div>
+                                    <h3 className="text-white text-lg font-semibold mb-2">
+                                        No se encontraron tickets
+                                    </h3>
+                                    <p className="text-gray-400 text-sm mb-4">
+                                        {searchQuery
+                                            ? `No hay tickets que coincidan con "${searchQuery}"`
+                                            : `No hay tickets con el estado "${ticketFilter === "all" ? "disponible" : ticketFilter}"`
+                                        }
+                                    </p>
+                                    {(searchQuery || ticketFilter !== "all") && (
+                                        <button
+                                            onClick={() => {
+                                                setSearchQuery("");
+                                                setTicketFilter("all");
+                                            }}
+                                            className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                                        >
+                                            Limpiar filtros
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

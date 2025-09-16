@@ -124,6 +124,49 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         }
     };
 
+    const handleReleaseTicket = async () => {
+        if (!ticket) return;
+
+        setLoading(true);
+        const { id, numero_ticket } = ticket;
+
+        console.log('Deleting ticket:', { id, numero_ticket });
+
+        try {
+            // Try to delete using id first, if that fails, try ticket_id
+            let { error } = await supabase
+                .from("t_tickets")
+                .delete()
+                .eq("id", id);
+
+            // If error suggests invalid column, try with ticket_id
+            if (error && error.message.includes('column "id" does not exist')) {
+                console.log('Trying with ticket_id column instead');
+                const result = await supabase
+                    .from("t_tickets")
+                    .delete()
+                    .eq("ticket_id", id);
+                error = result.error;
+            }
+
+            if (error) {
+                console.error('Supabase delete error:', error);
+                toast.error(`Error al liberar el ticket: ${error.message}`);
+                return;
+            }
+
+            console.log('Delete successful');
+            toast.success(`Ticket #${numero_ticket} liberado exitosamente`);
+            onStatusUpdate();
+            handleClose(); // Close modal after successful deletion
+        } catch (err) {
+            console.error('Unexpected error deleting ticket:', err);
+            toast.error('Error inesperado al liberar el ticket');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSendWhatsApp = () => {
         if (!generatedTicketInfo?.telefono) return toast.error("Este jugador no tiene un número de teléfono registrado.");
         const { jugador, rifa: nombreRifa, numeros, total } = generatedTicketInfo;
@@ -300,7 +343,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                             <button onClick={() => handleUpdateSingleTicketStatus("pagado")} disabled={loading || ticket.estado_ticket === 'pagado'} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Pagado</button>
                             <button onClick={() => handleUpdateSingleTicketStatus("apartado")} disabled={loading || ticket.estado_ticket === 'apartado'} className="w-full bg-yellow-500 hover:bg-yellow-600 text-yellow-900 py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Apartado</button>
                             <button onClick={() => handleUpdateSingleTicketStatus("familiares")} disabled={loading || ticket.estado_ticket === 'familiares'} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Familiar</button>
-                            <button onClick={() => handleUpdateSingleTicketStatus("disponible")} disabled={loading} className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Liberar</button>
+                            <button onClick={handleReleaseTicket} disabled={loading} className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Liberar</button>
                         </div>
                     </div>
                 </div>

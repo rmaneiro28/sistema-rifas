@@ -402,7 +402,7 @@ export function Jugadores() {
                   <h3 className="font-semibold text-white truncate">
                     {player.nombre} {player.apellido}
                   </h3>
-                  <p className="text-sm text-gray-400 truncate">{player.email}</p>
+                  <p className="text-sm text-gray-400 truncate">{player.telefono}</p>
                 </div>
               </div>
               <span className={`px-2 py-1 rounded-full text-xs font-semibold ${STATUS_BADGES[player.status]?.color || "bg-gray-700 text-white"}`}>
