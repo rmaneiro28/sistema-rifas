@@ -58,11 +58,29 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
     const filteredJugadores = useMemo(() => {
         if (!jugadorSearchQuery) return jugadores;
         const query = jugadorSearchQuery.toLowerCase();
-        return jugadores.filter(j =>
+
+        const filtered = jugadores.filter(j =>
             `${j.nombre} ${j.apellido}`.toLowerCase().includes(query) ||
-            j.email.toLowerCase().includes(query) ||
-            (j.cedula && j.cedula.includes(query))
+            (j.telefono && String(j.telefono).includes(query))
         );
+
+        return filtered.sort((a, b) => {
+            const aName = `${a.nombre} ${a.apellido}`.toLowerCase();
+            const bName = `${b.nombre} ${b.apellido}`.toLowerCase();
+
+            const aNameStartsWith = aName.startsWith(query);
+            const bNameStartsWith = bName.startsWith(query);
+
+            if (aNameStartsWith && !bNameStartsWith) {
+                return -1; // a comes first
+            }
+            if (!aNameStartsWith && bNameStartsWith) {
+                return 1; // b comes first
+            }
+
+            // If both start with query or neither do, sort alphabetically
+            return aName.localeCompare(bName);
+        });
     }, [jugadores, jugadorSearchQuery]);
 
     const handleClose = () => {
@@ -305,12 +323,12 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
                         <div className="space-y-4 relative">
                             <div className="relative">
                                 <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                                <input type="text" placeholder="Buscar jugador por nombre, email o cédula..." value={jugadorSearchQuery} onChange={(e) => { setJugadorSearchQuery(e.target.value); if (selectedJugador) setSelectedJugador(""); }} className="w-full pl-10 pr-4 py-3 rounded-lg bg-[#23283a] border border-[#2d3748] text-white focus:outline-none focus:border-[#7c3bed] transition-colors" />
+                                <input type="text" placeholder="Buscar jugador por nombre o teléfono..." value={jugadorSearchQuery} onChange={(e) => { setJugadorSearchQuery(e.target.value); if (selectedJugador) setSelectedJugador(""); }} className="w-full pl-10 pr-4 py-3 rounded-lg bg-[#23283a] border border-[#2d3748] text-white focus:outline-none focus:border-[#7c3bed] transition-colors" />
                             </div>
                             {jugadorSearchQuery && !selectedJugador && (
                                 <div className="absolute top-full left-0 right-0 z-10 max-h-60 overflow-y-auto bg-[#23283a] border border-[#2d3748] rounded-lg mt-1 shadow-lg">
                                     {loading && <div className="p-4 text-center text-gray-400">Buscando...</div>}
-                                    {!loading && filteredJugadores.length > 0 ? (filteredJugadores.map(j => (<div key={j.id} onClick={() => handleSelectJugador(j)} className="px-4 py-3 hover:bg-[#7c3bed] cursor-pointer transition-colors border-b border-[#2d3748] last:border-b-0"><p className="text-white font-medium">{j.nombre} {j.apellido}</p><p className="text-sm text-gray-400">{j.email}</p></div>))) : (!loading && <div className="px-4 py-3 text-gray-400">No se encontraron jugadores.</div>)}
+                                    {!loading && filteredJugadores.length > 0 ? (filteredJugadores.map(j => (<div key={j.id} onClick={() => handleSelectJugador(j)} className="px-4 py-3 hover:bg-[#7c3bed] cursor-pointer transition-colors border-b border-[#2d3748] last:border-b-0"><p className="text-white font-medium">{j.nombre} {j.apellido}</p><p className="text-sm text-gray-400">{j.telefono}</p></div>))) : (!loading && <div className="px-4 py-3 text-gray-400">No se encontraron jugadores.</div>)}
                                 </div>
                             )}
                             {selectedJugador && (<div className="bg-green-900/50 border border-green-500/30 rounded-lg p-3 flex items-center justify-between mt-2"><p className="text-white font-medium">{jugadores.find(j => j.id == selectedJugador)?.nombre} {jugadores.find(j => j.id == selectedJugador)?.apellido}</p><button onClick={handleClearSelection} className="text-red-400 hover:text-red-300 p-1 rounded-full hover:bg-red-500/20"><XMarkIcon className="w-5 h-5" /></button></div>)}
