@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../api/supabaseClient";
-
+import { useAuth } from "../context/AuthContext";
 const Home = () => {
+  const { empresaId } = useAuth();
   const [kpis, setKpis] = useState([
     { label: "Rifas activas", value: 0 },
     { label: "Total de usuarios", value: 0 },
@@ -16,6 +17,7 @@ const Home = () => {
       const { data: rifas, error: rifasError } = await supabase
         .from("rifas")
         .select("*")
+        .eq("empresa_id", empresaId)
         .eq("estado", "Activa");
 
       if (rifasError) {
@@ -28,7 +30,8 @@ const Home = () => {
       // Fetch total players
       const { data: jugadores, error: jugadoresError } = await supabase
         .from("t_jugadores")
-        .select("id", { count: "exact" });
+        .select("id", { count: "exact" })
+        .eq("empresa_id", empresaId);
 
       if (jugadoresError) {
         console.error("Error fetching jugadores:", jugadoresError);
@@ -38,7 +41,8 @@ const Home = () => {
       // Fetch sold tickets
       const { data: tickets, error: ticketsError } = await supabase
         .from("vw_tickets")
-        .select("id", { count: "exact" });
+        .select("id", { count: "exact" })
+        .eq("empresa_id", empresaId);
 
       if (ticketsError) {
         console.error("Error fetching tickets:", ticketsError);

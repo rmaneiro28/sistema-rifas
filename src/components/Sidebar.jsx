@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
   StarIcon,
   BoltIcon,
@@ -13,11 +14,40 @@ import {
 import { NavLink } from 'react-router-dom'
 import { useLocation } from 'react-router-dom'
 import LogoSistema from '../assets/Logo RifasPlus.png'
+import { useAuth } from '../context/AuthContext.jsx';
+import { supabase } from '../api/supabaseClient';
+
 const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
   useLocation();
+  const { session, logout } = useAuth();
+  const [userName, setUserName] = useState('Usuario');
+  const [userRole, setUserRole] = useState('Rol');
+  const [userLastName, setLastUserName] = useState('Apellido');
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (session && session.user) {
+        const { data: usuario, error } = await supabase
+          .from('t_usuarios')
+          .select('nombre, apellido, rol')
+          .eq('email', session.user.email)
+          .single();
+
+        if (error) {
+          console.error('Error fetching user data:', error);
+        } else if (usuario) {
+          setUserName(usuario.nombre);
+          setLastUserName(usuario.apellido);
+          setUserRole(usuario.rol);
+        }
+      }
+    };
+
+    fetchUserData();
+  }, [session]);
+
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    window.location.href = '/login';
+    logout();
   }
 
   const handleLinkClick = () => {
@@ -99,8 +129,8 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
       {/* LogOut */}
       <div className="w-full">
         <div className="font-semibold text-[#7c3bed] tracking-wider mb-3 flex justify-between flex-col">
-          <span className="text-sm tracking-wider">Rifas JoCar</span>
-          <span className="text-xs text-gray-400 tracking-wider">Socopó</span>
+          <span className="text-sm tracking-wider">{userName} {userLastName}</span>
+          <span className="text-xs text-gray-400 tracking-wider">{userRole}</span>
         </div>
         <button onClick={() => handleLogout()} className="flex items-center space-x-3 cursor-pointer px-3 py-2.5 rounded-lg w-full duration-300 ease-in-out hover:bg-[#7c3bed]/30 text-gray-400 hover:text-white transition-colors">
           <UserIcon className="w-5 h-5" />
@@ -111,4 +141,4 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
   )
 }
 
-export default Sidebar
+export default Sidebar;

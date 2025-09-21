@@ -7,8 +7,11 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../api/supabaseClient';
 import { toast } from 'sonner';
 import { LoadingScreen } from '../components/LoadingScreen';
+import { useAuth } from '../context/AuthContext';
+
 
 export default function Analytics() {
+  const { empresaId } = useAuth()
   const [stats, setStats] = useState([
     {
       label: "Ingresos Totales",
@@ -82,7 +85,7 @@ export default function Analytics() {
           previousFilterEndDate = previousEnd.toISOString();
         }
 
-        const { data: previousPeriodTicketsData, error: previousTicketsError } = previousFilterStartDate ? await supabase.from('vw_tickets').select('precio_ticket')
+        const { data: previousPeriodTicketsData, error: previousTicketsError } = previousFilterStartDate ? await supabase.from('vw_tickets').select('precio_ticket').eq('empresa_id', empresaId)
           .gte('fecha_creacion_ticket', previousFilterStartDate)
           .lt('fecha_creacion_ticket', previousFilterEndDate) : { data: [], error: null };
 
@@ -91,7 +94,7 @@ export default function Analytics() {
         };
 
         // 1. Fetch ALL rifas for lookups
-        const { data: allRifas, error: allRifasError } = await supabase.from('vw_rifas').select('*');
+        const { data: allRifas, error: allRifasError } = await supabase.from('vw_rifas').select('*').eq('empresa_id', empresaId);;
         if (allRifasError) {
           toast.error("Error al cargar las rifas.");
           console.error('Error fetching all raffles:', allRifasError);
@@ -99,7 +102,7 @@ export default function Analytics() {
         }
 
         // 2. Fetch tickets from the period
-        let ticketsQuery = supabase.from('vw_tickets').select('*');
+        let ticketsQuery = supabase.from('vw_tickets').select('*').eq('empresa_id', empresaId);
         if (filterDate) {
           ticketsQuery = ticketsQuery.gte('fecha_creacion_ticket', filterDate);
         }
@@ -114,7 +117,7 @@ export default function Analytics() {
         const periodRifas = filterDate ? allRifas.filter(r => new Date(r.created_at) >= new Date(filterDate)) : allRifas;
 
         // 4. Fetch total players
-        const { data: jugadores, error: jugadoresError } = await supabase.from('t_jugadores').select('id', { count: 'exact' });
+        const { data: jugadores, error: jugadoresError } = await supabase.from('t_jugadores').select('id', { count: 'exact' }).eq('empresa_id', empresaId);
         if (jugadoresError) {
           toast.error("Error al cargar los jugadores.");
           console.error('Error fetching players:', jugadoresError);

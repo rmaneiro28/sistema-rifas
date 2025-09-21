@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
+import { useAuth } from "../context/AuthContext";
 
 const RifaForm = ({ onSubmit, loading, initialData = null, isEditing = false }) => {
+    const { empresaId } = useAuth();
     const [form, setForm] = useState({
         nombre: "",
         descripcion: "",
@@ -93,7 +95,8 @@ const RifaForm = ({ onSubmit, loading, initialData = null, isEditing = false }) 
         const formData = {
             ...form,
             precio_ticket: parseFloat(form.precio_ticket),
-            total_tickets: parseInt(form.total_tickets)
+            total_tickets: parseInt(form.total_tickets),
+            empresa_id: empresaId
         };
 
         try {

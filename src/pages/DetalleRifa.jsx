@@ -7,6 +7,7 @@ import { LoadingScreen } from "../components/LoadingScreen";
 import { TicketRegistrationWizard } from "../components/TicketRegistrationWizard";
 import { WinnerRegistrationModal } from "../components/WinnerRegistrationModal";
 import { TicketDetailModal } from "../components/TicketDetailModal";
+import { useAuth } from '../context/AuthContext';
 
 const formatTicketNumber = (number, totalTickets) => {
   if (number === null || number === undefined || !totalTickets || totalTickets <= 0) {
@@ -25,6 +26,7 @@ export function DetalleRifa() {
   const [loading, setLoading] = useState(true);
   const [ganador, setGanador] = useState(null);
   const [selectedTicketsFromMap, setSelectedTicketsFromMap] = useState([]);
+  const { empresaId } = useAuth();
 
   // Modal states
   const [showRegistrationWizard, setShowRegistrationWizard] = useState(false);
@@ -52,12 +54,13 @@ export function DetalleRifa() {
   }, [searchQuery]);
 
   const fetchRaffle = useCallback(async () => {
+    if (!empresaId) return;
     setLoading(true);
-    const { data, error } = await supabase.from("t_rifas").select("*").eq("id_rifa", id).single();
+    const { data, error } = await supabase.from("t_rifas").select("*").eq("id_rifa", id).eq("empresa_id", empresaId).single();
     if (!error) setRifa(data);
     else toast.error("Error al cargar los datos de la rifa.");
     setLoading(false);
-  }, [id]);
+  }, [id, empresaId]);
 
   // Fetch rifas info
   useEffect(() => {
@@ -67,10 +70,12 @@ export function DetalleRifa() {
   // Fetch winner info if exists
   useEffect(() => {
     const fetchGanador = async () => {
+      if (!empresaId) return;
       const { data, error } = await supabase
         .from('t_ganadores')
         .select('*, t_jugadores(nombre, apellido, telefono)')
         .eq('rifa_id', id)
+        .eq("empresa_id", empresaId)
         .maybeSingle();
 
       if (error) {
@@ -80,11 +85,12 @@ export function DetalleRifa() {
       }
     };
     fetchGanador();
-  }, [id, rifa?.estado]); // Re-fetch if raffle state changes
+  }, [id, rifa?.estado, empresaId]); // Re-fetch if raffle state changes
   // Fetch tickets for this rifas
   const fetchTickets = async () => {
+    if (!empresaId) return;
     setLoading(true);
-    const { data, error } = await supabase.from("vw_tickets").select("*").eq("rifa_id", id);
+    const { data, error } = await supabase.from("vw_tickets").select("*").eq("rifa_id", id).eq("empresa_id", empresaId);
     if (!error) {
       console.log('Tickets loaded:', data);
       setTickets(data || []);

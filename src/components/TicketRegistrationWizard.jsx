@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { toPng, toBlob } from "html-to-image";
 import { UserIcon, TicketIcon, CreditCardIcon, MagnifyingGlassIcon, XMarkIcon, PaperAirplaneIcon, ArrowDownTrayIcon, ClipboardIcon } from "@heroicons/react/24/outline";
 import JugadorFormModal from "./JugadorFormModal";
+import { useAuth } from "../context/AuthContext";
 
 export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMap, onSuccess, initialSelectedNumbers }) {
     const [loading, setLoading] = useState(false);
@@ -19,6 +20,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
     const [metodoPago, setMetodoPago] = useState("Efectivo");
     const [referenciaPago, setReferenciaPago] = useState("");
     const ticketRef = useRef();
+    const { empresaId } = useAuth();
 
     useEffect(() => {
         if (isOpen) {
@@ -28,15 +30,15 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
     }, [isOpen, initialSelectedNumbers]);
 
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && empresaId) {
             setLoading(true);
-            supabase.from("vw_jugadores").select("*").then(({ data, error }) => {
+            supabase.from("vw_jugadores").select("*").eq("empresa_id", empresaId).then(({ data, error }) => {
                 if (error) toast.error("Error al cargar jugadores.");
                 else setJugadores(data || []);
                 setLoading(false);
             });
         }
-    }, [isOpen]);
+    }, [isOpen, empresaId]);
 
     useEffect(() => {
         if (selectedJugador) {
@@ -106,7 +108,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
 
     const handleSaveNewPlayer = async (playerData) => {
         setLoading(true);
-        const { data: newJugador, error } = await supabase.from("t_jugadores").insert([playerData]).select().single();
+        const { data: newJugador, error } = await supabase.from("t_jugadores").insert([{ ...playerData, empresa_id: empresaId }]).select().single();
         if (error) {
             toast.error("Error al guardar el jugador: " + error.message);
         } else {
@@ -194,7 +196,13 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
             return;
         }
 
-        const { data: taken, error: checkError } = await supabase.from("t_tickets").select("numero, jugador_id").eq("rifa_id", rifa.id_rifa).in("numero", numerosSeleccionados);
+        const { data: taken, error: checkError } = await 
+        supabase.from("t_tickets")
+        .select("numero, jugador_id")
+        .eq("empresa_id", empresaId)
+        .eq("rifa_id", rifa.id_rifa)
+        .in("numero", numerosSeleccionados);
+
         if (checkError) {
             toast.error("Error al verificar los tickets: " + checkError.message);
             setLoading(false);
@@ -224,7 +232,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
                 jugador_id: selectedJugador,
                 numero: numero, // <--- Los números ya están formateados
                 estado: "apartado",
-                configuracion_id: rifa.configuracion_id || null,
+                empresa_id: rifa.empresa_id || null,
                 fecha_apartado: fechaApartado
             }))
         );
@@ -240,27 +248,58 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
 
     const handleConfirmarPago = async () => {
         setLoading(true);
-    const fechaPago = new Date().toISOString();
-    const { error } = await supabase.from("t_tickets").update({ estado: "pagado", fecha_pago: fechaPago }).eq("rifa_id", rifa.id_rifa).eq("jugador_id", selectedJugador).in("numero", numerosSeleccionados);
-        if (!error) {
-            const jugador = jugadores.find(j => j.id == selectedJugador);
-            toast.success(`Pago confirmado para ${jugador?.nombre}`);
-            onSuccess(true); // Soft refresh in background to update ticket map
+        const fechaPago = new Date().toISOString();
+        const jugador = jugadores.find(j => j.id == selectedJugador);
+        const montoTotal = rifa?.precio_ticket * numerosSeleccionados.length;
 
-            setGeneratedTicketInfo({
-                jugador: `${jugador.nombre} ${jugador.apellido}`,
-                telefono: jugador.telefono,
-                rifa: rifa?.nombre,
-                numeros: numerosSeleccionados,
-                total: (rifa?.precio_ticket * numerosSeleccionados.length).toFixed(2),
-                metodoPago: metodoPago,
-                referencia: referenciaPago || 'N/A',
-                fecha: new Date()
-            });
-            setWizardStep(6);
-        } else {
-            toast.error("Error al confirmar el pago: " + error.message);
+        // 1. Update tickets to 'pagado'
+        const { error: updateError } = await supabase
+            .from("t_tickets")
+            .update({ estado: "pagado", fecha_pago: fechaPago })
+            .eq("rifa_id", rifa.id_rifa)
+            .eq("jugador_id", selectedJugador)
+            .in("numero", numerosSeleccionados);
+
+        if (updateError) {
+            toast.error("Error al confirmar el pago: " + updateError.message);
+            setLoading(false);
+            return;
         }
+
+        // 2. Create payment record in t_pagos
+        const pagoData = {
+            jugador_id: selectedJugador,
+            monto: montoTotal,
+            banco: metodoPago, // As per schema, using metodoPago for the non-nullable banco field.
+            telefono: jugador?.telefono || null,
+            cedula: jugador?.cedula || null,
+            referencia_bancaria: referenciaPago || null,
+            metodo_pago: metodoPago,
+            empresa_id: empresaId,
+        };
+
+        const { error: pagoError } = await supabase.from("t_pagos").insert([pagoData]);
+
+        if (pagoError) {
+            console.error("Error al registrar el pago:", pagoError);
+            toast.error("El pago se confirmó, pero hubo un error al registrar el detalle del pago.");
+        }
+
+        // 3. Proceed with UI update
+        toast.success(`Pago confirmado para ${jugador?.nombre}`);
+        onSuccess(true);
+
+        setGeneratedTicketInfo({
+            jugador: `${jugador.nombre} ${jugador.apellido}`,
+            telefono: jugador.telefono,
+            rifa: rifa?.nombre,
+            numeros: numerosSeleccionados,
+            total: montoTotal.toFixed(2),
+            metodoPago: metodoPago,
+            referencia: referenciaPago || 'N/A',
+            fecha: new Date()
+        });
+        setWizardStep(6);
         setLoading(false);
     };
 

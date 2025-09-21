@@ -1,8 +1,10 @@
 import { TrophyIcon, TicketIcon, UsersIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline'
 import { useState, useEffect } from 'react';
 import { supabase } from '../api/supabaseClient';
+import { useAuth } from '../context/AuthContext';
 
 export const StatsCards = () => {
+  const { empresaId } = useAuth();
   const [stats, setStats] = useState([
     { title: 'Total de rifas', value: 0, icon: TrophyIcon, iconColor: 'text-purple-400' },
     { title: 'Tickets vendidos', value: 0, icon: TicketIcon, iconColor: 'text-blue-400' },
@@ -12,9 +14,10 @@ export const StatsCards = () => {
 
   useEffect(() => {
     const fetchStats = async () => {
-      const { count: raffleCount } = await supabase.from('vw_rifas').select('*', { count: 'exact' });
-      const { count: playerCount } = await supabase.from('vw_jugadores').select('*', { count: 'exact' });
-      const { data: tickets, error } = await supabase.from('vw_tickets').select('*');
+      if (!empresaId) return;
+      const { count: raffleCount } = await supabase.from('vw_rifas').select('*', { count: 'exact' }).eq('empresa_id', empresaId);
+      const { count: playerCount } = await supabase.from('vw_jugadores').select('*', { count: 'exact' }).eq('empresa_id', empresaId);
+      const { data: tickets, error } = await supabase.from('vw_tickets').select('*').eq('empresa_id', empresaId);
 
       if (error) {
         console.error("Error fetching tickets for stats", error);
@@ -31,12 +34,12 @@ export const StatsCards = () => {
         { title: 'Total Rifas', value: raffleCount, icon: TrophyIcon, iconColor: 'text-purple-400' },
         { title: 'Tickets vendidos', value: ticketCount, icon: TicketIcon, iconColor: 'text-blue-400' },
         { title: 'Total Jugadores', value: playerCount, icon: UsersIcon, iconColor: 'text-green-400' },
-        { title: 'Total Ingresos', value: `$${totalRevenue.toFixed(2)}`, icon: CurrencyDollarIcon, iconColor: 'text-yellow-400' },
+        { title: 'Total Ingresos', value: `${totalRevenue.toFixed(2)}`, icon: CurrencyDollarIcon, iconColor: 'text-yellow-400' },
       ]);
     };
 
     fetchStats();
-  }, []);
+  }, [empresaId]);
 
 
   return (
@@ -55,3 +58,4 @@ export const StatsCards = () => {
     </div>
   )
 }
+

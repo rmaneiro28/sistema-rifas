@@ -3,8 +3,9 @@ import { supabase } from "../api/supabaseClient";
 import { useNavigate, useParams, NavLink } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowLeftIcon, PhotoIcon, ExclamationTriangleIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
-
+import { useAuth } from "../context/AuthContext";
 export function EditarRifa() {
+    const { empresaId } = useAuth();
     const { id } = useParams();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
@@ -35,6 +36,7 @@ export function EditarRifa() {
             const { data, error } = await supabase
                 .from('t_rifas')
                 .select('*')
+                .eq("empresa_id", empresaId)
                 .eq('id_rifa', id)
                 .single();
 
@@ -206,6 +208,7 @@ export function EditarRifa() {
             const { error } = await supabase
                 .from("t_rifas")
                 .update(updateData)
+                .eq("empresa_id", empresaId)
                 .eq("id_rifa", id);
 
             if (error) {

@@ -25,19 +25,22 @@ import { PublicRifa } from "./pages/PublicRifa";
 import { LoadingScreen } from "./components/LoadingScreen";
 import Logo from "./assets/Logo RifasPlus.png";
 import ScrollToTop from './components/ScrollToTop';
+import { useAuth } from "./context/AuthContext";
 
 // Dashboard page layout
 function Dashboard() {
   const [raffles, setRaffles] = useState([]);
   const [loading, setLoading] = useState(true);
-
+  const {empresaId} = useAuth();
   useEffect(() => {
     const fetchRaffles = async () => {
       const { data, error } = await supabase
         .from('vw_rifas')
         .select('*')
+        .eq('empresa_id', empresaId)
         .order('created_at', { ascending: false })
-        .limit(3);
+        .limit(3)
+        ;
 
       if (error) {
         console.error('Error fetching raffles:', error);
@@ -102,7 +105,7 @@ export const Footer = () => {
   return (
     <footer className="max-md:w-[85%] flex justify-center items-center  text-white  text-center p-4">
       <img className="w-16 object-contain" src={Logo} alt="" />
-      <p className="text-xs">&copy; {year} Rifas Plus. Desarrollado por <a href="https://wa.me/584123397066">Rúbel Maneiro</a> y <a href="https://wa.me/584122530766">Sneider Araque</a></p>
+      <p className="text-xs">&copy; {year} Rifas Plus. Desarrollado por Rúbel Maneiro y Sneider Araque</p>
     </footer>
   );
 };

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { XMarkIcon, UserIcon, EnvelopeIcon, PhoneIcon, IdentificationIcon, MapPinIcon, StarIcon } from "@heroicons/react/24/outline";
+import { useAuth } from '../context/AuthContext.jsx';
 
 const countryOptions = [
   { name: 'Venezuela', code: '+58', flag: '🇻🇪', placeholder: '414-123-4567' },
@@ -216,6 +217,7 @@ const formatPhoneForDatabase = (phoneDigits, countryCode) => {
 };
 
 export default function JugadorFormModal({ isOpen, onClose, onSave, initialData }) {
+  const { empresaId } = useAuth();
   const [form, setForm] = useState({
     nombre: "",
     apellido: "",
@@ -342,6 +344,7 @@ export default function JugadorFormModal({ isOpen, onClose, onSave, initialData 
         .split(",")
         .map((n) => n.trim())
         .filter((n) => n),
+      empresa_id: empresaId,
     };
     await onSave(data);
     setLoading(false);

@@ -16,6 +16,7 @@ import { SearchAndFilter } from "./../components/SearchAndFilter";
 import { useNavigate } from "react-router-dom";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { TicketCreator } from "../components/TicketCreator";
+import { useAuth } from '../context/AuthContext';
 
 // Utilidad para formatear números telefónicos
 const formatTelephone = (phone) => {
@@ -84,6 +85,7 @@ export function Tickets() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeTab, setActiveTab] = useState("tickets");
   const navigate = useNavigate();
+  const { empresaId } = useAuth();
 
   // Memoized values
   const filteredTickets = useMemo(() => {
@@ -147,7 +149,8 @@ export function Tickets() {
   // Fetch raffles
   useEffect(() => {
     async function fetchRaffles() {
-      const { data, error } = await supabase.from("vw_rifas").select("id_rifa, nombre");
+      if (!empresaId) return;
+      const { data, error } = await supabase.from("vw_rifas").select("id_rifa, nombre").eq("empresa_id", empresaId);
       if (error) {
         console.error("Error fetching raffles:", error);
         toast.error("Error al cargar las rifas");
@@ -156,16 +159,16 @@ export function Tickets() {
       }
     }
     fetchRaffles();
-  }, []);
+  }, [empresaId]);
 
   // Fetch tickets
   const fetchAndGroupTickets = useCallback(async () => {
-    if (activeTab !== "tickets") return;
+    if (activeTab !== "tickets" || !empresaId) return;
 
     setLoading(true);
 
     try {
-      let query = supabase.from("vw_tickets").select("*");
+      let query = supabase.from("vw_tickets").select("*").eq("empresa_id", empresaId);
 
       if (selectedRaffle !== "all") {
         query = query.eq("rifa_id", selectedRaffle);
@@ -203,7 +206,7 @@ export function Tickets() {
       setLoading(false);
     }
   }
-    , [activeTab, selectedRaffle]);
+    , [activeTab, selectedRaffle, empresaId]);
 
   useEffect(() => {
     fetchAndGroupTickets();
@@ -212,13 +215,14 @@ export function Tickets() {
   // Fetch payment requests
   useEffect(() => {
     async function fetchPaymentRequests() {
-      if (activeTab !== "requests") return;
+      if (activeTab !== "requests" || !empresaId) return;
 
       setLoadingRequests(true);
       try {
         const { data: requests, error: requestsError } = await supabase
           .from("t_solicitudes")
           .select("*")
+          .eq("empresa_id", empresaId)
           .order("fecha_solicitud", { ascending: false });
 
         if (requestsError) throw requestsError;
@@ -229,6 +233,7 @@ export function Tickets() {
               .from("vw_tickets")
               .select("*")
               .eq("ticket_id", request.ticket_id)
+              .eq("empresa_id", empresaId)
               .single();
 
             if (ticketError) {
@@ -251,7 +256,7 @@ export function Tickets() {
     }
 
     fetchPaymentRequests();
-  }, [activeTab]);
+  }, [activeTab, empresaId]);
 
   // Handlers
   const handleSort = useCallback((key) => {
@@ -390,16 +395,6 @@ export function Tickets() {
     toggleGroup(group.jugador_id);
   };
 
-  const handleOpenTicketCreator = useCallback((raffle = null) => {
-    setSelectedRaffleForCreation(raffle);
-    setShowTicketCreator(true);
-  }, []);
-
-  const handleCloseTicketCreator = useCallback(() => {
-    setShowTicketCreator(false);
-    setSelectedRaffleForCreation(null);
-  }, []);
-
   const handleTicketCreatorSuccess = useCallback(() => {
     // Refresh the tickets list
     fetchAndGroupTickets();
@@ -422,13 +417,6 @@ export function Tickets() {
           </p>
         </div>
         <div className="flex space-x-3">
-          <button
-            onClick={() => handleOpenTicketCreator()}
-            className="bg-green-600 hover:bg-green-700 text-white text-sm px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors"
-          >
-            <PlusIcon className="w-5 h-5" />
-            <span>Crear Tickets</span>
-          </button>
           <button
             onClick={handleExportCSV}
             className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white text-sm px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors disabled:opacity-50"

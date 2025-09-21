@@ -6,6 +6,7 @@ import { PlusIcon } from "@heroicons/react/16/solid";
 import { toast } from "sonner";
 import { Pagination } from "../components/Pagination";
 import { LoadingScreen } from "../components/LoadingScreen";
+import { useAuth } from "../context/AuthContext";
 
 const STATUS_BADGES = {
   winner: { label: "GANADOR", color: "bg-[#0ea5e9] text-white" },
@@ -19,11 +20,10 @@ const SortIndicator = ({ direction }) => {
 };
 
 // Función para calcular el status dinámico del jugador basado en su actividad
-const calculatePlayerStatus = (jugador, isWinner, winnerInfo, ultimaActividad = null) => {
+const calculatePlayerStatus = (jugador, isWinner, winnerInfo, ultimaActividad) => {
   const now = new Date();
-  const diasInactividad = ultimaActividad ? 
+  const diasInactividad = new Date(ultimaActividad) ? 
     Math.floor((now - new Date(ultimaActividad)) / (1000 * 60 * 60 * 24)) : 999;
-  
   // 1. Si es ganador, status es 'winner' (prioridad más alta)
   if (isWinner) {
     return {
@@ -82,6 +82,8 @@ export function Jugadores() {
   const [pageSize] = useState(12); // 12 tarjetas por página
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
 
+  const { empresaId } = useAuth();
+
   const fetchPlayers = async () => {
     setLoading(true);
     
@@ -90,6 +92,7 @@ export function Jugadores() {
       const { data: players, error: playersError } = await supabase
         .from("vw_jugadores")
         .select("*")
+        .eq("empresa_id", empresaId)
         .order("id");
       
       if (playersError) {
@@ -115,6 +118,7 @@ export function Jugadores() {
       const { data: lastActivity, error: activityError } = await supabase
         .from("t_tickets")
         .select("jugador_id, created_at")
+        .eq("empresa_id", empresaId)
         .order("created_at", { ascending: false });
       
       if (activityError) {
@@ -258,6 +262,7 @@ export function Jugadores() {
       const { error } = await supabase
         .from("t_jugadores")
         .update(data)
+        .eq("empresa_id", empresaId)
         .eq("id", editPlayer.id);
       if (!error) {
         toast.success("Jugador actualizado con éxito");
@@ -289,6 +294,7 @@ export function Jugadores() {
     const { error } = await supabase
       .from("t_jugadores")
       .delete()
+      .eq("empresa_id", empresaId)
       .eq("id", confirmDelete.player.id);
     if (!error) {
       toast.success("Jugador eliminado con éxito");

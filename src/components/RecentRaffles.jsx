@@ -1,7 +1,7 @@
 import { TrophyIcon, CalendarIcon } from '@heroicons/react/24/outline'
+
 export const RecentRaffles = ({ raffles = [] }) => {
 
-  console.log(raffles)
 
   return (
     <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6">

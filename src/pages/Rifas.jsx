@@ -11,6 +11,7 @@ import {
   TrophyIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
+import { useAuth } from "../context/AuthContext";
 import { LoadingScreen } from "../components/LoadingScreen";
 
 export function Rifas() {
@@ -18,6 +19,8 @@ export function Rifas() {
   const [raffles, setRaffles] = useState([]);
   const [filter, setFilter] = useState("all"); // all, active, finalizada
   const [loading, setLoading] = useState(true);
+  const { empresaId } = useAuth();
+
 
   const fetchRaffles = async () => {
     setLoading(true);
@@ -27,12 +30,14 @@ export function Rifas() {
       const { data: activeRaffles, error: activeError } = await supabase
         .from("vw_rifas")
         .select("*")
+        .eq("empresa_id", empresaId)
         .eq("estado", "activa")
         .order("fecha_inicio", { ascending: false });
         
       const { data: finishedRaffles, error: finishedError } = await supabase
         .from("vw_rifas")
         .select("*")
+        .eq("empresa_id", empresaId)
         .eq("estado", "finalizada")
         .order("fecha_inicio", { ascending: false });
         
@@ -41,7 +46,7 @@ export function Rifas() {
       }
     } else if (filter === "active") {
       // Solo rifas activas ordenadas por fecha_inicio
-      let query = supabase.from("vw_rifas").select("*").eq("estado", "activa").order("fecha_inicio", { ascending: false });
+      let query = supabase.from("vw_rifas").select("*").eq("empresa_id", empresaId).eq("estado", "activa").order("fecha_inicio", { ascending: false });
       const { data, error } = await query;
       if (!error) setRaffles(data);
     } else if (filter === "finalizada") {

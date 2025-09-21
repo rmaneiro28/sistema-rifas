@@ -3,6 +3,7 @@ import { UserIcon, EnvelopeIcon, PhoneIcon, MapPinIcon, HashtagIcon } from "@her
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
+import { useAuth } from "../context/AuthContext";
 
 const countryOptions = [
   { name: 'Venezuela', code: '+58', flag: '🇻🇪' },
@@ -109,19 +110,11 @@ const validateVenezuelanPhone = (phone, countryCode) => {
 };
 
 export function NuevoJugador() {
-  const [loading, setLoading] = useState(false);
-  const [phoneError, setPhoneError] = useState('');
   const [cedulaError, setCedulaError] = useState('');
+  const { empresaId } = useAuth();
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
-    cedula: "",
-    email: "",
-    phone: "",
-    street: "",
-    favoriteNumbers: [],
-    favInput: ""
-  });
   const navigate = useNavigate();
   const [selectedCountry, setSelectedCountry] = useState(countryOptions[0]);
 
@@ -208,6 +201,7 @@ export function NuevoJugador() {
       telefono: `${selectedCountry.code}${form.phone.replace(/\D/g, '')}`,
       direccion: form.street,
       numeros_favoritos: form.favoriteNumbers,
+      empresa_id: empresaId
       // Agrega campos extra según tu tabla
     };
 

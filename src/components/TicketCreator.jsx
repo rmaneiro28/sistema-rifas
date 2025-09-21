@@ -12,6 +12,7 @@ import {
   MagnifyingGlassIcon
 } from "@heroicons/react/24/outline";
 import JugadorFormModal from "./JugadorFormModal";
+import { useAuth } from "../context/AuthContext";
 
 export function TicketCreator({ isOpen, onClose, rifa, onSuccess }) {
   const [loading, setLoading] = useState(false);
@@ -25,18 +26,20 @@ export function TicketCreator({ isOpen, onClose, rifa, onSuccess }) {
   const [ticketStatus, setTicketStatus] = useState("apartado");
   const [availableTickets, setAvailableTickets] = useState([]);
   const [ticketStatusMap, setTicketStatusMap] = useState(new Map());
+  const { empresaId } = useAuth();
 
   useEffect(() => {
     if (isOpen) {
       fetchJugadores();
       fetchTicketStatus();
     }
-  }, [isOpen, rifa]);
+  }, [isOpen, rifa, empresaId]);
 
   const fetchJugadores = async () => {
+    if (!empresaId) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase.from("vw_jugadores").select("*");
+      const { data, error } = await supabase.from("vw_jugadores").select("*").eq("empresa_id", empresaId);
       if (error) throw error;
       setJugadores(data || []);
     } catch (error) {
@@ -53,6 +56,7 @@ export function TicketCreator({ isOpen, onClose, rifa, onSuccess }) {
       const { data, error } = await supabase
         .from("t_tickets")
         .select("numero, estado")
+        .eq("empresa_id", empresaId)
         .eq("rifa_id", rifa.id_rifa);
       
       if (error) throw error;
@@ -153,7 +157,7 @@ export function TicketCreator({ isOpen, onClose, rifa, onSuccess }) {
     try {
       const { data: newJugador, error } = await supabase
         .from("t_jugadores")
-        .insert([playerData])
+        .insert([{ ...playerData, empresa_id: empresaId }])
         .select()
         .single();
       
@@ -196,7 +200,7 @@ export function TicketCreator({ isOpen, onClose, rifa, onSuccess }) {
         jugador_id: selectedJugador,
         numero: numero,
         estado: ticketStatus,
-        configuracion_id: rifa.configuracion_id || null,
+        empresa_id: rifa.empresa_id,
         fecha_creacion_ticket: fechaCreacion,
         ...(ticketStatus === 'apartado' && { fecha_apartado: fechaCreacion }),
         ...(ticketStatus === 'pagado' && { 

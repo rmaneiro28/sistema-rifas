@@ -1,10 +1,12 @@
 import { StarIcon } from '@heroicons/react/24/outline'
 import { useEffect, useState } from 'react'
 import { supabase } from '../api/supabaseClient'
+import { useAuth } from '../context/AuthContext'
 
 export const TopPlayers = () => {
   const [players, setPlayers] = useState([])
   const [loading, setLoading] = useState(true)
+  const { empresaId } = useAuth()
 
   useEffect(() => {
     const fetchTopPlayers = async () => {
@@ -12,6 +14,7 @@ export const TopPlayers = () => {
         const { data, error } = await supabase
           .from('vw_jugadores')
           .select('*')
+          .eq('empresa_id', empresaId)
           .order('monto_total_gastado', { ascending: false })
           .limit(5)
 

@@ -8,9 +8,9 @@ import {
     ChatBubbleLeftRightIcon,
     DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
-import { toPng, toBlob } from "html-to-image";
-import logoJocar from "../assets/logo-jocar.png";
+import { toBlob } from "html-to-image";
 import logoRifasPlus from "../assets/RifasPlus.png";
+import { useAuth } from "../context/AuthContext";
 
 const formatTicketNumber = (number, totalTickets) => {
     if (number === null || number === undefined || !totalTickets) return "N/A";
@@ -36,7 +36,30 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
     const [loading, setLoading] = useState(false);
     const [generatedTicketInfo, setGeneratedTicketInfo] = useState(null);
     const ticketRef = useRef();
+    const { empresaId } = useAuth();
     
+  const [LogoUrl, setLogoUrl] = useState(null);
+
+   useEffect(() => {
+    const fetchEmpresa = async () => {
+      if (empresaId) {
+        const { data: empresa, error } = await supabase
+          .from('t_empresas')
+          .select('nombre_empresa, direccion_empresa, logo_url')
+          .eq('id_empresa', empresaId)
+          .single();
+
+        if (error) {
+          console.error('Error fetching empresa:', error);
+        } else if (empresa) {
+          setLogoUrl(empresa.logo_url);
+        }
+      }
+    };
+
+    fetchEmpresa();
+  }, [empresaId]);
+
     // Validación para evitar errores cuando ticket es null
     if (!ticket && isOpen) {
         console.error('TicketDetailModal: ticket prop is null');
@@ -92,6 +115,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
             let { data, error } = await supabase
                 .from("t_tickets")
                 .update(updateData)
+                .eq("empresa_id", empresaId)
                 .eq("id", id)
                 .select();
 
@@ -101,6 +125,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                 const result = await supabase
                     .from("t_tickets")
                     .update(updateData)
+                    .eq("empresa_id", empresaId)
                     .eq("ticket_id", id)
                     .select();
                 data = result.data;
@@ -137,6 +162,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
             let { error } = await supabase
                 .from("t_tickets")
                 .delete()
+                .eq("empresa_id", empresaId)
                 .eq("id", id);
 
             // If error suggests invalid column, try with ticket_id
@@ -145,6 +171,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                 const result = await supabase
                     .from("t_tickets")
                     .delete()
+                    .eq("empresa_id", empresaId)
                     .eq("ticket_id", id);
                 error = result.error;
             }
@@ -206,7 +233,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                         {/* Header con logos */}
                         <div className="flex justify-between items-center border-b border-solid border-gray-600 pb-4">
                             <div className="flex items-center space-x-3">
-                                <img src={logoJocar} alt="Logo Cliente" className="h-8 w-auto" />
+                                <img src={LogoUrl} alt="Logo Cliente" className="h-8 w-auto" />
                                 <div>
                                     <h3 className="text-lg font-bold text-[#7c3bed]">{generatedTicketInfo.rifa}</h3>
                                     <p className="text-xs text-gray-400">Comprobante de Participación</p>
@@ -228,7 +255,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                             <p className="text-xs text-gray-500 mb-2">¡Mucha suerte! 🍀</p>
                             <div className="flex justify-center items-center space-x-4">
                                 <span className="text-xs text-gray-400">Organizado por:</span>
-                                <img src={logoJocar} alt="Logo Cliente" className="h-6 w-auto" />
+                                <img src={LogoUrl} alt="Logo Cliente" className="h-6 w-auto" />
                                 <span className="text-xs text-gray-400">|</span>
                                 <span className="text-xs text-gray-400">Sistema:</span>
                                 <img src={logoRifasPlus} alt="RifasPlus" className="h-6 w-auto" />
