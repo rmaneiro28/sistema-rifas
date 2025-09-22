@@ -27,7 +27,7 @@ export default function Login() {
           <div className="bg-[#7c3bed] rounded-xl mb-2 p-2">
             <img src={LogoRifaPlus} alt="Logo de RifaPlus" className="w-20 object-contain" />
           </div>
-          <h1 className="text-2xl font-bold text-white mb-1">RifaPlus</h1>
+          <h1 className="text-2xl font-bold text-white mb-1">RifasPlus</h1>
         </div>
         <h2 className="text-white text-xl font-semibold mb-2 text-center">¡Bienvenido de nuevo!</h2>
         <p className="text-gray-400 text-center mb-4 text-sm">Inicia sesión en tu cuenta para continuar</p>
