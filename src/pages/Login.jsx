@@ -24,8 +24,8 @@ export default function Login() {
       <div className="bg-[#20232e] rounded-2xl shadow-2xl p-10 w-full max-w-md border border-[#23283a]">
         {/* Logo */}
         <div className="flex flex-col items-center mb-6">
-          <div className="bg-[#7c3bed] rounded-xl mb-2 p-2">
-            <img src={LogoRifaPlus} alt="Logo de RifaPlus" className="w-20 object-contain" />
+          <div className="bg-[#7c3bed] rounded-xl p-3 mb-2">
+            <BoltIcon className="h-8 w-8 text-white"></BoltIcon>
           </div>
           <h1 className="text-2xl font-bold text-white mb-1">RifasPlus</h1>
         </div>
