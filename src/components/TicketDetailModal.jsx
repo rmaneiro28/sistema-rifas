@@ -39,6 +39,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
     const { empresaId } = useAuth();
     
   const [LogoUrl, setLogoUrl] = useState(null);
+  const [empresa, setEmpresa] = useState(null);
 
    useEffect(() => {
     const fetchEmpresa = async () => {
@@ -53,6 +54,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
           console.error('Error fetching empresa:', error);
         } else if (empresa) {
           setLogoUrl(empresa.logo_url);
+          setEmpresa(empresa.nombre_empresa);
         }
       }
     };
@@ -197,7 +199,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
     const handleSendWhatsApp = () => {
         if (!generatedTicketInfo?.telefono) return toast.error("Este jugador no tiene un número de teléfono registrado.");
         const { jugador, rifa: nombreRifa, numeros, total } = generatedTicketInfo;
-        const message = `Gracias por tu participación ${jugador}! 🎟️\nHas participado en la rifa *${nombreRifa}*.\n\n*Tus números son:* ${numeros.join(', ')}\n*Total Pagado:* $${total}\n\n¡Mucha suerte! 🍀`.trim().replace(/\n/g, '%0A');
+        const message = `Te escribimos de ${empresa}\nGracias por tu participación ${jugador}! 🎟️\nHas participado en la rifa *${nombreRifa}*.\n\n*Tus números son:* ${numeros.join(', ')}\n*Total Pagado:* $${total}\n\n¡Mucha suerte! 🍀`.trim().replace(/\n/g, '%0A');
         const whatsappUrl = `https://wa.me/${generatedTicketInfo.telefono.replace(/\D/g, '')}?text=${message}`;
         window.open(whatsappUrl, '_blank');
     };

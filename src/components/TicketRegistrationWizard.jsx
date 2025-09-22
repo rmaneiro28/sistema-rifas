@@ -22,6 +22,27 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
     const ticketRef = useRef();
     const { empresaId } = useAuth();
 
+    const [empresa, setEmpresa] = useState("");
+    useEffect(() => {
+    const fetchEmpresa = async () => {
+      if (empresaId) {
+        const { data: empresa, error } = await supabase
+          .from('t_empresas')
+          .select('nombre_empresa')
+          .eq('id_empresa', empresaId)
+          .single();
+
+        if (error) {
+          console.error('Error fetching empresa:', error);
+        } else if (empresa) {
+          setEmpresa(empresa.nombre_empresa);
+        }
+      }
+    };
+
+    fetchEmpresa();
+  }, [empresaId]);
+
     useEffect(() => {
         if (isOpen) {
             setCustomNumero(initialSelectedNumbers.sort((a, b) => a - b).join(', '));
@@ -334,7 +355,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
     const handleSendWhatsApp = () => {
         if (!generatedTicketInfo?.telefono) return toast.error("Este jugador no tiene un número de teléfono registrado.");
         const { jugador, rifa: nombreRifa, numeros, total } = generatedTicketInfo;
-        const message = `Gracias por tu participación ${jugador}! 🎟️\nHas participado en la rifa *${nombreRifa}*.\n\n*Tus números son:* ${numeros.join(', ')}\n*Total Pagado:* $${total}\n\n¡Mucha suerte! 🍀`.trim().replace(/\n/g, '%0A');
+        const message = `Te escribimos de ${empresa}\nGracias por tu participación ${jugador}! 🎟️\nHas participado en la rifa *${nombreRifa}*.\n\n*Tus números son:* ${numeros.join(', ')}\n*Total Pagado:* $${total}\n\n¡Mucha suerte! 🍀`.trim().replace(/\n/g, '%0A');
         const whatsappUrl = `https://wa.me/${generatedTicketInfo.telefono.replace(/\D/g, '')}?text=${message}`;
         window.open(whatsappUrl, '_blank');
     };

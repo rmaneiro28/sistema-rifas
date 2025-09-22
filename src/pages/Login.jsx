@@ -2,6 +2,7 @@ import { useState } from "react";
 import { BoltIcon, StarIcon, UserGroupIcon, EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import LogoRifaPlus from "../assets/Logo RifasPlus.png";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -23,8 +24,8 @@ export default function Login() {
       <div className="bg-[#20232e] rounded-2xl shadow-2xl p-10 w-full max-w-md border border-[#23283a]">
         {/* Logo */}
         <div className="flex flex-col items-center mb-6">
-          <div className="bg-[#7c3bed] rounded-xl p-3 mb-2">
-            <BoltIcon className="w-8 h-8 text-white" />
+          <div className="bg-[#7c3bed] rounded-xl mb-2 p-2">
+            <img src={LogoRifaPlus} alt="Logo de RifaPlus" className="w-20 object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-white mb-1">RifaPlus</h1>
         </div>

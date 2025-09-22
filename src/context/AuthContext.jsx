@@ -8,6 +8,7 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [empresaId, setEmpresaId] = useState(null);
+  const [empresa, setEmpresa] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,6 +36,7 @@ export const AuthProvider = ({ children }) => {
       } else {
         localStorage.removeItem('empresa_id');
         setEmpresaId(null);
+        setEmpresa(null);
       }
     });
 
@@ -42,6 +44,30 @@ export const AuthProvider = ({ children }) => {
       authListener.subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    const fetchEmpresa = async () => {
+      if (empresaId) {
+        try {
+          const { data, error } = await supabase
+            .from('t_empresas')
+            .select('nombre_empresa, logo_url')
+            .eq('id_empresa', empresaId)
+            .single();
+
+          if (error) {
+            throw error;
+          }
+          setEmpresa(data);
+        } catch (error) {
+          console.error('Error fetching empresa data:', error);
+          toast.error('Error al cargar los datos de la empresa');
+        }
+      }
+    };
+
+    fetchEmpresa();
+  }, [empresaId]);
 
   const login = async (username, password) => {
     try {
@@ -78,10 +104,11 @@ export const AuthProvider = ({ children }) => {
     await supabase.auth.signOut();
     localStorage.removeItem('empresa_id');
     setEmpresaId(null);
+    setEmpresa(null);
   };
 
   return (
-    <AuthContext.Provider value={{ session, empresaId, login, logout, loading }}>
+    <AuthContext.Provider value={{ session, empresaId, empresa, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
