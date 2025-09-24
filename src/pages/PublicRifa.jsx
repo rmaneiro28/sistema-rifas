@@ -12,6 +12,15 @@ import { useWindowSize } from '../hooks/useWindowSize.js';
 import { TicketVerifierModal } from '../components/TicketVerifierModal.jsx';
 import { Footer } from '../App.jsx';
 
+// Función para formatear números de tickets con ceros a la izquierda
+const formatTicketNumber = (number, totalTickets) => {
+    if (number === null || number === undefined || !totalTickets || totalTickets <= 0) {
+        return String(number);
+    }
+    const numDigits = String(totalTickets - 1).length;
+    return String(number).padStart(Math.max(3, numDigits), "0");
+};
+
 // Componente para mostrar y copiar datos bancarios con íconos/logos y notificación
 const BankDataCard = ({ logo, icon: Icon, label, value }) => {
     const handleCopy = () => {
@@ -168,11 +177,6 @@ export function PublicRifa() {
     const [selectedTicketsFromMap, setSelectedTicketsFromMap] = useState([]);
     const pdfRef = useRef();
 
-    // Función para formatear números de tickets con ceros a la izquierda
-    const formatTicketNumber = (number) => {
-        return number.toString().padStart(3, '0');
-    };
-
     const fetchRaffleAndTickets = useCallback(async () => {
         setLoading(true);
         try {
@@ -203,12 +207,12 @@ export function PublicRifa() {
             // Crear Map con los tickets existentes usando el numero_ticket formateado como clave
             const ticketsMap = new Map();
             ticketsData.forEach(ticket => {
-                const formattedTicketNumber = formatTicketNumber(ticket.numero_ticket);
+                const formattedTicketNumber = formatTicketNumber(ticket.numero_ticket, rifaData.total_tickets);
                 ticketsMap.set(formattedTicketNumber, ticket);
             });
             
             const generatedTickets = Array.from({ length: rifaData.total_tickets }, (_, i) => {
-                const ticketNumberFormatted = formatTicketNumber(i); // Formato 4 dígitos, comienza en 0
+                const ticketNumberFormatted = formatTicketNumber(i, rifaData.total_tickets);
                 const existingTicket = ticketsMap.get(ticketNumberFormatted);
                 
                 const ticket = existingTicket ?
@@ -284,7 +288,7 @@ export function PublicRifa() {
         // En la vista pública, los tickets no son seleccionables, solo informativos
         const ticketNumber = ticket.numero_ticket || ticket.numero;
         const ticketStatus = ticket.estado_ticket || ticket.estado;
-        toast.info(`Ticket #${formatTicketNumber(ticketNumber)} - ${ticketStatus === "disponible" ? "Disponible" : ticketStatus === "apartado" ? "Apartado" : ticketStatus === "pagado" ? "Pagado" : ticketStatus === "familiares" ? "Familiares" : ""}`);
+        toast.info(`Ticket #${formatTicketNumber(ticketNumber, rifa?.total_tickets)} - ${ticketStatus === "disponible" ? "Disponible" : ticketStatus === "apartado" ? "Apartado" : ticketStatus === "pagado" ? "Pagado" : ticketStatus === "familiares" ? "Familiares" : ""}`);
     };
 
     // Filtrar tickets según el estado seleccionado y búsqueda
@@ -317,8 +321,8 @@ export function PublicRifa() {
                 const searchNumber = parseInt(searchQuery.trim(), 10);
                 
                 if (!isNaN(searchNumber)) {
-                    // Si es un número válido, formatearlo a 4 dígitos con ceros a la izquierda
-                    const paddedSearch = String(searchNumber).padStart(4, '0');
+                    // Si es un número válido, formatearlo según la rifa
+                    const paddedSearch = formatTicketNumber(searchNumber, rifa?.total_tickets);
                     
                     // Comparar directamente con el numero_ticket que está en formato padded
                     return ticketNumber === paddedSearch;
@@ -328,9 +332,9 @@ export function PublicRifa() {
                 return ticketNumber.includes(searchQuery.trim());
             });
         }
-        
+
         return filtered;
-    }, [allTickets, ticketFilter, searchQuery]);
+    }, [allTickets, ticketFilter, searchQuery, rifa]);
 
     if (loading) return <LoadingScreen message="Cargando rifa..." />;
     if (!rifa) return <div className="flex items-center justify-center min-h-screen bg-[#0f131b] text-red-500">No se pudo encontrar la rifa.</div>;

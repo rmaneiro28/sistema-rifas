@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { MagnifyingGlassIcon, XMarkIcon, CheckCircleIcon, InformationCircleIcon, TicketIcon, UserIcon, PhoneIcon, CreditCardIcon, CalendarIcon } from "@heroicons/react/24/outline";
 
 const formatTicketNumber = (number, totalTickets) => {
-    if (number === null || number === undefined || !totalTickets) return "N/A";
-    const maxNumber = totalTickets > 0 ? totalTickets - 1 : 0;
-    const numDigits = String(maxNumber).length;
-    return String(number).padStart(numDigits, "0");
+    if (number === null || number === undefined || !totalTickets || totalTickets <= 0) {
+        return String(number);
+    }
+    const numDigits = String(totalTickets - 1).length;
+    return String(number).padStart(Math.max(3, numDigits), "0");
 };
 
 const formatPartialPhone = (phone) => {
@@ -39,7 +40,7 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets, rifa }) {
         let paddedSearchQuery = searchQuery;
         const searchNumber = parseInt(searchQuery, 10);
         if (!isNaN(searchNumber)) {
-            paddedSearchQuery = String(searchNumber).padStart(4, '0');
+            paddedSearchQuery = formatTicketNumber(searchNumber, rifa?.total_tickets);
         }
         
         const results = allTickets.filter(ticket => {

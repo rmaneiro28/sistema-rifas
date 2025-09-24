@@ -80,7 +80,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         console.log(ticket, rifa, playerGroup)
         if (ticket && rifa) {
             setGeneratedTicketInfo({
-                jugador: playerGroup?.info?.nombre_jugador || ticket.jugador || 'Jugador',
+                jugador: `${playerGroup?.info?.nombre_jugador || 'Jugador'} ${playerGroup?.info?.apellido_jugador || ''}`.trim(),
                 rifa: rifa?.nombre || 'Rifa',
                 numeros: [ticket.numero_ticket],
                 total: rifa?.precio_ticket || 0,
@@ -314,7 +314,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                 <div className="space-y-4">
                                     <h3 className="text-lg font-semibold text-white flex items-center"><UserIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />Información del Jugador</h3>
                                     <div className="bg-[#23283a] rounded-lg p-4 space-y-3">
-                                        <div className="flex justify-between items-center"><span className="text-gray-400">Nombre:</span><span className="text-white font-medium">{playerGroup.info.nombre_jugador || 'N/A'}</span></div>
+                                        <div className="flex justify-between items-center"><span className="text-gray-400">Nombre:</span><span className="text-white font-medium">{`${playerGroup.info.nombre_jugador || 'N/A'} ${playerGroup.info.apellido_jugador || ''}`.trim()}</span></div>
                                         <div className="flex justify-between items-center"><span className="text-gray-400">Cédula de Identidad:</span><span className="text-white">{playerGroup.info.cedula_jugador || 'N/A'}</span></div>
                                         <div className="flex justify-between items-center"><span className="text-gray-400">Teléfono:</span><span className="text-white">{formatTelephone(playerGroup.info.telefono_jugador)}</span></div>
                                     </div>

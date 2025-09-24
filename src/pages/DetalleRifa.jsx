@@ -140,6 +140,7 @@ export function DetalleRifa() {
           numero_ticket: formattedNumero,
           estado_ticket: existingTicket.estado_ticket,
           nombre_jugador: existingTicket.nombre_jugador,
+          apellido_jugador: existingTicket.apellido_jugador,
           email_jugador: existingTicket.email_jugador,
           telefono_jugador: existingTicket.telefono,
           cedula_jugador: existingTicket.cedula,
@@ -226,6 +227,7 @@ export function DetalleRifa() {
       const playerGroupData = {
         info: {
           nombre_jugador: ticket.nombre_jugador || 'N/A',
+          apellido_jugador: ticket.apellido_jugador || '',
           cedula_jugador: ticket.cedula_jugador || 'N/A',
           telefono_jugador: ticket.telefono_jugador || ticket.email_jugador || 'N/A',
           email_jugador: ticket.email_jugador || 'N/A',
@@ -251,6 +253,7 @@ export function DetalleRifa() {
       const playerGroupData = {
         info: {
           nombre_jugador: ticket.nombre_jugador || 'N/A',
+          apellido_jugador: ticket.apellido_jugador || '',
           cedula_jugador: ticket.cedula_jugador || 'N/A',
           telefono_jugador: ticket.telefono_jugador || ticket.email_jugador || 'N/A',
           email_jugador: ticket.email_jugador || 'N/A',
@@ -270,6 +273,7 @@ export function DetalleRifa() {
     const playerGroupData = {
       info: {
         nombre_jugador: ticket.nombre_jugador,
+        apellido_jugador: ticket.apellido_jugador,
         cedula_jugador: ticket.cedula_jugador,
         telefono_jugador: ticket.telefono_jugador,
         email_jugador: ticket.email_jugador,
