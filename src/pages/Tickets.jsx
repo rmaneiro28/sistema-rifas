@@ -7,12 +7,16 @@ import {
   UserIcon,
   TicketIcon,
   PlusIcon,
+  PhotoIcon,
+  BanknotesIcon,
 } from "@heroicons/react/24/outline";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
+import * as htmlToImage from 'html-to-image';
 import { RequestModal } from "./../components/RequestModal";
 import { Pagination } from "./../components/Pagination";
 import { SearchAndFilter } from "./../components/SearchAndFilter";
+import logoRifasPlus from "../assets/RifasPlus.png";
 import { useNavigate } from "react-router-dom";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { useAuth } from '../context/AuthContext';
@@ -80,9 +84,12 @@ export function Tickets() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [activeTab, setActiveTab] = useState("tickets");
+  const [activeTab, setActiveTab] = useState("tickets");  
+  const [generatingImage, setGeneratingImage] = useState(null);
   const navigate = useNavigate();
   const { empresaId } = useAuth();
+  const [empresa, setEmpresa] = useState(null);
+
 
   // Memoized values
   const filteredTickets = useMemo(() => {
@@ -143,6 +150,26 @@ export function Tickets() {
 
     return () => clearTimeout(handler);
   }, [search]);
+
+  // Fetch empresa data once
+  useEffect(() => {
+    const fetchEmpresa = async () => {
+      if (empresaId) {
+        const { data: empresaData, error } = await supabase
+          .from('t_empresas')
+          .select('nombre_empresa, direccion_empresa, logo_url')
+          .eq('id_empresa', empresaId)
+          .single();
+
+        if (error) {
+          console.error('Error fetching empresa:', error);
+        } else if (empresaData) {
+          setEmpresa(empresaData);
+        }
+      }
+    };
+    fetchEmpresa();
+  }, [empresaId]);
 
   // Fetch raffles
   useEffect(() => {
@@ -394,6 +421,119 @@ export function Tickets() {
     toggleGroup(group.jugador_id);
   };
 
+  const handleGenerateTicketImage = useCallback(async (group, empresaLogoUrl) => {
+    setGeneratingImage(group.jugador_id);
+    toast.info("Generando imagen del ticket...");
+
+    // Crear un nodo temporal con el nuevo diseño del ticket
+    const node = document.createElement('div');
+    node.className = "w-[300px] bg-[#141821] text-white p-4 font-sans rounded-2xl border-2 border-dashed border-[#4a5568] relative";
+
+    const raffleName = group.tickets[0]?.nombre_rifa || 'Rifa';
+    const empresaLogo = empresaLogoUrl || '';
+    const totalGastado = group.total_gastado.toFixed(2);
+    let ticketsHtml = '';
+    group.tickets.forEach(ticket => {
+      const status = ticket.estado_ticket || 'apartado';
+      const statusColor = status === 'pagado' ? '#48bb78' : '#f59e0b';
+      ticketsHtml += `
+        <div style="background-color: #2d3748; color: white; padding: 8px 5px; border-radius: 6px; text-align: center; font-family: monospace; border: 1px solid #4a5568; min-width: 55px;">
+            <div style="font-weight: bold; font-size: 1.1em; line-height: 1;">${formatTicketNumber(ticket.numero_ticket, ticket.total_tickets_rifa)}</div>
+            <div style="font-size: 0.6em; text-transform: uppercase; color: ${statusColor}; font-weight: bold; margin-top: 4px;">${status}</div>
+        </div>`;
+    });
+
+    const toDataURL = (url) => {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = function () {
+          const reader = new FileReader();
+          reader.onloadend = function () {
+            resolve(reader.result);
+          };
+          reader.readAsDataURL(xhr.response);
+        };
+        xhr.onerror = () => reject(new Error('Error al cargar la imagen'));
+        xhr.open('GET', url);
+        xhr.responseType = 'blob';
+        xhr.send();
+      });
+    };
+
+    const [raffleLogoDataUrl, systemLogoDataUrl] = await Promise.all([
+      toDataURL(empresaLogo).catch(e => console.error(e)),
+      toDataURL(logoRifasPlus).catch(e => console.error(e))
+    ]);
+
+    node.innerHTML = `
+        <div style="position: absolute; left: 0; top: 50%; transform: translateY(-50%) translateX(-50%); width: 32px; height: 32px; background-color: #0f131b; border-radius: 50%; border: 2px dashed #4a5568;"></div>
+        <div style="position: absolute; right: 0; top: 50%; transform: translateY(-50%) translateX(50%); width: 32px; height: 32px; background-color: #0f131b; border-radius: 50%; border: 2px dashed #4a5568;"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px dashed #4a5568; padding-bottom: 16px; margin-bottom: 16px;">
+          <img src="${raffleLogoDataUrl || ''}" alt="Logo Cliente" style="height: 32px; max-width: 100px; object-fit: contain;" />
+          <h3 style="font-size: 1.25rem; font-weight: bold; background: linear-gradient(to right, #7c3bed, #d54ff9); -webkit-background-clip: text; color: transparent;">${raffleName}</h3>
+        </div>
+        <div style="margin-bottom: 16px; text-align: center;">
+            <p style="color: #a0aec0; font-size: 0.875rem;">Jugador</p>
+            <p style="color: white; font-weight: bold; font-size: 1.125rem;">${group.nombre_jugador} ${group.apellido_jugador || ''}</p>
+        </div>
+        <div style="background-color: #0f131b; padding: 16px; border-radius: 12px; text-align: center;">
+          <p style="color: #a0aec0; font-size: 0.875rem; margin-bottom: 8px;">Números Adquiridos</p>
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 8px; max-height: 150px; overflow-y: auto; padding-right: 5px;">
+          ${ticketsHtml}
+          </div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 16px; border-top: 2px dashed #4a5568;">
+            <div><p style="font-size: 0.75rem; color: #a0aec0;">Total</p><p style="color: #48bb78; font-weight: bold; font-size: 1.125rem;">$${totalGastado}</p></div>
+            <img src="${systemLogoDataUrl || ''}" alt="RifasPlus" style="height: 32px; opacity: 0.8;" />
+        </div>
+    `;
+
+    document.body.appendChild(node);
+
+    try {
+      const blob = await htmlToImage.toBlob(node, { quality: 0.98, backgroundColor: '#141821' });
+      if (blob) {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        toast.success('¡Imagen del ticket copiada al portapapeles!');
+      } else {
+        toast.error('No se pudo generar la imagen del ticket. Inténtalo de nuevo.');
+      }
+    } catch (error) {
+      console.error('Error al generar o copiar la imagen:', error);
+      toast.error('No se pudo copiar la imagen. Tu navegador podría no ser compatible.');
+    } finally {
+      document.body.removeChild(node);
+      setGeneratingImage(null);
+    }
+  }, [empresaId]);
+
+  const handleMarkGroupAsPaid = useCallback(async (group) => {
+    const ticketsToUpdate = group.tickets.filter(t => t.estado_ticket === 'apartado');
+
+    if (ticketsToUpdate.length === 0) {
+      toast.info(`Todos los tickets de ${group.nombre_jugador} ya están pagados o en otro estado.`);
+      return;
+    }
+
+    if (window.confirm(`¿Estás seguro de marcar los ${ticketsToUpdate.length} ticket(s) apartados de ${group.nombre_jugador} como 'pagados'?`)) {
+      const ticketIds = ticketsToUpdate.map(t => t.ticket_id);
+      
+      try {
+        const { error } = await supabase
+          .from('t_tickets')
+          .update({ estado: 'pagado', fecha_pago: new Date().toISOString() })
+          .in('id', ticketIds);
+
+        if (error) throw error;
+
+        toast.success(`${ticketsToUpdate.length} ticket(s) marcados como pagados.`);
+        fetchAndGroupTickets(); // Refrescar la lista de tickets
+      } catch (error) {
+        console.error("Error marking tickets as paid:", error);
+        toast.error("Error al marcar los tickets como pagados: " + error.message);
+      }
+    }
+  }, [fetchAndGroupTickets]);
 
   const SortIndicator = ({ direction }) => {
     if (!direction) return null;
@@ -507,6 +647,29 @@ export function Tickets() {
                         </div>
                       </div>
 
+                      {/* Action Button */}
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleGenerateTicketImage(group, empresa?.logo_url); }} 
+                          disabled={generatingImage === group.jugador_id}
+                          className="w-full bg-[#23283a] hover:bg-[#3a4152] text-white text-sm font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-wait"
+                        >
+                          {generatingImage === group.jugador_id 
+                            ? <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span>Generando...</span></>
+                            : <><PhotoIcon className="w-5 h-5" /><span>Copiar Ticket</span></>
+                          }
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleMarkGroupAsPaid(group); }}
+                          disabled={group.tickets.every(t => t.estado_ticket !== 'apartado')}
+                          className="w-full bg-green-600 hover:bg-green-700 text-white text-sm font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Marcar todos los tickets apartados como pagados"
+                        >
+                          <BanknotesIcon className="w-5 h-5" />
+                          <span>Marcar Pagado</span>
+                        </button>
+                      </div>
+
                       {/* Bottom part: Stats */}
                       <div className="mt-4 pt-4 border-t border-[#23283a] grid grid-cols-2 gap-4 text-center">
                         <div>
@@ -533,12 +696,12 @@ export function Tickets() {
                               <p className="text-white font-bold text-lg">#{ticket.numero_ticket}</p>
                               <p className="text-xs text-gray-400 truncate">{ticket.nombre_rifa}</p>
                               <span
-                                className={`mt-2 inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${ticket.estado === 'pagado'
+                                className={`mt-2 inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${ticket.estado_ticket === 'pagado'
                                   ? 'bg-green-500/20 text-green-400'
                                   : 'bg-yellow-500/20 text-yellow-400'
                                   }`}
                               >
-                                {ticket.estado}
+                                {ticket.estado_ticket}
                               </span>
                             </div>
                           ))}
