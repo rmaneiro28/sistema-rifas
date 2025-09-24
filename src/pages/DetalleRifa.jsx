@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, NavLink } from "react-router-dom";
 import { ArrowLeftIcon, Cog6ToothIcon, TicketIcon, XMarkIcon, MagnifyingGlassIcon, TrophyIcon, ShareIcon, PencilIcon, PlusIcon } from "@heroicons/react/24/outline";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
 import { LoadingScreen } from "../components/LoadingScreen";
@@ -311,13 +312,44 @@ export function DetalleRifa() {
     setShowWinnerModal(true);
   };
 
-  const handleShareLink = () => {
+  // Fallback para copiar en portapapeles en entornos no seguros (http)
+  const fallbackCopyTextToClipboard = (text) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.position = "fixed";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      const successful = document.execCommand('copy');
+      if (successful) {
+        toast.success("Enlace copiado al portapapeles");
+        return true;
+      }
+    } catch (err) {
+      console.error('Fallback: Error al copiar', err);
+    } finally {
+      document.body.removeChild(textArea);
+    }
+    return false;
+  };
+
+  const handleShareLink = async () => {
     const publicUrl = `${window.location.origin}/public-rifa/${id}`;
-    navigator.clipboard.writeText(publicUrl).then(() => {
+    try {
+      // Intento moderno (requiere HTTPS o localhost)
+      await navigator.clipboard.writeText(publicUrl);
       toast.success("Enlace público copiado al portapapeles");
-    }, () => {
-      toast.error("No se pudo copiar el enlace");
-    });
+    } catch (error) {
+      console.warn("Error al copiar con la API moderna, intentando fallback:", error);
+      // Si falla, intentar el método antiguo. Si también falla, mostrar prompt.
+      if (!fallbackCopyTextToClipboard(publicUrl)) {
+        toast.error("No se pudo copiar automáticamente.");
+        window.prompt("Copia este enlace manualmente:", publicUrl);
+      }
+    }
   };
 
   useEffect(() => {
@@ -417,6 +449,7 @@ export function DetalleRifa() {
           >
             <div className="absolute inset-0 bg-gradient-to-r from-sky-400 to-blue-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
             <ShareIcon className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 group-hover:animate-pulse" />
+            <span className="hidden sm:inline relative z-10">Compartir</span>
             <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
           </button>
         </div>
@@ -545,9 +578,21 @@ export function DetalleRifa() {
           </div>
         </div>
 
-        <div className="grid max-md:grid-cols-6 max-lg:grid-cols-10 min-lg:grid-cols-15 gap-2 max-h-100 overflow-y-scroll">
+        <motion.div
+          layout
+          className="grid max-md:grid-cols-6 max-lg:grid-cols-10 min-lg:grid-cols-15 gap-2 max-h-100 overflow-y-scroll"
+        >
+          <AnimatePresence>
           {filteredTickets.map((ticket) => (
-            <div key={ticket.numero_ticket} className="relative">
+            <motion.div
+              layout
+              key={ticket.numero_ticket}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.2 }}
+              className="relative"
+            >
               <div
                 onClick={() => handleTicketClick(ticket)}
                 title={`N°${ticket.numero_ticket} - ${ticket.estado_ticket === "disponible" ? "Disponible - Haz clic para comprar"
@@ -577,11 +622,13 @@ export function DetalleRifa() {
               {ganador && ganador.numero_ganador === ticket.numero_ticket && (
                 <TrophyIcon className="w-4 h-4 absolute top-1 right-1 text-black/70" />
               )}
-            </div>
+            </motion.div>
           ))}
+          </AnimatePresence>
 
           {/* Mensaje cuando no hay resultados */}
           {filteredTickets.length === 0 && (
+            <AnimatePresence>
             <div className="col-span-full w-full text-center py-12">
               <div className="bg-[#23283a] rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
                 <MagnifyingGlassIcon className="w-8 h-8 text-gray-400" /> 
@@ -607,8 +654,9 @@ export function DetalleRifa() {
                 </button>
               )}
             </div>
+            </AnimatePresence>
           )}
-        </div>
+        </motion.div>
       </div>
 
       <TicketRegistrationWizard

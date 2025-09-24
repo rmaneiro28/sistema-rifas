@@ -75,14 +75,6 @@ const PAYMENT_METHODS = [
     }
 ];
 
-// --- Subcomponentes para mejorar la legibilidad ---
-const formatTicketNumber = (number, totalTickets) => {
-  if (number === null || number === undefined || !totalTickets || totalTickets <= 0) {
-    return number;
-  }
-  const numDigits = String(totalTickets - 1).length;
-  return String(number).padStart(Math.max(3, numDigits), "0");
-};
 
 const RaffleWinnerBanner = ({ ganador, premio }) => (
     <div className="relative bg-gradient-to-br from-yellow-400 to-orange-500 text-black p-8 rounded-2xl mb-10 text-center shadow-2xl animate-fade-in overflow-hidden">
@@ -108,7 +100,7 @@ const RaffleHeader = ({ rifa, vendidos, total, progreso, setIsVerifierOpen }) =>
     <div className="grid max-md:grid-cols-1 md:grid-cols-5 gap-0 items-center bg-[#181c24] border border-[#23283a] rounded-2xl overflow-hidden mb-10">
         {/* Columna de la Imagen */}
         <div className="md:col-span-3 w-full h-full">
-            <img src={rifa.imagen_url} alt={rifa.nombre} className="w-full min-md:h-[90vh] max-md:h-[30vh] object-cover" />
+            <img src={rifa.imagen_url} alt={rifa.nombre} className="w-full min-md:h-[90vh] object-cover" />
         </div>
 
         {/* Columna del Texto */}
@@ -178,7 +170,7 @@ export function PublicRifa() {
 
     // Función para formatear números de tickets con ceros a la izquierda
     const formatTicketNumber = (number) => {
-        return number.toString().padStart(4, '0');
+        return number.toString().padStart(3, '0');
     };
 
     const fetchRaffleAndTickets = useCallback(async () => {
@@ -476,7 +468,7 @@ export function PublicRifa() {
                             </div>
                         </div>
 
-                        <div className="grid max-md:grid-cols-6 max-lg:grid-cols-10 min-lg:grid-cols-15 gap-2 max-md:max-h-100 min-md:h-[100vh] overflow-y-scroll">
+                        <div className="grid max-md:grid-cols-6 max-lg:grid-cols-10 min-lg:grid-cols-15 gap-2 max-md:max-h-140 min-md:h-[100vh] overflow-y-scroll">
                             {filteredTickets.map((ticket) => (
                                 <div key={ticket.numero_ticket} className="relative">
                                     <div

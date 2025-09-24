@@ -85,7 +85,7 @@ const validateCedula = (cedula) => {
   // Validar que tenga entre 7 y 8 dígitos
   if (cleanCedulaValue.length === 0) {
     return {
-      isValid: false,
+      isValid: true,
       message: '' // No mostrar error si está vacío
     };
   }
@@ -114,6 +114,13 @@ const validateCedula = (cedula) => {
 const validateVenezuelanPhone = (phone, countryCode) => {
   if (countryCode === '+58') {
     // Limpiar el número de caracteres no numéricos
+    const cleanValue = phone.replace(/\D/g, '');
+
+    // Si está vacío, es válido
+    if (cleanValue.length === 0) {
+      return { isValid: true, message: '' };
+    }
+
     const cleanPhone = phone.replace(/\D/g, '');
     
     // Prefijos válidos para Venezuela
@@ -129,9 +136,13 @@ const validateVenezuelanPhone = (phone, countryCode) => {
   }
   
   // Para otros países, simplemente verificar que no esté vacío
+  if (phone.trim().length === 0) {
+    return { isValid: true, message: '' };
+  }
+
   return {
     isValid: phone.trim().length > 0,
-    message: phone.trim().length > 0 ? '' : 'El número de teléfono es requerido'
+    message: ''
   };
 };
 
@@ -467,7 +478,7 @@ export default function JugadorFormModal({ isOpen, onClose, onSave, initialData 
                     )}
                   </div>
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-300">Teléfono *</label>
+                    <label className="block text-sm font-medium text-gray-300">Teléfono</label>
                     <div className={`flex items-center bg-[#23283a] border rounded-lg focus-within:border-[#7c3bed] transition-colors ${phoneError ? 'border-red-500' : 'border-[#2d3748]'}`}>
                       <select
                         value={selectedCountry.code}
@@ -490,7 +501,7 @@ export default function JugadorFormModal({ isOpen, onClose, onSave, initialData 
                         onChange={handleChange}
                         placeholder={selectedCountry.placeholder || "414-1234567"}
                         className="bg-transparent flex-1 p-3 text-white outline-none"
-                        disabled={loading} required
+                        disabled={loading}
                       />
                     </div>
                     {phoneError && (
