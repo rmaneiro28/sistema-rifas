@@ -262,7 +262,7 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets, rifa }) {
                                                             #{formatTicketNumber(ticket.numero_ticket || ticket.numero, rifa?.total_tickets)}
                                                         </span>
                                                         <p className="text-gray-300 text-sm mt-1">
-                                                            A nombre de: <span className="font-medium text-white">{ticket.nombre_jugador}</span>
+                                                            <span className="font-medium text-white">{ticket.nombre_jugador} {ticket.apellido_jugador}</span>
                                                         </p>
                                                     </div>
                                                     <div className="text-right">
