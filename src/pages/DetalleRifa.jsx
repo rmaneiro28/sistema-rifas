@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, NavLink } from "react-router-dom";
-import { ArrowLeftIcon, Cog6ToothIcon, TicketIcon, XMarkIcon, MagnifyingGlassIcon, TrophyIcon, ShareIcon, PencilIcon, PlusIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, StarIcon, TicketIcon, XMarkIcon, MagnifyingGlassIcon, TrophyIcon, ShareIcon, PencilIcon, PlusIcon } from "@heroicons/react/24/outline";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
@@ -167,15 +167,21 @@ export function DetalleRifa() {
   const ticketStatusMap = useMemo(() => new Map(allTickets.map(t => [t.numero_ticket, t.estado_ticket])), [allTickets]);
   const filteredTickets = allTickets.filter(ticket => {
     const matchesStatus = ticketFilter === "all" || ticket.estado_ticket === ticketFilter;
-    const searchLower = searchQuery.toLowerCase();
-    const fullName = `${ticket.nombre_jugador || ''} ${ticket.apellido_jugador || ''}`.toLowerCase();
-    
-    // Si la búsqueda es numérica, compara el número exacto. Si no, busca por nombre.
-    const matchesSearch = !searchQuery ||
-      (!isNaN(searchQuery) ? parseInt(ticket.numero_ticket, 10) === parseInt(searchQuery, 10) : false) ||
-      fullName.includes(searchLower);
+    if (!searchQuery) return matchesStatus;
 
-    return matchesStatus && matchesSearch;
+    const normalizeText = (text) => text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const searchTerms = normalizeText(searchQuery).split(' ').filter(term => term);
+
+    // Si la búsqueda es un solo término numérico, hacer coincidencia exacta
+    if (searchTerms.length === 1 && !isNaN(searchTerms[0])) {
+      return matchesStatus && parseInt(ticket.numero_ticket, 10) === parseInt(searchTerms[0], 10);
+    }
+
+    const searchableString = normalizeText(
+      `${ticket.nombre_jugador || ''} ${ticket.apellido_jugador || ''} ${ticket.telefono_jugador || ''}`
+    );
+
+    return matchesStatus && searchTerms.every(term => searchableString.includes(term));
   });
 
   const handleProceedWithSelection = () => {
@@ -358,6 +364,82 @@ export function DetalleRifa() {
     }
   };
 
+  const handleLoadAllFavorites = async () => {
+    if (!window.confirm("¿Estás seguro de que quieres apartar todos los números favoritos de tus jugadores registrados que estén disponibles en esta rifa? Esta acción no se puede deshacer.")) {
+      return;
+    }
+
+    setLoading(true);
+    toast.info("Cargando números favoritos de todos los jugadores...");
+
+    try {
+      // 1. Fetch all players with favorite numbers for the company
+      const { data: jugadores, error: jugadoresError } = await supabase
+        .from('t_jugadores')
+        .select('id, nombre, apellido, numeros_favoritos')
+        .eq('empresa_id', empresaId)
+        .not('numeros_favoritos', 'is', null);
+
+      if (jugadoresError) throw jugadoresError;
+
+      const playersWithFavorites = jugadores.filter(j => j.numeros_favoritos && j.numeros_favoritos.length > 0);
+
+      if (playersWithFavorites.length === 0) {
+        toast.info("Ningún jugador registrado tiene números favoritos configurados.");
+        setLoading(false);
+        return;
+      }
+
+      // 2. Prepare tickets to be inserted
+      let ticketsToInsert = [];
+      let ticketsAssignedCount = 0;
+      const fechaApartado = new Date().toISOString();
+      const assignedInThisRun = new Set(); // Track numbers assigned in this operation
+
+      for (const jugador of playersWithFavorites) {
+        for (const favNum of jugador.numeros_favoritos) {
+          const formattedNum = formatTicketNumber(favNum, rifa.total_tickets);
+
+          // 3. Check if the ticket is available and not already assigned in this run
+          if (ticketStatusMap.get(formattedNum) === 'disponible' && !assignedInThisRun.has(formattedNum)) {
+            ticketsToInsert.push({
+              rifa_id: rifa.id_rifa,
+              jugador_id: jugador.id,
+              numero: formattedNum,
+              estado: "apartado",
+              empresa_id: rifa.empresa_id,
+              fecha_apartado: fechaApartado
+            });
+            ticketsAssignedCount++;
+            assignedInThisRun.add(formattedNum); // Mark as assigned
+          }
+        }
+      }
+
+      if (ticketsToInsert.length === 0) {
+        toast.info("Todos los números favoritos de los jugadores ya están ocupados en esta rifa.");
+        setLoading(false);
+        return;
+      }
+
+      // 4. Bulk insert the available favorite tickets
+      const { error: insertError } = await supabase.from("t_tickets").insert(ticketsToInsert);
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      toast.success(`¡Se apartaron ${ticketsAssignedCount} tickets favoritos exitosamente!`);
+      fetchTickets(); // Refresh the ticket list
+
+    } catch (error) {
+      console.error("Error al cargar números favoritos:", error);
+      toast.error("Ocurrió un error al procesar los números favoritos: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchRaffle();
     fetchTickets();
@@ -429,13 +511,21 @@ export function DetalleRifa() {
         </div>
         
         {/* Action buttons */}
-        <div className="md:flex md:items-end md:justify-end max-md:grid max-md:grid-cols-3 gap-4 w-full">
+        <div className="md:flex md:items-end md:justify-end max-md:grid max-md:grid-cols-4 gap-4 w-full">
           <button 
           onClick={handleOpenRegistrationModal}
             className="group relative overflow-hidden bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 sm:px-4 sm:py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 active:scale-95 min-h-[48px] sm:min-h-0"
-            title="Registrar ganador de la rifa"
-            aria-label="Registrar ganador de la rifa">
+            title="Registrar nuevo ticket"
+            aria-label="Registrar nuevo ticket">
             <PlusIcon className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 group-hover:animate-pulse" />
+          </button>
+          <button
+            onClick={handleLoadAllFavorites}
+            disabled={loading}
+            className="group relative overflow-hidden bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 sm:px-4 sm:py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 active:scale-95 min-h-[48px] sm:min-h-0 disabled:opacity-50 disabled:cursor-wait"
+            title="Cargar todos los números favoritos de los jugadores"
+          >
+            <StarIcon className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 group-hover:animate-pulse" />
           </button>
           <button
             onClick={handleOpenWinnerModal}

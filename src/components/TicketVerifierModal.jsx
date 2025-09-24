@@ -45,15 +45,19 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets, rifa }) {
         
         const results = allTickets.filter(ticket => {
             if (ticket.estado === 'disponible') return false;
-            const fullName = `${ticket.nombre_jugador || ''} ${ticket.apellido_jugador || ''}`.toLowerCase().trim();
-            const phoneQuery = searchQuery.replace(/\D/g, '');
-            const ticketPhone = ticket.telefono_jugador?.replace(/\D/g, '');
-            const ticketNumber = (ticket.numero_ticket || ticket.numero || '').toString();
 
-            return ticketNumber === paddedSearchQuery ||
-                fullName.includes(searchQuery) ||
-                (ticket.cedula_jugador && ticket.cedula_jugador.includes(searchQuery)) ||
-                (ticketPhone && phoneQuery && ticketPhone === phoneQuery);
+            const normalizeText = (text) => text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const searchTerms = normalizeText(searchQuery).split(' ').filter(term => term);
+
+            // Si la búsqueda es un solo término numérico, hacer coincidencia exacta con el ticket
+            if (searchTerms.length === 1 && !isNaN(searchTerms[0])) {
+                return ticket.numero_ticket === paddedSearchQuery;
+            }
+
+            const searchableString = normalizeText(
+                `${ticket.nombre_jugador || ''} ${ticket.apellido_jugador || ''} ${ticket.telefono_jugador || ''} ${ticket.cedula_jugador || ''}`
+            );
+            return searchTerms.every(term => searchableString.includes(term));
         });
 
         setTimeout(() => {

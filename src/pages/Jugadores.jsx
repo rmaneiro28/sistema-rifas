@@ -2,7 +2,6 @@ import { MagnifyingGlassIcon, TrophyIcon, TicketIcon, CalendarIcon, ExclamationT
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../api/supabaseClient";
 import JugadorFormModal from "../components/JugadorFormModal";
-import Fuse from 'fuse.js';
 import { PlusIcon } from "@heroicons/react/16/solid";
 import { toast } from "sonner";
 import { Pagination } from "../components/Pagination";
@@ -184,31 +183,21 @@ export function Jugadores() {
     if (isActive !== "all") {
       filtered = filtered.filter((p) => p.status === isActive);
     }
+
     if (search.trim() !== "") {
-      // Configuración de Fuse.js para búsqueda difusa
-      const fuseOptions = {
-        keys: [
-          { name: 'nombre', weight: 0.4 },
-          { name: 'apellido', weight: 0.4 },
-          { name: 'email', weight: 0.3 },
-          { name: 'telefono', weight: 0.2 },
-          { name: 'cedula', weight: 0.2 }
-        ],
-        includeScore: true,
-        threshold: 0.4, // Umbral de coincidencia (0 es perfecto, 1 es todo)
-        ignoreLocation: true, // Buscar en todo el texto
-        // Normaliza el texto para ignorar acentos y mayúsculas
-        getFn: (obj, path) => {
-          const value = Fuse.config.getFn(obj, path);
-          if (typeof value === 'string') {
-            return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          }
-          return value;
-        }
-      };
-      const fuse = new Fuse(filtered, fuseOptions);
-      const searchResults = fuse.search(search.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
-      filtered = searchResults.map(result => result.item);
+      const normalizeText = (text) => 
+        text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      
+      // Divide el término de búsqueda en palabras individuales y elimina las vacías
+      const searchTerms = normalizeText(search).split(' ').filter(term => term);
+
+      filtered = filtered.filter(player => {
+        const searchableString = normalizeText(
+          `${player.nombre || ''} ${player.apellido || ''} ${player.email || ''} ${player.telefono || ''} ${player.cedula || ''}`
+        );
+        // Verifica que TODAS las palabras de búsqueda estén presentes en la información del jugador
+        return searchTerms.every(term => searchableString.includes(term));
+      });
     }
     
     // Aplicar ordenamiento

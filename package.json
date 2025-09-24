@@ -13,7 +13,6 @@
     "@heroicons/react": "^2.2.0",
     "@supabase/supabase-js": "^2.53.0",
     "framer-motion": "^12.23.19",
-    "fuse.js": "^7.1.0",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.1",

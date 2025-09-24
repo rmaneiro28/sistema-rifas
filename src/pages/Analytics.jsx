@@ -232,7 +232,6 @@ export default function Analytics() {
 
         // Ticket Status Distribution Chart Data
         const statusCounts = periodTickets.reduce((acc, ticket) => {
-          console.log(ticket.estado_ticket)
           const status = ticket.estado_ticket || 'desconocido';
           acc[status] = (acc[status] || 0) + 1;
           return acc;
