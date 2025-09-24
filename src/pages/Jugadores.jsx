@@ -272,6 +272,7 @@ export function Jugadores() {
   const [confirmDelete, setConfirmDelete] = useState({ open: false, player: null });
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [showPlayerModal, setShowPlayerModal] = useState(false);
+  const [isPlayerModalAnimating, setIsPlayerModalAnimating] = useState(false);
 
   // Crear o actualizar jugador
   const handleSavePlayer = async (data) => {
