@@ -76,7 +76,6 @@ export function DetalleRifa() {
         .from('t_ganadores')
         .select('*, t_jugadores(nombre, apellido, telefono)')
         .eq('rifa_id', id)
-        .eq("empresa_id", empresaId)
         .maybeSingle();
 
       if (error) {
@@ -168,11 +167,13 @@ export function DetalleRifa() {
   const ticketStatusMap = useMemo(() => new Map(allTickets.map(t => [t.numero_ticket, t.estado_ticket])), [allTickets]);
   const filteredTickets = allTickets.filter(ticket => {
     const matchesStatus = ticketFilter === "all" || ticket.estado_ticket === ticketFilter;
+    const searchLower = searchQuery.toLowerCase();
     const fullName = `${ticket.nombre_jugador || ''} ${ticket.apellido_jugador || ''}`.toLowerCase();
+    
+    // Si la búsqueda es numérica, compara el número exacto. Si no, busca por nombre.
     const matchesSearch = !searchQuery ||
-      ticket.numero_ticket.includes(searchQuery) ||
-      fullName.includes(searchQuery.toLowerCase()) ||
-      (ticket.telefono_jugador && ticket.telefono_jugador.includes(searchQuery));
+      (!isNaN(searchQuery) ? parseInt(ticket.numero_ticket, 10) === parseInt(searchQuery, 10) : false) ||
+      fullName.includes(searchLower);
 
     return matchesStatus && matchesSearch;
   });
@@ -585,7 +586,7 @@ export function DetalleRifa() {
 
         <motion.div
           layout
-          className="grid max-md:grid-cols-6 max-lg:grid-cols-10 min-lg:grid-cols-15 gap-2 max-h-100 overflow-y-scroll"
+          className="grid max-md:grid-cols-6 max-lg:grid-cols-10 min-lg:grid-cols-15 gap-2 max-h-140 overflow-y-scroll"
         >
           <AnimatePresence>
           {filteredTickets.map((ticket) => (

@@ -2,6 +2,7 @@ import { MagnifyingGlassIcon, TrophyIcon, TicketIcon, CalendarIcon, ExclamationT
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../api/supabaseClient";
 import JugadorFormModal from "../components/JugadorFormModal";
+import Fuse from 'fuse.js';
 import { PlusIcon } from "@heroicons/react/16/solid";
 import { toast } from "sonner";
 import { Pagination } from "../components/Pagination";
@@ -184,17 +185,30 @@ export function Jugadores() {
       filtered = filtered.filter((p) => p.status === isActive);
     }
     if (search.trim() !== "") {
-      const s = search.toLowerCase();
-      filtered = filtered.filter((p) => {
-          const fullName = `${p.nombre || ''} ${p.apellido || ''}`.toLowerCase();
-          const phone = p.telefono ? p.telefono.toLowerCase() : '';
-          const cedula = p.cedula ? p.cedula.toLowerCase() : '';
-          return fullName.includes(s) ||
-                 (p.email && p.email.toLowerCase().includes(s)) ||
-                 phone.includes(s) ||
-                 cedula.includes(s);
+      // Configuración de Fuse.js para búsqueda difusa
+      const fuseOptions = {
+        keys: [
+          { name: 'nombre', weight: 0.4 },
+          { name: 'apellido', weight: 0.4 },
+          { name: 'email', weight: 0.3 },
+          { name: 'telefono', weight: 0.2 },
+          { name: 'cedula', weight: 0.2 }
+        ],
+        includeScore: true,
+        threshold: 0.4, // Umbral de coincidencia (0 es perfecto, 1 es todo)
+        ignoreLocation: true, // Buscar en todo el texto
+        // Normaliza el texto para ignorar acentos y mayúsculas
+        getFn: (obj, path) => {
+          const value = Fuse.config.getFn(obj, path);
+          if (typeof value === 'string') {
+            return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          }
+          return value;
         }
-      );
+      };
+      const fuse = new Fuse(filtered, fuseOptions);
+      const searchResults = fuse.search(search.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+      filtered = searchResults.map(result => result.item);
     }
     
     // Aplicar ordenamiento
@@ -258,9 +272,6 @@ export function Jugadores() {
   const [confirmDelete, setConfirmDelete] = useState({ open: false, player: null });
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [showPlayerModal, setShowPlayerModal] = useState(false);
-  const [isPlayerModalAnimating, setIsPlayerModalAnimating] = useState(false);
-  const [playerRaffleHistory, setPlayerRaffleHistory] = useState([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
 
   // Crear o actualizar jugador
   const handleSavePlayer = async (data) => {
@@ -329,49 +340,6 @@ export function Jugadores() {
       setSelectedPlayer(null);
     }, 300);
   };
-
-  // Fetch player raffle history when a player is selected
-  useEffect(() => {
-    const fetchPlayerHistory = async () => {
-      if (!selectedPlayer) {
-        setPlayerRaffleHistory([]);
-        return;
-      }
-
-      setLoadingHistory(true);
-      try {
-        const { data, error } = await supabase
-          .from('vw_tickets')
-          .select('rifa_id, nombre_rifa, numero_ticket, estado_ticket, fecha_creacion_ticket')
-          .eq('jugador_id', selectedPlayer.id)
-          .order('fecha_creacion_ticket', { ascending: false });
-
-        if (error) throw error;
-
-        // Group tickets by raffle
-        const history = data.reduce((acc, ticket) => {
-          if (!acc[ticket.rifa_id]) {
-            acc[ticket.rifa_id] = {
-              rifa_id: ticket.rifa_id,
-              nombre_rifa: ticket.nombre_rifa,
-              tickets: []
-            };
-          }
-          acc[ticket.rifa_id].tickets.push(ticket);
-          return acc;
-        }, {});
-
-        setPlayerRaffleHistory(Object.values(history));
-      } catch (error) {
-        toast.error("Error al cargar el historial del jugador.");
-        console.error("Error fetching player history:", error);
-      } finally {
-        setLoadingHistory(false);
-      }
-    };
-
-    fetchPlayerHistory();
-  }, [selectedPlayer]);
 
   if (loading) {
     return <LoadingScreen message="Cargando jugadores..." />;
@@ -573,7 +541,6 @@ export function Jugadores() {
                   <ul className="text-gray-400 text-sm mt-2 space-y-1">
                     <li>• Datos personales y de contacto</li>
                     <li>• Números favoritos configurados</li>
-                    <li>• Historial de participación</li>
                   </ul>
                 </div>
               </div>
@@ -711,37 +678,6 @@ export function Jugadores() {
                         <p className="text-2xl font-bold text-white">${selectedPlayer.monto_total_gastado || 0}</p>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Historial de Rifas */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                      <CalendarIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />
-                      Historial de Participación
-                    </h3>
-                    {loadingHistory ? (
-                      <div className="text-center text-gray-400 py-4">Cargando historial...</div>
-                    ) : playerRaffleHistory.length > 0 ? (
-                      <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
-                        {playerRaffleHistory.map(rifa => (
-                          <div key={rifa.rifa_id} className="bg-[#23283a] p-4 rounded-lg">
-                            <p className="font-semibold text-white">{rifa.nombre_rifa}</p>
-                            <p className="text-xs text-gray-400 mb-2">
-                              {rifa.tickets.length} ticket(s) comprado(s)
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {rifa.tickets.map(ticket => (
-                                <span key={ticket.numero_ticket} className={`px-2 py-1 rounded-md text-xs font-mono font-bold ${ticket.estado_ticket === 'pagado' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                                  #{ticket.numero_ticket}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-gray-400 text-sm bg-[#23283a] p-4 rounded-lg">Este jugador aún no ha participado en ninguna rifa.</p>
-                    )}
                   </div>
 
                   {/* Números Favoritos */}
