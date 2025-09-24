@@ -168,10 +168,11 @@ export function DetalleRifa() {
   const ticketStatusMap = useMemo(() => new Map(allTickets.map(t => [t.numero_ticket, t.estado_ticket])), [allTickets]);
   const filteredTickets = allTickets.filter(ticket => {
     const matchesStatus = ticketFilter === "all" || ticket.estado_ticket === ticketFilter;
+    const fullName = `${ticket.nombre_jugador || ''} ${ticket.apellido_jugador || ''}`.toLowerCase();
     const matchesSearch = !searchQuery ||
       ticket.numero_ticket.includes(searchQuery) ||
-      (ticket.nombre_jugador && ticket.nombre_jugador.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (ticket.cedula && ticket.cedula.toLowerCase().includes(searchQuery.toLowerCase()));
+      fullName.includes(searchQuery.toLowerCase()) ||
+      (ticket.telefono_jugador && ticket.telefono_jugador.includes(searchQuery));
 
     return matchesStatus && matchesSearch;
   });

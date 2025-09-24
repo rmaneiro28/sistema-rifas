@@ -228,48 +228,48 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
     console.log('Player group data:', playerGroup);
 
     return (
-        <>
-            <div ref={ticketRef} className="bg-[#0f131b] border border-[#23283a] rounded-lg p-4 sm:p-6 space-y-4">
-                {generatedTicketInfo ? (
-                    <>
-                        {/* Header con logos */}
-                        <div className="flex justify-between items-center border-b border-solid border-gray-600 pb-4">
-                            <div className="flex items-center space-x-3">
-                                <img src={LogoUrl} alt="Logo Cliente" className="h-8 w-auto" />
-                                <div>
-                                    <h3 className="text-lg font-bold text-[#7c3bed]">{generatedTicketInfo.rifa}</h3>
-                                    <p className="text-xs text-gray-400">Comprobante de Participación</p>
+        <div className="fixed inset-0 z-30 overflow-hidden">
+            {/* Contenedor para el ticket que se va a copiar, oculto a la vista */}
+            <div className="absolute -left-full">
+                <div ref={ticketRef} className="bg-[#141821] text-white p-5" style={{ width: '350px', fontFamily: 'sans-serif' }}>
+                    {generatedTicketInfo ? (
+                        <div className="relative bg-[#23283a] p-5 rounded-2xl border-2 border-dashed border-gray-500">
+                            {/* Círculos para efecto perforado */}
+                            <div className="absolute -left-4 top-1/2 -translate-y-1/2 w-8 h-8 bg-[#141821] rounded-full"></div>
+                            <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-8 h-8 bg-[#141821] rounded-full"></div>
+
+                            {/* Header con logos */}
+                            <div className="flex justify-between items-center border-b-2 border-dashed border-gray-500 pb-4 mb-4">
+                                <img src={LogoUrl} alt="Logo Cliente" className="h-8 max-w-[100px] object-contain" />
+                                <img src={logoRifasPlus} alt="RifasPlus" className="h-8" />
+                            </div>
+
+                            {/* Contenido del ticket */}
+                            <div className="text-center mb-4">
+                                <p className="text-xs text-gray-400 uppercase tracking-wider">Rifa</p>
+                                <h3 className="text-2xl font-bold text-white">{generatedTicketInfo.rifa}</h3>
+                            </div>
+
+                            <div className="text-center my-6">
+                                <p className="text-xs text-gray-400 uppercase tracking-wider">Número</p>
+                                <div className="flex flex-wrap gap-2 justify-center mt-2">
+                                    {generatedTicketInfo.numeros.map(num => (
+                                        <span key={num} className="bg-[#7c3bed] text-white font-mono font-bold px-4 py-2 rounded-lg text-2xl">{formatTicketNumber(num, rifa?.total_tickets)}</span>
+                                    ))}
                                 </div>
                             </div>
-                            <img src={logoRifasPlus} alt="RifasPlus" className="h-10 w-auto" />
-                        </div>
-                        <div className="space-y-3 text-sm">
-                            <div className="flex flex-col sm:flex-row sm:justify-between"><span className="text-gray-400">Jugador:</span><span className="text-white font-medium text-left sm:text-right">{generatedTicketInfo.jugador}</span></div>
-                            <div className="flex flex-col sm:flex-row sm:justify-between"><span className="text-gray-400">Teléfono:</span><span className="text-white text-left sm:text-right">{generatedTicketInfo.telefono || 'N/A'}</span></div>
-                            <div className="flex flex-col sm:flex-row sm:justify-between"><span className="text-gray-400">Método de Pago:</span><span className="text-white text-left sm:text-right">{generatedTicketInfo.metodoPago || 'N/A'}</span></div>
-                            {generatedTicketInfo.referencia && generatedTicketInfo.referencia !== 'N/A' && (<div className="flex flex-col sm:flex-row sm:justify-between"><span className="text-gray-400">Referencia:</span><span className="text-white text-left sm:text-right">{generatedTicketInfo.referencia}</span></div>)}
-                            <div className="flex flex-col sm:flex-row sm:justify-between"><span className="text-gray-400">Fecha:</span><span className="text-white text-left sm:text-right">{generatedTicketInfo.fecha?.toLocaleDateString('es-ES') || 'N/A'}</span></div>
-                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center"><span className="text-gray-400">Total Pagado:</span><span className="text-green-400 font-bold text-lg sm:text-base">${generatedTicketInfo.total}</span></div>
-                        </div>
-                        <div className="border-t border-solid border-gray-600 pt-4"><p className="text-gray-400 text-sm mb-2">Números Adquiridos:</p><div className="flex flex-wrap gap-2 justify-center">{generatedTicketInfo.numeros.map(num => (<span key={num} className="bg-[#7c3bed] text-white font-mono font-bold px-3 py-1.5 rounded-md text-base">{formatTicketNumber(num, rifa?.total_tickets)}</span>))}</div></div>
-                        {/* Footer con branding */}
-                        <div className="text-center pt-4 mt-4 border-t border-gray-700">
-                            <p className="text-xs text-gray-500 mb-2">¡Mucha suerte! 🍀</p>
-                            <div className="flex justify-center items-center space-x-4">
-                                <span className="text-xs text-gray-400">Organizado por:</span>
-                                <img src={LogoUrl} alt="Logo Cliente" className="h-6 w-auto" />
-                                <span className="text-xs text-gray-400">|</span>
-                                <span className="text-xs text-gray-400">Sistema:</span>
-                                <img src={logoRifasPlus} alt="RifasPlus" className="h-6 w-auto" />
+
+                            <div className="border-t-2 border-dashed border-gray-500 pt-4 mt-4 space-y-2 text-xs">
+                                <div className="flex justify-between"><span className="text-gray-400">Jugador:</span><span className="font-medium text-right">{generatedTicketInfo.jugador}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-400">Fecha:</span><span className="font-medium">{generatedTicketInfo.fecha?.toLocaleDateString('es-ES') || 'N/A'}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-400">Pagado:</span><span className="font-bold text-green-400">${generatedTicketInfo.total}</span></div>
                             </div>
                         </div>
-                    </>
-                ) : (
-                    <div className="text-center text-gray-400 py-8">
-                        <p>Cargando información del ticket...</p>
-                    </div>
-                )}
+                    ) : null}
+                </div>
             </div>
+
+            {/* Modal visible */}
             <div className="fixed inset-0 z-40 bg-black/60 transition-opacity duration-300" onClick={handleClose} />
             <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-[#181c24] border-l border-[#23283a] shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isAnimating ? 'translate-x-0' : 'translate-x-full'} overflow-hidden`}>
                 <div className="flex flex-col h-full">
@@ -377,6 +377,6 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     </div>
                 </div>
             </div>
-        </>
+        </div>
     );
 }

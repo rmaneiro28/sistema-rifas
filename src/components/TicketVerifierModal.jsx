@@ -45,13 +45,14 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets, rifa }) {
         
         const results = allTickets.filter(ticket => {
             if (ticket.estado === 'disponible') return false;
+            const fullName = `${ticket.nombre_jugador || ''} ${ticket.apellido_jugador || ''}`.toLowerCase().trim();
             const phoneQuery = searchQuery.replace(/\D/g, '');
             const ticketPhone = ticket.telefono_jugador?.replace(/\D/g, '');
             const ticketNumber = (ticket.numero_ticket || ticket.numero || '').toString();
 
             return ticketNumber === paddedSearchQuery ||
-                (ticket.nombre_jugador?.toLowerCase() === searchQuery) ||
-                (ticket.cedula_jugador === searchQuery) ||
+                fullName.includes(searchQuery) ||
+                (ticket.cedula_jugador && ticket.cedula_jugador.includes(searchQuery)) ||
                 (ticketPhone && phoneQuery && ticketPhone === phoneQuery);
         });
 
@@ -137,7 +138,7 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets, rifa }) {
                                     </div>
                                     <div>
                                         <p className="text-xs text-gray-400">Nombre del Jugador</p>
-                                        <p className="text-white font-semibold">{selectedTicket.nombre_jugador || 'No especificado'}</p>
+                                        <p className="text-white font-semibold">{`${selectedTicket.nombre_jugador || ''} ${selectedTicket.apellido_jugador || ''}`.trim() || 'No especificado'}</p>
                                     </div>
                                 </div>
                                 
@@ -244,8 +245,11 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets, rifa }) {
                         <div className="space-y-4 animate-fade-in">
                             {result.status === 'found' && (
                                 <>
-                                    <h3 className="text-lg font-semibold text-green-400 text-center mb-4">¡Tickets Encontrados!</h3>
-                                    <div className="space-y-3">
+                                    <div className="text-center">
+                                        <h3 className="text-lg font-semibold text-green-400">¡Tickets Encontrados!</h3>
+                                        <p className="text-sm text-gray-400">{result.tickets.length} tickets asociados a tu búsqueda.</p>
+                                    </div>
+                                    <div className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
                                         {result.tickets.map(ticket => (
                                             <div 
                                                 key={ticket.numero_ticket || ticket.numero} 

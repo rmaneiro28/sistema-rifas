@@ -15,7 +15,6 @@ import { Pagination } from "./../components/Pagination";
 import { SearchAndFilter } from "./../components/SearchAndFilter";
 import { useNavigate } from "react-router-dom";
 import { LoadingScreen } from "../components/LoadingScreen";
-import { TicketCreator } from "../components/TicketCreator";
 import { useAuth } from '../context/AuthContext';
 
 // Utilidad para formatear números telefónicos
@@ -75,8 +74,6 @@ export function Tickets() {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showTicketModal, setShowTicketModal] = useState(false);
-  const [showTicketCreator, setShowTicketCreator] = useState(false);
-  const [selectedRaffleForCreation, setSelectedRaffleForCreation] = useState(null);
   const [isModalAnimating, setIsModalAnimating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingRequests, setLoadingRequests] = useState(true);
@@ -96,11 +93,12 @@ export function Tickets() {
     // Aplicar búsqueda
     if (debouncedSearch) {
       const s = debouncedSearch.toLowerCase();
-      result = result.filter(group =>
-        group.nombre_jugador.toLowerCase().includes(s) ||
+      result = result.filter(group => {
+        const fullName = `${group.nombre_jugador || ''} ${group.apellido_jugador || ''}`.toLowerCase();
+        return fullName.includes(s) ||
         (group.telefono && group.telefono.toLowerCase().includes(s)) ||
-        group.tickets.some(t => String(t.numero_ticket).includes(s))
-      );
+        group.tickets.some(t => String(t.numero_ticket).includes(s));
+      });
     }
 
     // Aplicar ordenamiento
@@ -186,6 +184,7 @@ export function Tickets() {
           acc[playerId] = {
             jugador_id: ticket.jugador_id,
             nombre_jugador: ticket.nombre_jugador,
+            apellido_jugador: ticket.apellido_jugador,
             email_jugador: ticket.email_jugador,
             telefono: ticket.telefono,
             tickets: [],
@@ -395,10 +394,6 @@ export function Tickets() {
     toggleGroup(group.jugador_id);
   };
 
-  const handleTicketCreatorSuccess = useCallback(() => {
-    // Refresh the tickets list
-    fetchAndGroupTickets();
-  }, [fetchAndGroupTickets]);
 
   const SortIndicator = ({ direction }) => {
     if (!direction) return null;
@@ -501,7 +496,7 @@ export function Tickets() {
                             {group.nombre_jugador.charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0">
-                            <h3 className="font-semibold text-white truncate">{group.nombre_jugador}</h3>
+                            <h3 className="font-semibold text-white truncate">{group.nombre_jugador} {group.apellido_jugador}</h3>
                             <p className="text-sm text-gray-400 truncate">{group.telefono || 'Sin telefono'}</p>
                           </div>
                         </div>
@@ -529,7 +524,7 @@ export function Tickets() {
                     {expandedGroups[group.jugador_id] && (
                       <div className="p-4 border-t border-[#23283a] bg-[#0f131b]">
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                          {group.tickets.map((ticket) => (
+                          {group.tickets.map((ticket) => ( // No need to change here, as this is ticket-specific info
                             <div
                               key={ticket.ticket_id}
                               onClick={() => handleTicketClick(ticket)}
@@ -626,15 +621,6 @@ export function Tickets() {
         formatTelephone={formatTelephone}
       />
 
-      {/* Ticket Creator Modal */}
-      {showTicketCreator && (
-        <TicketCreator
-          isOpen={showTicketCreator}
-          onClose={handleCloseTicketCreator}
-          raffle={selectedRaffleForCreation || { id_rifa: selectedRaffle !== "all" ? selectedRaffle : null, nombre: "Todas las rifas" }}
-          onSuccess={handleTicketCreatorSuccess}
-        />
-      )}
 
       {/* Panel lateral de detalles del ticket */}
       {showTicketModal && selectedTicket && (
