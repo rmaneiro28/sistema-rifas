@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, NavLink } from "react-router-dom";
-import { ArrowLeftIcon, StarIcon, TicketIcon, XMarkIcon, MagnifyingGlassIcon, TrophyIcon, ShareIcon, PencilIcon, PlusIcon, BellAlertIcon, UserGroupIcon, PaperAirplaneIcon, ClipboardDocumentIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, StarIcon, TicketIcon, XMarkIcon, MagnifyingGlassIcon, TrophyIcon, ShareIcon, PencilIcon, PlusIcon, BellAlertIcon } from "@heroicons/react/24/outline";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
@@ -35,8 +35,6 @@ export function DetalleRifa() {
   const [showPlayerGroupModal, setShowPlayerGroupModal] = useState(false);
   const [selectedPlayerGroup, setSelectedPlayerGroup] = useState(null);
   const [selectedTicketForDetail, setSelectedTicketForDetail] = useState(null);
-  const [showReminderModal, setShowReminderModal] = useState(false);
-  const [playersToRemind, setPlayersToRemind] = useState([]);
 
   const pdfRef = useRef(); // For the map export
 
@@ -463,42 +461,6 @@ export function DetalleRifa() {
     }
   };
 
-  const generateReminderMessage = (playerName) => {
-    const nombreRifa = rifa?.nombre || "esta rifa";
-    const fechaSorteo = rifa?.fecha_fin ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "próximamente";
-    const nombreEmpresa = empresa?.nombre_empresa || "nuestro equipo";
-
-    return `Hola! Buenas Tardes ${playerName}, le escribimos de ${nombreEmpresa}. Paso por aquí recordando el pago de la rifa del ${nombreRifa}, ya que el sorteo será este ${fechaSorteo}.\n\n‼De no cancelar a tiempo su número puede pasar a rezagado‼`;
-  };
-
-  const handleSendSingleReminder = (player) => {
-    if (player.telefono) {
-      const message = generateReminderMessage(player.nombre);
-      const encodedMessage = encodeURIComponent(message);
-      const whatsappUrl = `https://wa.me/${player.telefono.replace(/\D/g, '')}?text=${encodedMessage}`;
-      window.open(whatsappUrl, '_blank');
-    } else {
-      toast.error("Este jugador no tiene un número de teléfono registrado.");
-    }
-  };
-
-  const handleCopyReminder = (player) => {
-    const message = generateReminderMessage(player.nombre);
-    navigator.clipboard.writeText(message).then(() => {
-      toast.success("Mensaje copiado al portapapeles.");
-    }).catch(err => {
-      toast.error("No se pudo copiar el mensaje.");
-      console.error('Error al copiar:', err);
-    });
-  };
-
-  const handleCloseReminderModal = () => {
-    setShowReminderModal(false);
-    // Pequeño delay para que la animación de salida se complete antes de limpiar los datos
-    setTimeout(() => {
-      setPlayersToRemind([]);
-    }, 300);
-  };
   const handleSendReminders = () => {
     const playersWithReservedTickets = allTickets
       .filter(ticket => ticket.estado_ticket === 'apartado' && ticket.jugador_id)
@@ -521,8 +483,25 @@ export function DetalleRifa() {
       return;
     }
 
-    setPlayersToRemind(playersArray);
-    setShowReminderModal(true);
+    if (!window.confirm(`Se enviará un recordatorio a ${playersArray.length} jugador(es). ¿Deseas continuar?`)) {
+      return;
+    }
+
+    const nombreRifa = rifa?.nombre || "esta rifa";
+    const fechaSorteo = rifa?.fecha_fin ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "próximamente";
+    const nombreEmpresa = empresa?.nombre_empresa || "nuestro equipo";
+
+    playersArray.forEach((player, index) => {
+      if (player.telefono) {
+        const message = `Hola! Buenas Tardes ${player.nombre}, le escribimos de ${nombreEmpresa}. Paso por aquí recordando el pago de la rifa del ${nombreRifa}, ya que el sorteo será este ${fechaSorteo}.\n\n‼De no cancelar a tiempo su número puede pasar a rezagado‼`;
+        const encodedMessage = encodeURIComponent(message);
+        const whatsappUrl = `https://wa.me/${player.telefono.replace(/\D/g, '')}?text=${encodedMessage}`;
+        
+        // Abrir en una nueva pestaña
+        setTimeout(() => window.open(whatsappUrl, '_blank'), index * 300); // Pequeño delay para evitar bloqueos del navegador
+      }
+    });
+    toast.success(`${playersArray.length} recordatorio(s) enviados.`);
   };
 
   useEffect(() => {
@@ -885,73 +864,6 @@ export function DetalleRifa() {
           closePlayerGroupModal();
         }}
       />
-
-      {/* Reminder Modal */}
-      <AnimatePresence>
-        {showReminderModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4"
-            onClick={handleCloseReminderModal}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="bg-[#181c24] border border-[#23283a] rounded-xl w-full max-w-2xl p-6 shadow-2xl relative flex flex-col max-h-[90vh]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button onClick={handleCloseReminderModal} className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-[#23283a] z-10">
-                <XMarkIcon className="w-5 h-5" />
-              </button>
-
-              <div className="text-center mb-6">
-                <div className="bg-cyan-500/20 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <UserGroupIcon className="w-6 h-6 text-cyan-400" />
-                </div>
-                <h2 className="text-xl font-bold text-white mb-2">Enviar Recordatorios de Pago</h2>
-                <p className="text-gray-400 text-sm">
-                  Se encontraron <span className="font-bold text-white">{playersToRemind.length}</span> jugadores con tickets apartados.
-                </p>
-              </div>
-
-              <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-                {playersToRemind.map((player, index) => (
-                  <div key={index} className="bg-[#23283a] rounded-lg p-4 flex items-center justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-semibold truncate">{player.nombre}</p>
-                      <p className="text-sm text-gray-400 truncate">{player.telefono || "Sin teléfono"}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Tickets: <span className="font-mono">{player.tickets.join(', ')}</span>
-                      </p>
-                    </div>
-                    <div className="flex-shrink-0 flex items-center gap-2">
-                      <button
-                        onClick={() => handleCopyReminder(player)}
-                        className="p-2 bg-[#3a4152] hover:bg-[#4a5162] text-white rounded-lg transition-colors"
-                        title="Copiar mensaje"
-                      >
-                        <ClipboardDocumentIcon className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleSendSingleReminder(player)}
-                        disabled={!player.telefono}
-                        className="p-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Enviar por WhatsApp"
-                      >
-                        <PaperAirplaneIcon className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
