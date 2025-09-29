@@ -35,6 +35,8 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
     const [isAnimating, setIsAnimating] = useState(false);
     const [loading, setLoading] = useState(false);
     const [generatedTicketInfo, setGeneratedTicketInfo] = useState(null);
+    const [isConfirmingRelease, setIsConfirmingRelease] = useState(false);
+    const [confirmationInput, setConfirmationInput] = useState("");
     const ticketRef = useRef();
     const { empresaId } = useAuth();
     
@@ -151,6 +153,23 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         }
     };
 
+    const handlePromptRelease = () => {
+        setIsConfirmingRelease(true);
+    };
+
+    const handleCancelRelease = () => {
+        setIsConfirmingRelease(false);
+        setConfirmationInput("");
+    };
+
+    const handleConfirmRelease = () => {
+        if (confirmationInput.toUpperCase() === "LIBERAR") {
+            handleReleaseTicket();
+        } else {
+            toast.error("Texto de confirmación incorrecto.");
+        }
+    };
+
     const handleReleaseTicket = async () => {
         if (!ticket) return;
 
@@ -193,6 +212,8 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
             toast.error('Error inesperado al liberar el ticket');
         } finally {
             setLoading(false);
+            setIsConfirmingRelease(false);
+            setConfirmationInput("");
         }
     };
 
@@ -229,6 +250,31 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
 
     return (
         <>
+            {isConfirmingRelease && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+                    <div className="bg-[#181c24] rounded-lg p-6 space-y-4 shadow-lg">
+                        <h3 className="text-lg font-bold text-white">Confirmar Liberación</h3>
+                        <p className="text-gray-400">Para liberar este ticket, escribe "LIBERAR" en el campo de abajo.</p>
+                        <input
+                            type="text"
+                            value={confirmationInput}
+                            onChange={(e) => setConfirmationInput(e.target.value)}
+                            className="w-full bg-[#23283a] text-white rounded-md p-2 border border-[#23283a] focus:ring-2 focus:ring-[#7c3bed] focus:border-[#7c3bed] outline-none"
+                            placeholder="LIBERAR"
+                        />
+                        <div className="flex justify-end gap-4 pt-2">
+                            <button onClick={handleCancelRelease} className="text-gray-400 hover:text-white px-4 py-2 rounded-md transition-colors">Cancelar</button>
+                            <button
+                                onClick={handleConfirmRelease}
+                                disabled={confirmationInput.toUpperCase() !== "LIBERAR"}
+                                className="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Confirmar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             <div ref={ticketRef} className="bg-[#0f131b] border border-[#23283a] rounded-lg p-4 sm:p-6 space-y-4">
                 {generatedTicketInfo ? (
                     <>
@@ -372,7 +418,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                             <button onClick={() => handleUpdateSingleTicketStatus("pagado")} disabled={loading || ticket.estado_ticket === 'pagado'} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Pagado</button>
                             <button onClick={() => handleUpdateSingleTicketStatus("apartado")} disabled={loading || ticket.estado_ticket === 'apartado'} className="w-full bg-yellow-500 hover:bg-yellow-600 text-yellow-900 py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Apartado</button>
                             <button onClick={() => handleUpdateSingleTicketStatus("familiares")} disabled={loading || ticket.estado_ticket === 'familiares'} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Familiar</button>
-                            <button onClick={handleReleaseTicket} disabled={loading} className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Liberar</button>
+                            <button onClick={handlePromptRelease} disabled={loading} className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Liberar</button>
                         </div>
                     </div>
                 </div>
