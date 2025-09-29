@@ -13,6 +13,7 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { LoadingScreen } from "../components/LoadingScreen";
+import { ConfirmationModal } from "../components/ConfirmationModal";
 
 export function Rifas() {
   const [search, setSearch] = useState("");
@@ -20,6 +21,8 @@ export function Rifas() {
   const [filter, setFilter] = useState("all"); // all, active, finalizada
   const [loading, setLoading] = useState(true);
   const { empresaId } = useAuth();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [raffleToDelete, setRaffleToDelete] = useState(null);
 
 
   const fetchRaffles = async () => {
@@ -67,28 +70,34 @@ export function Rifas() {
     setFilter(newFilter);
   };
 
-  const handleDeleteRaffle = async (id) => {
-    const confirmacion = window.confirm("¿Estás seguro de que deseas eliminar esta rifa? Esto también eliminará todos los tickets asociados.");
-    if (confirmacion) {
-      // Primero, eliminar los tickets asociados a la rifa
-      const { error: deleteTicketsError } = await supabase.from("t_tickets").delete().eq("rifa_id", id);
+  const handleDeleteRaffle = (raffle) => {
+    setRaffleToDelete(raffle);
+    setShowDeleteConfirm(true);
+  };
 
-      if (deleteTicketsError) {
-        toast.error("Error al eliminar los tickets de la rifa");
-        return;
-      }
+  const executeDelete = async () => {
+    if (!raffleToDelete) return;
+    const { id_rifa } = raffleToDelete;
 
-      // Luego, eliminar la rifa
-      const { error: deleteRaffleError } = await supabase.from("t_rifas").delete().eq("id_rifa", id);
+    // Primero, eliminar los tickets asociados a la rifa
+    const { error: deleteTicketsError } = await supabase.from("t_tickets").delete().eq("rifa_id", id_rifa);
 
-      if (!deleteRaffleError) {
-        toast.success("Rifa eliminada con éxito");
-        fetchRaffles();
-      } else {
-        toast.error("Error al eliminar la rifa");
-      }
+    if (deleteTicketsError) {
+      toast.error("Error al eliminar los tickets de la rifa");
+      return;
+    }
+
+    // Luego, eliminar la rifa
+    const { error: deleteRaffleError } = await supabase.from("t_rifas").delete().eq("id_rifa", id_rifa);
+
+    if (!deleteRaffleError) {
+      toast.success("Rifa eliminada con éxito");
+      fetchRaffles();
+    } else {
+      toast.error("Error al eliminar la rifa");
     }
   };
+
   const navigate = useNavigate();
   const handleEditRaffle = (id) => {
     navigate(`/rifas/editar/${id}`);
@@ -229,7 +238,7 @@ export function Rifas() {
                   <span>
                     <span className="mr-1">🏆</span>
                     {raffle.valor_premio
-                      ? `$${new Intl.NumberFormat().format(raffle.valor_premio)}`
+                      ? `${new Intl.NumberFormat().format(raffle.valor_premio)}`
                       : ""}
                   </span>
                 </div>
@@ -238,7 +247,7 @@ export function Rifas() {
                   <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-[#7c3bed] text-[#7c3bed] hover:bg-[#7c3bed]/10 transition" onClick={() => handleEditRaffle(raffle.id_rifa)}>
                     <PencilSquareIcon className="w-4 h-4" /> Editar
                   </button>
-                  <button className="flex items-center justify-center px-3 py-2 rounded-lg border border-[#d54ff9] text-[#d54ff9] hover:bg-[#d54ff9]/10 transition" onClick={() => handleDeleteRaffle(raffle.id_rifa)}>
+                  <button className="flex items-center justify-center px-3 py-2 rounded-lg border border-[#d54ff9] text-[#d54ff9] hover:bg-[#d54ff9]/10 transition" onClick={() => handleDeleteRaffle(raffle)}>
                     <TrashIcon className="w-4 h-4" /> Eliminar
                   </button>
                 </div>
@@ -251,6 +260,15 @@ export function Rifas() {
           </div>
         )}
       </div>
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={executeDelete}
+        title="Eliminar Rifa"
+        message={`¿Estás seguro de que deseas eliminar la rifa "${raffleToDelete?.nombre}"? Esta acción es irreversible y eliminará todos los tickets asociados.`}
+        confirmPhrase="eliminar"
+        confirmText="Sí, eliminar rifa"
+      />
     </div>
   );
 }

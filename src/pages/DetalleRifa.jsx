@@ -8,6 +8,7 @@ import { LoadingScreen } from "../components/LoadingScreen";
 import { TicketRegistrationWizard } from "../components/TicketRegistrationWizard";
 import { WinnerRegistrationModal } from "../components/WinnerRegistrationModal";
 import { TicketDetailModal } from "../components/TicketDetailModal";
+import { ReminderControlModal } from "../components/ReminderControlModal";
 import { useAuth } from '../context/AuthContext';
 
 const formatTicketNumber = (number, totalTickets) => {
@@ -35,6 +36,8 @@ export function DetalleRifa() {
   const [showPlayerGroupModal, setShowPlayerGroupModal] = useState(false);
   const [selectedPlayerGroup, setSelectedPlayerGroup] = useState(null);
   const [selectedTicketForDetail, setSelectedTicketForDetail] = useState(null);
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [playersToRemind, setPlayersToRemind] = useState([]);
 
   const pdfRef = useRef(); // For the map export
 
@@ -476,32 +479,15 @@ export function DetalleRifa() {
         return acc;
       }, {});
 
-    const playersArray = Object.values(playersWithReservedTickets);
+    const playersArray = Object.values(playersWithReservedTickets).filter(p => p.telefono && p.telefono.replace(/\D/g, '').length > 3);
 
     if (playersArray.length === 0) {
       toast.info("No hay jugadores con tickets apartados para notificar.");
       return;
     }
 
-    if (!window.confirm(`Se enviará un recordatorio a ${playersArray.length} jugador(es). ¿Deseas continuar?`)) {
-      return;
-    }
-
-    const nombreRifa = rifa?.nombre || "esta rifa";
-    const fechaSorteo = rifa?.fecha_fin ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "próximamente";
-    const nombreEmpresa = empresa?.nombre_empresa || "nuestro equipo";
-
-    playersArray.forEach((player, index) => {
-      if (player.telefono) {
-        const message = `Hola! Buenas Tardes ${player.nombre}, le escribimos de ${nombreEmpresa}. Paso por aquí recordando el pago de la rifa del ${nombreRifa}, ya que el sorteo será este ${fechaSorteo}.\n\n‼De no cancelar a tiempo su número puede pasar a rezagado‼`;
-        const encodedMessage = encodeURIComponent(message);
-        const whatsappUrl = `https://wa.me/${player.telefono.replace(/\D/g, '')}?text=${encodedMessage}`;
-        
-        // Abrir en una nueva pestaña
-        setTimeout(() => window.open(whatsappUrl, '_blank'), index * 300); // Pequeño delay para evitar bloqueos del navegador
-      }
-    });
-    toast.success(`${playersArray.length} recordatorio(s) enviados.`);
+    setPlayersToRemind(playersArray);
+    setShowReminderModal(true);
   };
 
   useEffect(() => {
@@ -591,15 +577,7 @@ export function DetalleRifa() {
           >
             <StarIcon className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 group-hover:animate-pulse" />
           </button>
-          <button
-            onClick={handleSendReminders}
-            disabled={apartados === 0}
-            className="group relative overflow-hidden bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-3 sm:px-4 sm:py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 active:scale-95 min-h-[48px] sm:min-h-0 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Enviar recordatorio de pago a jugadores con tickets apartados"
-          >
-            <BellAlertIcon className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 group-hover:animate-tada" />
-            {apartados > 0 && <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center">{apartados}</div>}
-          </button>
+          
           <button
             onClick={handleOpenWinnerModal}
             className="group relative overflow-hidden bg-gradient-to-r from-amber-500 to-orange-600 text-white px-6 py-3 sm:px-4 sm:py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 active:scale-95 min-h-[48px] sm:min-h-0"
@@ -620,6 +598,16 @@ export function DetalleRifa() {
             <ShareIcon className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 group-hover:animate-pulse" />
             <span className="hidden sm:inline relative z-10">Compartir</span>
             <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+          </button>
+          <button
+            onClick={handleSendReminders}
+            disabled={apartados === 0}
+            className="group relative overflow-hidden bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-6 py-3 sm:px-4 sm:py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 active:scale-95 min-h-[48px] sm:min-h-0 disabled:opacity-50 disabled:cursor-not-allowed max-md:col-span-4"
+            title="Enviar recordatorio de pago a jugadores con tickets apartados"
+          >
+            <BellAlertIcon className="w-5 h-5 md:w-6 md:h-6 relative z-10 group-hover:animate-tada" />
+            <span className="md:hidden">Enviar recordatorio</span>
+            {apartados > 0 && <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center">{apartados}</div>}
           </button>
         </div>
       </div>
@@ -863,6 +851,14 @@ export function DetalleRifa() {
           fetchTickets();
           closePlayerGroupModal();
         }}
+      />
+
+      <ReminderControlModal
+        isOpen={showReminderModal}
+        onClose={() => setShowReminderModal(false)}
+        players={playersToRemind}
+        rifa={rifa}
+        empresa={empresa}
       />
     </div>
   );
