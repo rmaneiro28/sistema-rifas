@@ -212,9 +212,48 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
 
     const handleSendWhatsApp = () => {
         if (!generatedTicketInfo?.telefono) return toast.error("Este jugador no tiene un número de teléfono registrado.");
-        const { jugador, rifa: nombreRifa, numeros, total } = generatedTicketInfo;
-        const message = `Te escribimos de ${empresa}\nGracias por tu participación ${jugador}! 🎟️\nHas participado en la rifa *${nombreRifa}*.\n\n*Tus números son:* ${numeros.join(', ')}\n*Total Pagado:* $${total}\n\n¡Mucha suerte! 🍀`.trim().replace(/\n/g, '%0A');
-        const whatsappUrl = `https://wa.me/${generatedTicketInfo.telefono.replace(/\D/g, '')}?text=${message}`;
+        
+        const { jugador, rifa: nombreRifa, total } = generatedTicketInfo;
+        const allTickets = playerGroup?.tickets?.length > 0 ? playerGroup.tickets : [ticket];
+        const isFullyPaid = allTickets.every(t => t.estado_ticket === 'pagado');
+        
+        // Format ticket numbers with status
+        const ticketNumbers = allTickets.map(t => {
+            const statusEmoji = {
+                'pagado': '✅',
+                'apartado': '⏳',
+                'disponible': '❌',
+                'familiares': '👨‍👩‍👧‍👦'
+            }[t.estado_ticket] || '❓';
+            
+            return `${formatTicketNumber(t.numero_ticket || t.numero_ticket_ticket, rifa?.total_tickets)} ${statusEmoji}`;
+        }).join('\n• ');
+        
+        let message = `*${empresa}*\n\n`;
+        message += `Hola ${jugador}! 👋\n\n`;
+        message += `*Rifa:* ${nombreRifa}\n`;
+        message += `*Fecha:* ${new Date().toLocaleDateString('es-ES')}\n\n`;
+        message += `*Tus números:*\n• ${ticketNumbers}\n\n`;
+        
+        if (isFullyPaid) {
+            message += `*Estado del pago:* ✅ *Completo*\n`;
+            message += `*Total pagado:* $${total}\n\n`;
+            message += `¡Muchas gracias por tu pago! Tu participación está confirmada. 🎉\n\n`;
+        } else {
+            const pendingAmount = allTickets.filter(t => t.estado_ticket !== 'pagado').length * rifa?.precio_ticket;
+            message += `*Estado del pago:* ⚠️ *Pendiente*\n`;
+            message += `*Total pendiente:* $${pendingAmount || total}\n\n`;
+            message += `*Recordatorio de pago:*\n`;
+            message += `Por favor, completa tu pago para asegurar tus números. Puedes realizar el pago mediante:\n`;
+            message += `• Transferencia bancaria\n`;
+            message += `• Efectivo en nuestras oficinas\n\n`;
+            message += `¡No pierdas la oportunidad de ganar! 🏆\n\n`;
+        }
+        
+        message += `¡Mucha suerte! 🍀\n`;
+        message += `_Equipo ${empresa}_`;
+        
+        const whatsappUrl = `https://wa.me/${generatedTicketInfo.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
         window.open(whatsappUrl, '_blank');
     };
 
@@ -243,7 +282,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
 
     return (
         <>
-            <div ref={ticketRef} className="bg-[#0f131b] border border-[#23283a] rounded-lg p-4 sm:p-6 space-y-4">
+            <div ref={ticketRef} className="bg-[#0f131b] w-[400px] border border-[#23283a] rounded-lg p-4 sm:p-6 space-y-4">
                 {generatedTicketInfo ? (
                     <>
                         {/* Header con logos */}
@@ -258,14 +297,75 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                             <img src={logoRifasPlus} alt="RifasPlus" className="h-10 w-auto" />
                         </div>
                         <div className="space-y-3 text-sm">
-                            <div className="flex flex-col sm:flex-row sm:justify-between"><span className="text-gray-400">Jugador:</span><span className="text-white font-medium text-left sm:text-right">{generatedTicketInfo.jugador}</span></div>
-                            <div className="flex flex-col sm:flex-row sm:justify-between"><span className="text-gray-400">Teléfono:</span><span className="text-white text-left sm:text-right">{generatedTicketInfo.telefono || 'N/A'}</span></div>
-                            <div className="flex flex-col sm:flex-row sm:justify-between"><span className="text-gray-400">Método de Pago:</span><span className="text-white text-left sm:text-right">{generatedTicketInfo.metodoPago || 'N/A'}</span></div>
-                            {generatedTicketInfo.referencia && generatedTicketInfo.referencia !== 'N/A' && (<div className="flex flex-col sm:flex-row sm:justify-between"><span className="text-gray-400">Referencia:</span><span className="text-white text-left sm:text-right">{generatedTicketInfo.referencia}</span></div>)}
-                            <div className="flex flex-col sm:flex-row sm:justify-between"><span className="text-gray-400">Fecha:</span><span className="text-white text-left sm:text-right">{generatedTicketInfo.fecha?.toLocaleDateString('es-ES') || 'N/A'}</span></div>
-                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center"><span className="text-gray-400">Total Pagado:</span><span className="text-green-400 font-bold text-lg sm:text-base">${generatedTicketInfo.total}</span></div>
+                            <div className="flex flex-col sm:flex-row sm:justify-between">
+                                <span className="text-gray-400">Jugador:</span>
+                                <span className="text-white font-medium text-left sm:text-right">{generatedTicketInfo.jugador}</span>
+                            </div>
+                            <div className="flex flex-col sm:flex-row sm:justify-between">
+                                <span className="text-gray-400">Teléfono:</span>
+                                <span className="text-white text-left sm:text-right">{generatedTicketInfo.telefono || 'N/A'}</span>
+                            </div>
+                            {playerGroup?.tickets?.every(t => t.estado_ticket === 'pagado') && (
+                                <>
+                                    <div className="flex flex-col sm:flex-row sm:justify-between">
+                                        <span className="text-gray-400">Método de Pago:</span>
+                                        <span className="text-white text-left sm:text-right">{generatedTicketInfo.metodoPago || 'N/A'}</span>
+                                    </div>
+                                    {generatedTicketInfo.referencia && generatedTicketInfo.referencia !== 'N/A' && (
+                                        <div className="flex flex-col sm:flex-row sm:justify-between">
+                                            <span className="text-gray-400">Referencia:</span>
+                                            <span className="text-white text-left sm:text-right">{generatedTicketInfo.referencia}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center">
+                                        <span className="text-gray-400">Total Pagado:</span>
+                                        <span className="text-green-400 font-bold text-lg sm:text-base">${generatedTicketInfo.total}</span>
+                                    </div>
+                                </>
+                            )}
+                            <div className="flex flex-col sm:flex-row sm:justify-between">
+                                <span className="text-gray-400">Fecha:</span>
+                                <span className="text-white text-left sm:text-right">{generatedTicketInfo.fecha?.toLocaleDateString('es-ES') || 'N/A'}</span>
+                            </div>
                         </div>
-                        <div className="border-t border-solid border-gray-600 pt-4"><p className="text-gray-400 text-sm mb-2">Números Adquiridos:</p><div className="flex flex-wrap gap-2 justify-center">{generatedTicketInfo.numeros.map(num => (<span key={num} className="bg-[#7c3bed] text-white font-mono font-bold px-3 py-1.5 rounded-md text-base">{formatTicketNumber(num, rifa?.total_tickets)}</span>))}</div></div>
+                        <div className="border-t border-solid border-gray-600 pt-3">
+                            <p className="text-gray-400 text-sm mb-3 font-medium">Números Adquiridos</p>
+                            <div className={playerGroup?.tickets?.length > 0 ? 'grid grid-cols-6 gap-1.5 px-1' : playerGroup?.tickets?.length > 10 ? 'grid grid-cols-8 gap-1.5 px-1' : 'grid grid-cols-5 gap-1.5 px-1'}>
+                                {playerGroup?.tickets?.length > 0 ? (
+                                    playerGroup.tickets.map((t, index) => {
+                                        const statusInfo = filterOptions.find(f => f.key === t.estado_ticket) || { 
+                                            color: 'bg-gray-600', 
+                                            textColor: 'text-white',
+                                            label: t.estado_ticket || 'N/A',
+                                            border: 'border-gray-500'
+                                        };
+                                        return (
+                                            <div key={index} className="flex flex-col items-center group relative">
+                                                <div 
+                                                    className={`${statusInfo.color} ${statusInfo.textColor} ${statusInfo.border || ''} 
+                                                    w-9 h-9 rounded-sm flex items-center justify-center text-xs font-bold 
+                                                    border border-opacity-30 shadow-sm hover:scale-105 transition-transform`}
+                                                >
+                                                    {formatTicketNumber(t.numero_ticket, rifa?.total_tickets)}
+                                                </div>
+                                                <span className="text-[9px] text-gray-300 mt-1 text-center leading-none opacity-0 group-hover:opacity-100 transition-opacity absolute -bottom-5">
+                                                    {statusInfo.label}
+                                                </span>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="flex flex-col items-center group relative">
+                                        <div className="bg-[#7c3bed] text-white w-9 h-9 rounded-sm flex items-center justify-center text-xs font-bold border border-opacity-30 shadow-sm hover:scale-105 transition-transform">
+                                            {formatTicketNumber(ticket?.numero_ticket, rifa?.total_tickets)}
+                                        </div>
+                                        <span className="text-[9px] text-gray-300 mt-1 text-center leading-none opacity-0 group-hover:opacity-100 transition-opacity absolute -bottom-5">
+                                            {filterOptions.find(f => f.key === ticket?.estado_ticket)?.label || ticket?.estado_ticket || 'N/A'}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                         {/* Footer con branding */}
                         <div className="text-center pt-4 mt-4 border-t border-gray-700">
                             <p className="text-xs text-gray-500 mb-2">¡Mucha suerte! 🍀</p>

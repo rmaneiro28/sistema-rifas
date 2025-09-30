@@ -454,7 +454,7 @@ export function PublicRifa() {
                                         onClick={() => setTicketFilter("ocupados")}
                                         className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "ocupados" ? "bg-blue-700 text-white" : "bg-[#23283a] text-white border border-blue-700 hover:bg-blue-700/20 transition-colors"}`}
                                     >
-                                        Ocupados
+                                        Apartados
                                     </button>
                                     <button
                                         onClick={() => setTicketFilter("familiares")}
