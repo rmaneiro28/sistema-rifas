@@ -288,7 +288,10 @@ export function PublicRifa() {
         // En la vista pública, los tickets no son seleccionables, solo informativos
         const ticketNumber = ticket.numero_ticket || ticket.numero;
         const ticketStatus = ticket.estado_ticket || ticket.estado;
-        toast.info(`Ticket #${formatTicketNumber(ticketNumber, rifa?.total_tickets)} - ${ticketStatus === "disponible" ? "Disponible" : ticketStatus === "apartado" ? "Apartado" : ticketStatus === "pagado" ? "Pagado" : ticketStatus === "familiares" ? "Familiares" : ""}`);
+        const statusText = ticketStatus === "disponible" ? "Disponible" : 
+                          (ticketStatus === "apartado" || ticketStatus === "pagado") ? "Ocupado" : 
+                          ticketStatus === "familiares" ? "Familiares" : "";
+        toast.info(`Ticket #${formatTicketNumber(ticketNumber, rifa?.total_tickets)} - ${statusText}`);
     };
 
     // Filtrar tickets según el estado seleccionado y búsqueda
@@ -301,15 +304,12 @@ export function PublicRifa() {
         let filtered = [...allTickets];
         
         // Aplicar filtro por estado
-        if (ticketFilter !== 'all') {
-            const filterMap = {
-                'disponible': 'disponible',
-                'apartado': 'apartado',
-                'pagado': 'pagado',
-                'familiares': 'familiares'
-            };
-            const beforeFilter = filtered.length;
-            filtered = filtered.filter(t => t.estado === filterMap[ticketFilter]);
+        if (ticketFilter === 'disponible') {
+            filtered = filtered.filter(t => t.estado === 'disponible');
+        } else if (ticketFilter === 'ocupados') {
+            filtered = filtered.filter(t => t.estado === 'apartado' || t.estado === 'pagado');
+        } else if (ticketFilter === 'familiares') {
+            filtered = filtered.filter(t => t.estado === 'familiares');
         }
         
         // Aplicar búsqueda
@@ -437,34 +437,28 @@ export function PublicRifa() {
                             
                             
                             <div className="pb-2 -mx-4 px-4">
-                                <div className="flex flex-wrap gap-2 ">
+                                <div className="flex flex-wrap gap-2">
                                     <button
                                         onClick={() => setTicketFilter("all")}
-                                        className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "all" ? "bg-[#7c3bed] text-white" : "bg-[#23283a] text-white border border-[#7c3bed] hover:bg-[#2a2f3a] transition-colors"}`}
+                                        className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "all" ? "bg-blue-600 text-white" : "bg-[#23283a] text-white border border-blue-600 hover:bg-blue-600/20 transition-colors"}`}
                                     >
                                         Todos
                                     </button>
                                     <button
                                         onClick={() => setTicketFilter("disponible")}
-                                        className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "disponible" ? "bg-gray-600 text-white" : "bg-[#23283a] text-white border border-gray-600 hover:bg-[#2a2f3a] transition-colors"}`}
+                                        className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "disponible" ? "bg-blue-500 text-white" : "bg-[#23283a] text-white border border-blue-500 hover:bg-blue-500/20 transition-colors"}`}
                                     >
                                         Disponible
                                     </button>
                                     <button
-                                        onClick={() => setTicketFilter("apartado")}
-                                        className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "apartado" ? "bg-yellow-500 text-yellow-900" : "bg-[#23283a] text-white border border-yellow-500 hover:bg-[#2a2f3a] transition-colors"}`}
+                                        onClick={() => setTicketFilter("ocupados")}
+                                        className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "ocupados" ? "bg-blue-700 text-white" : "bg-[#23283a] text-white border border-blue-700 hover:bg-blue-700/20 transition-colors"}`}
                                     >
-                                        Apartado
-                                    </button>
-                                    <button
-                                        onClick={() => setTicketFilter("pagado")}
-                                        className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "pagado" ? "bg-green-500 text-white" : "bg-[#23283a] text-white border border-green-500 hover:bg-[#2a2f3a] transition-colors"}`}
-                                    >
-                                        Pagado
+                                        Ocupados
                                     </button>
                                     <button
                                         onClick={() => setTicketFilter("familiares")}
-                                        className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "familiares" ? "bg-purple-500 text-white" : "bg-[#23283a] text-white border border-purple-500 hover:bg-[#2a2f3a] transition-colors"}`}
+                                        className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap ${ticketFilter === "familiares" ? "bg-blue-400 text-white" : "bg-[#23283a] text-white border border-blue-400 hover:bg-blue-400/20 transition-colors"}`}
                                     >
                                         Familiares
                                     </button>
@@ -472,25 +466,24 @@ export function PublicRifa() {
                             </div>
                         </div>
 
-                        <div className="grid max-md:grid-cols-6 max-lg:grid-cols-10 min-lg:grid-cols-15 gap-2 max-md:max-h-140 min-md:h-[100vh] overflow-y-scroll">
+                        <div className="grid max-md:grid-cols-6 max-lg:grid-cols-10 min-lg:grid-cols-15 gap-2 max-md:max-h-140 min-md:h-[100vh] overflow-y-scroll justify-start content-start">
                             {filteredTickets.map((ticket) => (
                                 <div key={ticket.numero_ticket} className="relative">
                                     <div
                                         onClick={() => handleTicketClick(ticket)}
-                                        title={`N°${ticket.numero_ticket} - ${ticket.estado_ticket === "disponible" ? "Disponible - Haz clic para ver información"
-                                            : ticket.estado_ticket === "apartado" ? `Apartado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
-                                                : ticket.estado_ticket === "pagado" ? `Pagado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
-                                                    : ticket.estado_ticket === "familiares" ? "Familiares - Haz clic para ver detalles"
-                                                        : ""
+                                        title={`N°${ticket.numero_ticket} - ${ticket.estado_ticket === "disponible" ? "Disponible"
+                                            : (ticket.estado_ticket === "apartado" || ticket.estado_ticket === "pagado") ? "Ocupado"
+                                                : ticket.estado_ticket === "familiares" ? "Familiares"
+                                                    : ""
                                             }`}
                                         className={`
                                         w-10 h-10 flex items-center justify-center rounded-lg cursor-pointer
                                         text-xs font-bold transition-all duration-200 transform hover:scale-110 hover:ring-2 hover:ring-[#7c3bed] hover:shadow-lg
                                         ${ticket.estado_ticket === "disponible" ? "bg-[#23283a] text-white hover:bg-[#2d3748] border border-[#4a5568]" : ""}
-                                        ${ticket.estado_ticket === "apartado" ? "bg-yellow-400 text-yellow-900 hover:bg-yellow-300 shadow-md border border-yellow-500" : ""}
-                                        ${ticket.estado_ticket === "pagado" ? "bg-green-500 text-green-900 hover:bg-green-400 shadow-md border border-green-600" : ""}
-                                        ${ticket.estado_ticket === "familiares" ? "bg-purple-500 text-purple-100 hover:bg-purple-400 shadow-md border border-purple-600 opacity-75" : ""}
-                                        ${selectedTicketsFromMap.includes(ticket.numero_ticket) ? "!bg-[#d54ff9] ring-2 ring-white" : ""}
+                                        ${ticket.estado_ticket === "apartado" ? "bg-blue-500 text-white hover:bg-blue-600 shadow-md border border-blue-600" : ""}
+                                        ${ticket.estado_ticket === "pagado" ? "bg-blue-500 text-white hover:bg-blue-600 shadow-md border border-blue-700" : ""}
+                                        ${ticket.estado_ticket === "familiares" ? "bg-purple-400 text-white hover:bg-blue-500 shadow-md border border-blue-500" : ""}
+                                        ${selectedTicketsFromMap.includes(ticket.numero_ticket) ? "!bg-[#3b82f6] ring-2 ring-white" : ""}
                                         ${ganador && ganador.numero_ganador === ticket.numero_ticket ? "bg-gradient-to-br from-yellow-400 to-orange-500 text-black font-bold ring-4 ring-white shadow-2xl animate-pulse" : ""}
                                         `}
                                     >

@@ -12,6 +12,7 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@supabase/supabase-js": "^2.53.0",
+    "file-saver": "^2.0.5",
     "framer-motion": "^12.23.19",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
@@ -19,7 +20,7 @@
     "process": "^0.11.10",
     "react": "^19.1.0",
     "react-confetti": "^6.4.0",
-    "react-dom": "^19.1.0",
+    "react-dom": "^19.1.0", 
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.7.1",
     "recharts": "^3.1.2",
