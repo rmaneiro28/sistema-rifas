@@ -216,7 +216,10 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         const { jugador, rifa: nombreRifa, total } = generatedTicketInfo;
         const allTickets = playerGroup?.tickets?.length > 0 ? playerGroup.tickets : [ticket];
         const isFullyPaid = allTickets.every(t => t.estado_ticket === 'pagado');
-        
+        const ticketCount = allTickets.length;
+        const pricePerTicket = rifa?.precio_ticket || 0;
+        const totalAmount = (pricePerTicket * ticketCount).toFixed(2);
+
         // Format ticket numbers with status
         const ticketNumbers = allTickets.map(t => {
             const statusEmoji = {
@@ -237,12 +240,12 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         
         if (isFullyPaid) {
             message += `*Estado del pago:* ✅ *Completo*\n`;
-            message += `*Total pagado:* $${total}\n\n`;
+            message += `*Total pagado:* $${totalAmount}\n\n`;
             message += `¡Muchas gracias por tu pago! Tu participación está confirmada. 🎉\n\n`;
         } else {
             const pendingAmount = allTickets.filter(t => t.estado_ticket !== 'pagado').length * rifa?.precio_ticket;
             message += `*Estado del pago:* ⚠️ *Pendiente*\n`;
-            message += `*Total pendiente:* $${pendingAmount || total}\n\n`;
+            message += `*Total pendiente:* $${pendingAmount}\n\n`;
             message += `*Recordatorio de pago:*\n`;
             message += `Por favor, completa tu pago para asegurar tus números. Puedes realizar el pago mediante:\n`;
             message += `• Transferencia bancaria\n`;
@@ -317,9 +320,17 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                             <span className="text-white text-left sm:text-right">{generatedTicketInfo.referencia}</span>
                                         </div>
                                     )}
-                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center">
-                                        <span className="text-gray-400">Total Pagado:</span>
-                                        <span className="text-green-400 font-bold text-lg sm:text-base">${generatedTicketInfo.total}</span>
+                                    <div className="flex flex-col sm:flex-row sm:justify-between">
+                                        <span className="text-gray-400">Precio por ticket:</span>
+                                        <span className="text-white">${rifa?.precio_ticket || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row sm:justify-between">
+                                        <span className="text-gray-400">Cantidad de tickets:</span>
+                                        <span className="text-white">{playerGroup?.tickets?.length || 1}</span>
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center border-t border-gray-700 pt-2 mt-1">
+                                        <span className="text-gray-400 font-medium">Total Pagado:</span>
+                                        <span className="text-green-400 font-bold text-lg sm:text-base">${(rifa?.precio_ticket * (playerGroup?.tickets?.length || 1)).toFixed(2)}</span>
                                     </div>
                                 </>
                             )}
