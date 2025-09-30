@@ -7,6 +7,7 @@ import {
     UserIcon,
     ChatBubbleLeftRightIcon,
     DocumentDuplicateIcon,
+    ExclamationTriangleIcon
 } from "@heroicons/react/24/outline";
 import { toBlob } from "html-to-image";
 import logoRifasPlus from "../assets/RifasPlus.png";
@@ -35,8 +36,9 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
     const [isAnimating, setIsAnimating] = useState(false);
     const [loading, setLoading] = useState(false);
     const [generatedTicketInfo, setGeneratedTicketInfo] = useState(null);
-    const [isConfirmingRelease, setIsConfirmingRelease] = useState(false);
-    const [confirmationInput, setConfirmationInput] = useState("");
+    const [isReleasing, setIsReleasing] = useState(false);
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+    const [ticketToRelease, setTicketToRelease] = useState(null);
     const ticketRef = useRef();
     const { empresaId } = useAuth();
     
@@ -153,28 +155,20 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         }
     };
 
-    const handlePromptRelease = () => {
-        setIsConfirmingRelease(true);
-    };
-
-    const handleCancelRelease = () => {
-        setIsConfirmingRelease(false);
-        setConfirmationInput("");
-    };
-
-    const handleConfirmRelease = () => {
-        if (confirmationInput.toUpperCase() === "LIBERAR") {
-            handleReleaseTicket();
-        } else {
-            toast.error("Texto de confirmación incorrecto.");
-        }
-    };
-
-    const handleReleaseTicket = async () => {
+    const handleReleaseClick = () => {
         if (!ticket) return;
+        setTicketToRelease(ticket);
+        setShowConfirmDialog(true);
+    };
 
+    const handleConfirmRelease = async () => {
+        if (!ticketToRelease) return;
+        
         setLoading(true);
-        const { id, numero_ticket } = ticket;
+        setIsReleasing(true);
+        setShowConfirmDialog(false);
+        
+        const { id, numero_ticket } = ticketToRelease;
 
         console.log('Deleting ticket:', { id, numero_ticket });
 
@@ -212,8 +206,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
             toast.error('Error inesperado al liberar el ticket');
         } finally {
             setLoading(false);
-            setIsConfirmingRelease(false);
-            setConfirmationInput("");
+            setIsReleasing(false);
         }
     };
 
@@ -250,31 +243,6 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
 
     return (
         <>
-            {isConfirmingRelease && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-                    <div className="bg-[#181c24] rounded-lg p-6 space-y-4 shadow-lg">
-                        <h3 className="text-lg font-bold text-white">Confirmar Liberación</h3>
-                        <p className="text-gray-400">Para liberar este ticket, escribe "LIBERAR" en el campo de abajo.</p>
-                        <input
-                            type="text"
-                            value={confirmationInput}
-                            onChange={(e) => setConfirmationInput(e.target.value)}
-                            className="w-full bg-[#23283a] text-white rounded-md p-2 border border-[#23283a] focus:ring-2 focus:ring-[#7c3bed] focus:border-[#7c3bed] outline-none"
-                            placeholder="LIBERAR"
-                        />
-                        <div className="flex justify-end gap-4 pt-2">
-                            <button onClick={handleCancelRelease} className="text-gray-400 hover:text-white px-4 py-2 rounded-md transition-colors">Cancelar</button>
-                            <button
-                                onClick={handleConfirmRelease}
-                                disabled={confirmationInput.toUpperCase() !== "LIBERAR"}
-                                className="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Confirmar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
             <div ref={ticketRef} className="bg-[#0f131b] border border-[#23283a] rounded-lg p-4 sm:p-6 space-y-4">
                 {generatedTicketInfo ? (
                     <>
@@ -317,7 +285,9 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                 )}
             </div>
             <div className="fixed inset-0 z-40 bg-black/60 transition-opacity duration-300" onClick={handleClose} />
-            <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-[#181c24] border-l border-[#23283a] shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isAnimating ? 'translate-x-0' : 'translate-x-full'} overflow-hidden`}>
+            <div
+                className={`fixed top-0 right-0 h-full w-full max-w-md bg-[#181c24] border-l border-[#23283a] shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isAnimating ? 'translate-x-0' : 'translate-x-full'} overflow-hidden`}
+            >
                 <div className="flex flex-col h-full">
                     {/* Header */}
                     <div className="flex items-center justify-between p-4 border-b border-[#23283a] bg-[#0f131b] flex-shrink-0">
@@ -418,11 +388,60 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                             <button onClick={() => handleUpdateSingleTicketStatus("pagado")} disabled={loading || ticket.estado_ticket === 'pagado'} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Pagado</button>
                             <button onClick={() => handleUpdateSingleTicketStatus("apartado")} disabled={loading || ticket.estado_ticket === 'apartado'} className="w-full bg-yellow-500 hover:bg-yellow-600 text-yellow-900 py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Apartado</button>
                             <button onClick={() => handleUpdateSingleTicketStatus("familiares")} disabled={loading || ticket.estado_ticket === 'familiares'} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Familiar</button>
-                            <button onClick={handlePromptRelease} disabled={loading} className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Liberar</button>
+                            <button 
+                                onClick={handleReleaseClick} 
+                                disabled={loading || isReleasing} 
+                                className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            >
+                                {isReleasing ? 'Liberando...' : 'Liberar'}
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Diálogo de confirmación personalizado */}
+            {showConfirmDialog && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+                    <div className="bg-[#1e2139] rounded-xl max-w-md w-full p-6 shadow-2xl border border-red-500/30">
+                        <div className="flex flex-col items-center text-center">
+                            <div className="bg-red-500/20 p-3 rounded-full mb-4">
+                                <ExclamationTriangleIcon className="h-8 w-8 text-red-400" />
+                            </div>
+                            <h3 className="text-xl font-bold text-white mb-2">¿Estás seguro?</h3>
+                            <p className="text-gray-300 mb-6">
+                                El ticket #{ticketToRelease?.numero_ticket} será liberado.
+                                <span className="block text-red-400 mt-1">Esta acción no se puede deshacer.</span>
+                            </p>
+                            
+                            <div className="flex gap-3 w-full">
+                                <button
+                                    onClick={() => setShowConfirmDialog(false)}
+                                    className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2.5 px-4 rounded-lg font-medium transition-colors"
+                                    disabled={loading}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleConfirmRelease}
+                                    className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+                                    disabled={loading}
+                                >
+                                    {isReleasing ? (
+                                        <>
+                                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Liberando...
+                                        </>
+                                    ) : 'Sí, liberar'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }
