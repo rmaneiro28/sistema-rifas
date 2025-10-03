@@ -15,16 +15,30 @@ export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa }
     }
   }, [isOpen]);
 
+  const getTimeBasedGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Buenos días';
+    if (hour < 19) return 'Buenas tardes';
+    return 'Buenas noches';
+  };
+
   const handleSend = () => {
     if (!players || players.length === 0) return;
     const player = players[currentIndex];
 
+    const greeting = getTimeBasedGreeting();
     const nombreRifa = rifa?.nombre || "esta rifa";
     const fechaSorteo = rifa?.fecha_fin ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "próximamente";
     const nombreEmpresa = empresa?.nombre_empresa || "nuestro equipo";
     const ticketsList = player.tickets.join(', ');
     const amount = player.tickets.length * rifa.precio_ticket;
-    const message = `Hola! Buenas Tardes ${player.nombre}, le escribimos de ${nombreEmpresa}. Paso por aquí recordando el pago de sus números (${ticketsList}) para la rifa del ${nombreRifa}, por un monto de $${amount}. El sorteo será este ${fechaSorteo}.\n\n‼De no cancelar a tiempo su número puede pasar a rezagado‼`;
+    
+    // Mensaje que se enviará por WhatsApp
+    const message = `Hola! ${greeting} ${player.nombre}, le escribimos de ${nombreEmpresa}. Paso por aquí recordando el pago de sus números (${ticketsList}) para la rifa del ${nombreRifa}, por un monto de $${amount}. El sorteo será este ${fechaSorteo}.\n\n‼De no cancelar a tiempo su número puede pasar a rezagado‼`;
+    
+    // Mostrar ejemplo en consola
+    const exampleMessage = `[Ejemplo de mensaje]\n\n${message}`;
+    console.log(exampleMessage);
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${player.telefono.replace(/\D/g, '')}?text=${encodedMessage}`;
 
