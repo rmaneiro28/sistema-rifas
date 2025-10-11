@@ -187,6 +187,26 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets, rifa }) {
                                         </p>
                                     </div>
                                 </div>
+                                
+                                {rifa?.fecha_fin && (
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex-shrink-0 w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                                            <CalendarIcon className="w-5 h-5 text-purple-400" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-gray-400">Fecha del Sorteo</p>
+                                            <p className="text-white font-semibold">
+                                                {new Date(rifa.fecha_fin).toLocaleDateString('es-ES', {
+                                                    year: 'numeric',
+                                                    month: 'long',
+                                                    day: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                         

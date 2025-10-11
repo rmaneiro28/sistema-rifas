@@ -36,37 +36,24 @@ const calculatePlayerStatus = (jugador, isWinner, winnerInfo, ultimaActividad) =
     };
   }
   
-  // 2. Si tiene tickets comprados recientemente (últimos 30 días)
-  if (jugador.total_tickets_comprados > 0 && diasInactividad <= 30) {
+  // Si es ganador, siempre tiene prioridad
+  if (isWinner) {
     return {
-      status: 'active',
-      badge: 'ACTIVO',
-      color: 'bg-[#23283a] text-white',
-      description: `${jugador.total_tickets_comprados} ticket(s) comprado(s)`,
-      premio: null,
-      numero_ganador: null
+      status: 'winner',
+      badge: 'GANADOR',
+      color: 'bg-[#0ea5e9] text-white',
+      description: `Ganó: ${winnerInfo?.premio || 'Premio'}`,
+      premio: winnerInfo?.premio || null,
+      numero_ganador: winnerInfo?.numero_ganador || null
     };
   }
   
-  // 3. Si tiene tickets pero está inactivo (más de 30 días sin actividad)
-  if (jugador.total_tickets_comprados > 0 && diasInactividad > 30) {
-    return {
-      status: 'inactive',
-      badge: 'INACTIVO',
-      color: 'bg-[#6b7280] text-white',
-      description: `Inactivo hace ${diasInactividad} día(s)`,
-      premio: null,
-      numero_ganador: null
-    };
-  }
-  
-  
-  // Status por defecto
+  // Si no hay información de tickets, mostrar como inactivo
   return {
-    status: 'active',
-    badge: 'ACTIVO',
-    color: 'bg-[#23283a] text-white',
-    description: 'Jugador registrado',
+    status: 'inactive',
+    badge: 'SIN TICKETS',
+    color: 'bg-gray-600 text-white',
+    description: 'Sin tickets asignados',
     premio: null,
     numero_ganador: null
   };
@@ -114,19 +101,29 @@ export function Jugadores() {
         return;
       }
       
-      // Obtener última actividad de cada jugador (último ticket comprado)
-      const { data: lastActivity, error: activityError } = await supabase
+      // Obtener tickets de la rifa actual con su estado de pago
+      const { data: tickets, error: ticketsError } = await supabase
         .from("t_tickets")
-        .select("jugador_id, created_at")
-        .eq("empresa_id", empresaId)
-        .order("created_at", { ascending: false });
+        .select("id, jugador_id, estado, rifa_id")
+        .eq("empresa_id", empresaId);
       
-      if (activityError) {
-        console.error("Error fetching last activity:", activityError);
-        toast.error("Error al cargar actividad de jugadores.");
+      if (ticketsError) {
+        console.error("Error fetching tickets:", ticketsError);
+        toast.error("Error al cargar información de tickets.");
         setLoading(false);
         return;
       }
+      
+      // Agrupar tickets por jugador
+      const ticketsPorJugador = {};
+      tickets?.forEach(ticket => {
+        if (ticket.jugador_id) {
+          if (!ticketsPorJugador[ticket.jugador_id]) {
+            ticketsPorJugador[ticket.jugador_id] = [];
+          }
+          ticketsPorJugador[ticket.jugador_id].push(ticket);
+        }
+      });
       
       // Crear un mapa de ganadores para búsqueda rápida
       const winnersMap = new Map();
@@ -134,31 +131,62 @@ export function Jugadores() {
         winnersMap.set(winner.jugador_id, winner);
       });
       
-      // Crear un mapa de última actividad
-      const lastActivityMap = new Map();
-      lastActivity.forEach(ticket => {
-        if (!lastActivityMap.has(ticket.jugador_id)) {
-          lastActivityMap.set(ticket.jugador_id, ticket.created_at);
-        }
-      });
-      
       // Procesar jugadores y asignar status dinámico
       const processedPlayers = players.map(jugador => {
         const isWinner = winnersMap.has(jugador.id);
         const winnerInfo = winnersMap.get(jugador.id);
-        const ultimaActividad = lastActivityMap.get(jugador.id);
+        const ticketsJugador = ticketsPorJugador[jugador.id] || [];
         
-        // Calcular status dinámico
-        const statusInfo = calculatePlayerStatus(jugador, isWinner, winnerInfo, ultimaActividad);
+        // Verificar si el jugador tiene tickets
+        const tieneTickets = ticketsJugador.length > 0;
+        
+        // Verificar si todos los tickets están pagados
+        const todosPagados = tieneTickets && 
+          ticketsJugador.every(ticket => ticket.estado === 'pagado');
+        
+        // Verificar si tiene tickets por pagar
+        const tienePorPagar = tieneTickets && 
+          ticketsJugador.some(ticket => ticket.estado !== 'pagado');
+        
+        // Determinar el estado del jugador
+        let status = 'inactive';
+        let badge = 'SIN TICKETS';
+        let color = 'bg-gray-600 text-white';
+        let description = 'Sin tickets asignados';
+        
+        if (isWinner) {
+          status = 'winner';
+          badge = 'GANADOR';
+          color = 'bg-[#0ea5e9] text-white';
+          description = `Ganó: ${winnerInfo?.premio || 'Premio'}`;
+        } else if (todosPagados) {
+          status = 'active';
+          badge = 'PAGADO';
+          color = 'bg-green-600 text-white';
+          description = 'Todos los tickets pagados';
+        } else if (tienePorPagar) {
+          status = 'inactive';
+          badge = 'POR PAGAR';
+          color = 'bg-yellow-600 text-white';
+          description = 'Tiene tickets pendientes de pago';
+        }
         
         return {
           ...jugador,
-          ...statusInfo,
+          status,
+          badge,
+          color,
+          description,
+          premio: isWinner ? (winnerInfo?.premio || null) : null,
+          numero_ganador: isWinner ? (winnerInfo?.numero_ganador || null) : null,
           numeros_favoritos: Array.isArray(jugador.numeros_favoritos)
             ? jugador.numeros_favoritos
             : typeof jugador.numeros_favoritos === "string"
               ? jugador.numeros_favoritos.split(",").map(n => n.trim()).filter(Boolean)
-              : []
+              : [],
+          tieneTickets,
+          todosPagados,
+          tienePorPagar
         };
       });
       
@@ -180,8 +208,12 @@ export function Jugadores() {
     let filtered = [...players];
     
     // Aplicar filtros
-    if (isActive !== "all") {
-      filtered = filtered.filter((p) => p.status === isActive);
+    if (isActive === "active") {
+      filtered = filtered.filter((p) => p.todosPagados);
+    } else if (isActive === "inactive") {
+      filtered = filtered.filter((p) => p.tienePorPagar);
+    } else if (isActive === "winner") {
+      filtered = filtered.filter((p) => p.status === 'winner');
     }
 
     if (search.trim() !== "") {
@@ -369,13 +401,13 @@ export function Jugadores() {
             Todos
           </button>
           <button onClick={() => handleFilter("active")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "active" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
-            Activos
+            Pagados
           </button>
           <button onClick={() => handleFilter("winner")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "winner" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
             Ganadores
           </button>
           <button onClick={() => handleFilter("inactive")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "inactive" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
-            Inactivos
+            Por Pagar
           </button>
         </div>
       </div>
