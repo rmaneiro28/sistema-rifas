@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { XMarkIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { supabase } from "../api/supabaseClient";
 
-export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa }) {
+export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa, empresaId }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [hasSent, setHasSent] = useState(false);
 
@@ -22,7 +23,7 @@ export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa }
     return 'Buenas noches';
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!players || players.length === 0) return;
     const player = players[currentIndex];
 
@@ -43,6 +44,56 @@ export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa }
     const whatsappUrl = `https://wa.me/${player.telefono.replace(/\D/g, '')}?text=${encodedMessage}`;
 
     window.open(whatsappUrl, '_blank');
+
+    // Guardar en la base de datos que se envió el recordatorio
+    try {
+      // Verificar que la rifa existe antes de intentar guardar
+      const { data: rifaCheck, error: rifaError } = await supabase
+        .from('t_rifas')
+        .select('id_rifa')
+        .eq('id_rifa', rifa.id_rifa)
+        .eq('empresa_id', empresaId)
+        .single();
+
+      if (rifaError || !rifaCheck) {
+        console.error('Rifa no encontrada o error:', rifaError);
+        toast.error('Error: La rifa especificada no existe o no tienes permisos');
+        return;
+      }
+
+      // Verificar que el jugador existe
+      const { data: jugadorCheck, error: jugadorError } = await supabase
+        .from('t_jugadores')
+        .select('id')
+        .eq('id', player.id)
+        .eq('empresa_id', empresaId)
+        .single();
+
+      if (jugadorError || !jugadorCheck) {
+        console.error('Jugador no encontrado o error:', jugadorError);
+        toast.error('Error: El jugador especificado no existe o no tienes permisos');
+        return;
+      }
+
+      const { error } = await supabase.from('t_recordatorios_enviados').insert({
+        rifa_id: rifa.id_rifa,
+        jugador_id: player.id,
+        telefono_destino: player.telefono,
+        mensaje: message,
+        empresa_id: empresaId
+      });
+
+      if (error) {
+        console.error('Error saving reminder:', error);
+        toast.error(`Error al guardar el recordatorio enviado: ${error.message}`);
+      } else {
+        toast.success('Recordatorio enviado y guardado correctamente');
+      }
+    } catch (error) {
+      console.error('Error saving reminder:', error);
+      toast.error('Error al guardar el recordatorio enviado');
+    }
+
     setHasSent(true);
   };
 

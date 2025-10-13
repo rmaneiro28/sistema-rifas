@@ -167,7 +167,11 @@ export function DetalleRifa() {
           telefono_jugador: existingTicket.telefono,
           cedula_jugador: existingTicket.cedula,
           fecha_pago: existingTicket.fecha_pago,
-          rifa_id: existingTicket.rifa_id
+          rifa_id: existingTicket.rifa_id,
+          monto_total: existingTicket.monto_total || rifa?.precio_ticket || 0,
+          saldo_pendiente: existingTicket.saldo_pendiente || rifa?.precio_ticket || 0,
+          metodo_pago: existingTicket.metodo_pago || 'N/A',
+          referencia_pago: existingTicket.referencia_pago || existingTicket.referencia || 'N/A'
         };
       } else {
         // This ticket number is not in the database, so it's available.
@@ -464,12 +468,13 @@ export function DetalleRifa() {
     }
   };
 
-  const handleSendReminders = () => {
+  const handleSendReminders = async () => {
     const playersWithReservedTickets = allTickets
       .filter(ticket => ticket.estado_ticket === 'apartado' && ticket.jugador_id)
       .reduce((acc, ticket) => {
         if (!acc[ticket.jugador_id]) {
           acc[ticket.jugador_id] = {
+            id: ticket.jugador_id,
             nombre: ticket.nombre_jugador,
             telefono: ticket.telefono_jugador,
             tickets: []
@@ -486,8 +491,48 @@ export function DetalleRifa() {
       return;
     }
 
-    setPlayersToRemind(playersArray);
-    setShowReminderModal(true);
+    // Filtrar jugadores que no han recibido recordatorio
+    try {
+      // Primero verificar si la tabla existe
+      const { error: tableCheckError } = await supabase
+        .from('t_recordatorios_enviados')
+        .select('id')
+        .limit(1);
+
+      if (tableCheckError && tableCheckError.code === 'PGRST116') {
+        // La tabla no existe, usar todos los jugadores
+        console.log('Tabla t_recordatorios_enviados no existe, usando todos los jugadores');
+        setPlayersToRemind(playersArray);
+        setShowReminderModal(true);
+        return;
+      }
+
+      const { data: sentReminders, error } = await supabase
+        .from('t_recordatorios_enviados')
+        .select('jugador_id')
+        .eq('rifa_id', id)
+        .eq('empresa_id', empresaId);
+
+      if (error) {
+        console.error('Error fetching sent reminders:', error);
+        toast.error('Error al verificar recordatorios enviados');
+        return;
+      }
+
+      const sentPlayerIds = new Set(sentReminders.map(r => r.jugador_id));
+      const playersToRemind = playersArray.filter(player => !sentPlayerIds.has(player.id));
+
+      if (playersToRemind.length === 0) {
+        toast.info("Todos los jugadores ya han recibido recordatorio.");
+        return;
+      }
+
+      setPlayersToRemind(playersToRemind);
+      setShowReminderModal(true);
+    } catch (error) {
+      console.error('Error filtering players:', error);
+      toast.error('Error al filtrar jugadores para recordar');
+    }
   };
 
   useEffect(() => {
@@ -859,6 +904,7 @@ export function DetalleRifa() {
         players={playersToRemind}
         rifa={rifa}
         empresa={empresa}
+        empresaId={empresaId}
       />
     </div>
   );

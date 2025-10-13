@@ -7,11 +7,14 @@ import {
     UserIcon,
     ChatBubbleLeftRightIcon,
     DocumentDuplicateIcon,
-    ExclamationTriangleIcon
+    ExclamationTriangleIcon,
+    CurrencyDollarIcon,
+    PlusIcon
 } from "@heroicons/react/24/outline";
 import { toBlob } from "html-to-image";
 import logoRifasPlus from "../assets/RifasPlus.png";
 import { useAuth } from "../context/AuthContext";
+import { PaymentForm } from "./PaymentForm";
 
 const formatTicketNumber = (number, totalTickets) => {
     if (number === null || number === undefined || !totalTickets) return "N/A";
@@ -39,6 +42,8 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
     const [isReleasing, setIsReleasing] = useState(false);
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
     const [ticketToRelease, setTicketToRelease] = useState(null);
+    const [showPaymentForm, setShowPaymentForm] = useState(false);
+    const [ticketPaymentInfo, setTicketPaymentInfo] = useState(null);
     const ticketRef = useRef();
     const { empresaId } = useAuth();
     
@@ -96,8 +101,80 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         }
     }, [ticket, playerGroup, rifa]);
 
+    // Cargar información de pagos del ticket
+    useEffect(() => {
+        const loadPaymentInfo = async () => {
+            if (!ticket || !ticket.id) return;
+
+            try {
+                // Obtener información de pagos del ticket
+                const { data: payments, error: paymentsError } = await supabase
+                    .from('t_pagos')
+                    .select('*')
+                    .eq('ticket_id', ticket.id)
+                    .eq('empresa_id', empresaId)
+                    .order('fecha_pago', { ascending: false });
+
+                if (paymentsError) {
+                    console.error('Error loading payments:', paymentsError);
+                    return;
+                }
+
+                // Calcular totales
+                const montoTotal = rifa?.precio_ticket || 0;
+                const montoPagado = payments.reduce((sum, pago) => sum + pago.monto, 0);
+                const saldoPendiente = montoTotal - montoPagado;
+
+                setTicketPaymentInfo({
+                    montoTotal,
+                    montoPagado,
+                    saldoPendiente,
+                    payments,
+                    estadoPago: saldoPendiente <= 0 ? 'completado' : 'parcial'
+                });
+            } catch (error) {
+                console.error('Error loading payment info:', error);
+            }
+        };
+
+        loadPaymentInfo();
+    }, [ticket, rifa, empresaId]);
+
+    const handlePaymentSuccess = () => {
+        setShowPaymentForm(false);
+        onStatusUpdate(); // Refrescar datos del padre
+        // Recargar información de pagos
+        if (ticket && rifa) {
+            const loadPaymentInfo = async () => {
+                const { data: payments, error: paymentsError } = await supabase
+                    .from('t_pagos')
+                    .select('*')
+                    .eq('ticket_id', ticket.id)
+                    .eq('empresa_id', empresaId)
+                    .order('fecha_pago', { ascending: false });
+
+                if (!paymentsError) {
+                    const montoTotal = rifa?.precio_ticket || 0;
+                    const montoPagado = payments.reduce((sum, pago) => sum + pago.monto, 0);
+                    const saldoPendiente = montoTotal - montoPagado;
+
+                    setTicketPaymentInfo({
+                        montoTotal,
+                        montoPagado,
+                        saldoPendiente,
+                        payments,
+                        estadoPago: saldoPendiente <= 0 ? 'completado' : 'parcial'
+                    });
+                }
+            };
+            loadPaymentInfo();
+        }
+    };
+
     const handleClose = () => {
         setIsAnimating(false);
+        setShowPaymentForm(false);
+        setTicketPaymentInfo(null);
         setTimeout(() => {
             onClose();
         }, 300); // Wait for animation
@@ -448,6 +525,55 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                 </div>
                             )}
 
+                            {ticketPaymentInfo && (
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-semibold text-white flex items-center">
+                                        <CurrencyDollarIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />
+                                        Información de Pagos
+                                    </h3>
+                                    <div className="bg-[#23283a] rounded-lg p-4 space-y-3">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <span className="text-gray-400 text-sm">Total:</span>
+                                                <div className="text-white font-bold">${ticketPaymentInfo.montoTotal.toFixed(2)}</div>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-400 text-sm">Pagado:</span>
+                                                <div className="text-green-400 font-bold">${ticketPaymentInfo.montoPagado.toFixed(2)}</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-400 text-sm">Pendiente:</span>
+                                            <div className={`font-bold ${ticketPaymentInfo.saldoPendiente > 0 ? 'text-yellow-400' : 'text-green-400'}`}>
+                                                ${ticketPaymentInfo.saldoPendiente.toFixed(2)}
+                                            </div>
+                                        </div>
+                                        {ticketPaymentInfo.payments.length > 0 && (
+                                            <div className="mt-4">
+                                                <span className="text-gray-400 text-sm block mb-2">Historial de Pagos:</span>
+                                                <div className="space-y-2 max-h-32 overflow-y-auto">
+                                                    {ticketPaymentInfo.payments.slice(0, 3).map((pago, index) => (
+                                                        <div key={index} className="flex justify-between items-center text-sm bg-[#181c24] p-2 rounded">
+                                                            <span className="text-gray-300">
+                                                                ${pago.monto.toFixed(2)} - {pago.metodo_pago}
+                                                            </span>
+                                                            <span className="text-gray-400">
+                                                                {new Date(pago.fecha_pago).toLocaleDateString('es-ES')}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                    {ticketPaymentInfo.payments.length > 3 && (
+                                                        <div className="text-center text-gray-400 text-sm">
+                                                            +{ticketPaymentInfo.payments.length - 3} pagos más
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
                             {playerGroup && playerGroup.tickets && playerGroup.tickets.filter(t => t.numero_ticket_ticket !== ticket.numero_ticket_ticket).length > 0 && (
                                 <div className="space-y-4">
                                     <h3 className="text-lg font-semibold text-white">Otros números de este jugador</h3>
@@ -462,6 +588,26 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                             )}
                         </div>
                     </div>
+
+                    {/* Payment Actions */}
+                    {ticketPaymentInfo && ticketPaymentInfo.saldoPendiente > 0 && (
+                        <div className="p-4 border-t border-[#23283a] bg-[#0f131b]">
+                            <h3 className="text-base font-semibold text-white mb-3">
+                                Registrar Pago
+                            </h3>
+                            <div className="grid grid-cols-1 gap-2">
+                                <button
+                                    onClick={() => setShowPaymentForm(true)}
+                                    className="group relative overflow-hidden bg-gradient-to-r from-green-500 to-emerald-600 text-white py-2 px-3 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 text-sm"
+                                    title="Registrar pago parcial"
+                                >
+                                    <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+                                    <CurrencyDollarIcon className="w-4 h-4 relative z-10 group-hover:animate-pulse" />
+                                    <span className="relative z-10">Registrar Pago</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Share Actions */}
                     <div className="p-4 border-t border-[#23283a] bg-[#0f131b]">
@@ -510,6 +656,31 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     </div>
                 </div>
             </div>
+
+            {/* Payment Form Modal */}
+            {showPaymentForm && (
+                <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+                    <div className="bg-[#181c24] rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <PaymentForm
+                            ticket={{
+                                ...ticket,
+                                monto_total: ticketPaymentInfo?.montoTotal || rifa?.precio_ticket || 0,
+                                saldo_pendiente: ticketPaymentInfo?.saldoPendiente || rifa?.precio_ticket || 0
+                            }}
+                            onPaymentSuccess={handlePaymentSuccess}
+                            empresaId={empresaId}
+                        />
+                        <div className="p-4 border-t border-[#23283a] bg-[#0f131b]">
+                            <button
+                                onClick={() => setShowPaymentForm(false)}
+                                className="w-full bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg font-medium transition-colors"
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Diálogo de confirmación personalizado */}
             {showConfirmDialog && (

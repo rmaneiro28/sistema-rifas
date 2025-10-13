@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
 import { toPng, toBlob } from "html-to-image";
-import { UserIcon, TicketIcon, CreditCardIcon, MagnifyingGlassIcon, XMarkIcon, PaperAirplaneIcon, ArrowDownTrayIcon, ClipboardIcon } from "@heroicons/react/24/outline";
+import { UserIcon, TicketIcon, CreditCardIcon, MagnifyingGlassIcon, XMarkIcon, PaperAirplaneIcon, ArrowDownTrayIcon, ClipboardIcon, CheckCircleIcon, ClockIcon, DocumentTextIcon, ArrowLeftIcon, BanknotesIcon, DevicePhoneMobileIcon, CurrencyDollarIcon } from "@heroicons/react/24/outline";
 import JugadorFormModal from "./JugadorFormModal";
 import { useAuth } from "../context/AuthContext";
 
@@ -17,31 +17,33 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
     const [customNumero, setCustomNumero] = useState("");
     const [singleCustomNumberInput, setSingleCustomNumberInput] = useState("");
     const [generatedTicketInfo, setGeneratedTicketInfo] = useState(null);
-    const [metodoPago, setMetodoPago] = useState("Efectivo");
+    const [esAbono, setEsAbono] = useState(false);
+    const [metodoPago, setMetodoPago] = useState("efectivo");
     const [referenciaPago, setReferenciaPago] = useState("");
+    const [montoAbono, setMontoAbono] = useState("");
     const ticketRef = useRef();
     const { empresaId } = useAuth();
 
     const [empresa, setEmpresa] = useState("");
     useEffect(() => {
-    const fetchEmpresa = async () => {
-      if (empresaId) {
-        const { data: empresa, error } = await supabase
-          .from('t_empresas')
-          .select('nombre_empresa')
-          .eq('id_empresa', empresaId)
-          .single();
+        const fetchEmpresa = async () => {
+            if (empresaId) {
+                const { data: empresa, error } = await supabase
+                    .from('t_empresas')
+                    .select('nombre_empresa')
+                    .eq('id_empresa', empresaId)
+                    .single();
 
-        if (error) {
-          console.error('Error fetching empresa:', error);
-        } else if (empresa) {
-          setEmpresa(empresa.nombre_empresa);
-        }
-      }
-    };
+                if (error) {
+                    console.error('Error fetching empresa:', error);
+                } else if (empresa) {
+                    setEmpresa(empresa.nombre_empresa);
+                }
+            }
+        };
 
-    fetchEmpresa();
-  }, [empresaId]);
+        fetchEmpresa();
+    }, [empresaId]);
 
     useEffect(() => {
         if (isOpen) {
@@ -65,7 +67,6 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
         if (selectedJugador) {
             const jugador = jugadores.find(j => j.id == selectedJugador);
             const rawFavoritos = jugador?.numeros_favoritos || [];
-            // Formatear los números favoritos según el formato de la rifa
             const formattedFavoritos = rawFavoritos.map(num => formatTicketNumber(num, rifa?.total_tickets));
             setFavoritos(formattedFavoritos);
         } else {
@@ -73,7 +74,6 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
         }
     }, [selectedJugador, jugadores, rifa?.total_tickets]);
 
-    // Permitir guardar los números tal cual como texto (ej: '000', '0214')
     const numerosSeleccionados = useMemo(() => {
         return [...new Set(customNumero.split(',').map(n => n.trim()).filter(n => n.length > 0))];
     }, [customNumero]);
@@ -112,8 +112,10 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
         setCustomNumero("");
         setGeneratedTicketInfo(null);
         setWizardStep(1);
-        setMetodoPago("Efectivo");
+        setMetodoPago("efectivo");
         setReferenciaPago("");
+        setEsAbono(false);
+        setMontoAbono("");
         onClose();
     };
 
@@ -172,10 +174,9 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
             toast.error(`Ingresa un número válido.`);
             return;
         }
-        
-        // Formatear el número según el formato de la rifa
+
         const formattedNum = formatTicketNumber(num, rifa?.total_tickets);
-        
+
         if (numerosSeleccionados.includes(formattedNum)) {
             toast.info(`El número ${formattedNum} ya está en tu selección.`);
             setSingleCustomNumberInput("");
@@ -217,7 +218,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
             return;
         }
 
-        const { data: taken, error: checkError } = await 
+        const { data: taken, error: checkError } = await
         supabase.from("t_tickets")
         .select("numero, jugador_id")
         .eq("empresa_id", empresaId)
@@ -245,7 +246,6 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
             return;
         }
 
-        // Guardar los números con formato de ceros a la izquierda para asegurar unicidad
         const fechaApartado = new Date().toISOString();
         const { error: insertError } = await supabase.from("t_tickets").insert(
             numerosSeleccionados.map(numero => ({
@@ -272,31 +272,46 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
         const fechaPago = new Date().toISOString();
         const jugador = jugadores.find(j => j.id == selectedJugador);
         const montoTotal = rifa?.precio_ticket * numerosSeleccionados.length;
+        const montoDelPago = esAbono ? parseFloat(montoAbono) : montoTotal;
 
-        // 1. Update tickets to 'pagado'
+        if (esAbono && (!montoAbono || parseFloat(montoAbono) <= 0)) {
+            toast.error("Por favor ingresa un monto válido para el abono");
+            setLoading(false);
+            return;
+        }
+
+        if (esAbono && parseFloat(montoAbono) > montoTotal) {
+            toast.error("El monto del abono no puede ser mayor al total");
+            setLoading(false);
+            return;
+        }
+
+        const nuevoEstado = esAbono ? 'apartado' : 'pagado';
+
         const { error: updateError } = await supabase
             .from("t_tickets")
-            .update({ estado: "pagado", fecha_pago: fechaPago })
+            .update({ estado: nuevoEstado, fecha_pago: esAbono ? null : fechaPago })
             .eq("rifa_id", rifa.id_rifa)
             .eq("jugador_id", selectedJugador)
             .in("numero", numerosSeleccionados);
 
         if (updateError) {
-            toast.error("Error al confirmar el pago: " + updateError.message);
+            toast.error("Error al actualizar los tickets: " + updateError.message);
             setLoading(false);
             return;
         }
 
-        // 2. Create payment record in t_pagos
         const pagoData = {
             jugador_id: selectedJugador,
-            monto: montoTotal,
-            banco: metodoPago, // As per schema, using metodoPago for the non-nullable banco field.
+            monto: montoDelPago,
+            banco: metodoPago,
             telefono: jugador?.telefono || null,
             cedula: jugador?.cedula || null,
             referencia_bancaria: referenciaPago || null,
             metodo_pago: metodoPago,
             empresa_id: empresaId,
+            tipo_pago: esAbono ? 'abono' : 'completo',
+            notas: esAbono ? `Abono parcial de $${montoDelPago.toFixed(2)} (pendiente: $${(montoTotal - montoDelPago).toFixed(2)})` : null
         };
 
         const { error: pagoError } = await supabase.from("t_pagos").insert([pagoData]);
@@ -306,8 +321,11 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
             toast.error("El pago se confirmó, pero hubo un error al registrar el detalle del pago.");
         }
 
-        // 3. Proceed with UI update
-        toast.success(`Pago confirmado para ${jugador?.nombre}`);
+        const mensaje = esAbono
+            ? `Abono de $${montoDelPago.toFixed(2)} registrado para ${jugador?.nombre}`
+            : `Pago completo confirmado para ${jugador?.nombre}`;
+
+        toast.success(mensaje);
         onSuccess(true);
 
         setGeneratedTicketInfo({
@@ -316,8 +334,10 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
             rifa: rifa?.nombre,
             numeros: numerosSeleccionados,
             total: montoTotal.toFixed(2),
+            montoPagado: montoDelPago.toFixed(2),
             metodoPago: metodoPago,
             referencia: referenciaPago || 'N/A',
+            esAbono: esAbono,
             fecha: new Date()
         });
         setWizardStep(6);
@@ -354,9 +374,39 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
 
     const handleSendWhatsApp = () => {
         if (!generatedTicketInfo?.telefono) return toast.error("Este jugador no tiene un número de teléfono registrado.");
-        const { jugador, rifa: nombreRifa, numeros, total } = generatedTicketInfo;
-        const message = `Te escribimos de ${empresa}\nGracias por tu participación ${jugador}! 🎟️\nHas participado en la rifa *${nombreRifa}*.\n\n*Tus números son:* ${numeros.join(', ')}\n*Total Pagado:* $${total}\n\n¡Mucha suerte! 🍀`.trim().replace(/\n/g, '%0A');
-        const whatsappUrl = `https://wa.me/${generatedTicketInfo.telefono.replace(/\D/g, '')}?text=${message}`;
+
+        const { jugador, rifa: nombreRifa, numeros, total, montoPagado, esAbono } = generatedTicketInfo;
+        const ticketCount = numeros.length;
+        const pricePerTicket = rifa?.precio_ticket || 0;
+
+        const ticketNumbers = numeros.map(num => formatTicketNumber(num, rifa?.total_tickets)).join(', ');
+
+        let message = `*${empresa}*\n\n`;
+        message += `Hola ${jugador}! 👋\n\n`;
+        message += `*Rifa:* ${nombreRifa}\n`;
+        message += `*Fecha:* ${new Date().toLocaleDateString('es-ES')}\n\n`;
+        message += `*Tus números:* ${ticketNumbers}\n`;
+
+        if (esAbono) {
+            message += `*Estado del pago:* ⚠️ *Abono Parcial*\n`;
+            message += `*Total de tickets:* $${total}\n`;
+            message += `*Abono realizado:* $${montoPagado}\n`;
+            message += `*Saldo pendiente:* $${(parseFloat(total) - parseFloat(montoPagado)).toFixed(2)}\n\n`;
+            message += `*Recordatorio de pago pendiente:*\n`;
+            message += `Por favor, completa tu pago para asegurar tus números. Puedes realizar el pago restante mediante:\n`;
+            message += `• Transferencia bancaria\n`;
+            message += `• Efectivo en nuestras oficinas\n\n`;
+            message += `¡No pierdas la oportunidad de ganar! 🏆\n\n`;
+        } else {
+            message += `*Estado del pago:* ✅ *Completo*\n`;
+            message += `*Total pagado:* $${total}\n\n`;
+            message += `¡Muchas gracias por tu pago! Tu participación está confirmada. 🎉\n\n`;
+        }
+
+        message += `¡Mucha suerte! 🍀\n`;
+        message += `_Equipo ${empresa}_`;
+
+        const whatsappUrl = `https://wa.me/${generatedTicketInfo.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
         window.open(whatsappUrl, '_blank');
     };
 
@@ -370,7 +420,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4">
-            <div className={`bg-[#181c24] border border-[#23283a] rounded-xl w-full ${wizardStep === 4 ? 'max-w-lg' : wizardStep === 6 ? 'max-w-md' : 'max-w-lg'} p-6 shadow-2xl relative transform transition-all duration-300 scale-100 flex flex-col max-h-[90vh]`}>
+            <div className={`bg-[#181c24] border border-[#23283a] rounded-xl w-full ${wizardStep === 4 ? 'max-w-lg' : wizardStep === 6 ? 'max-w-sm' : 'max-w-lg'} p-4 shadow-2xl relative transform transition-all duration-300 scale-100 flex flex-col max-h-[90vh]`}>
                 <button onClick={handleClose} className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-[#23283a] z-10"><XMarkIcon className="w-5 h-5" /></button>
 
                 {wizardStep === 1 && (
@@ -429,39 +479,379 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
                 )}
 
                 {wizardStep === 4 && (
-                    <div className="space-y-6">
-                        <div className="text-center"><div className="bg-[#7c3bed]/20 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"><CreditCardIcon className="w-6 h-6 text-[#7c3bed]" /></div><h2 className="text-xl font-bold text-white mb-2">Registrar Pago</h2><p className="text-gray-400 text-sm">Selecciona el método de pago y confirma.</p></div>
-                        <div className="space-y-4">
-                            <div><label className="block text-sm font-medium text-gray-300 mb-2">Método de Pago</label><select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full bg-[#23283a] text-white rounded-lg px-4 py-3 border border-[#2d3748] focus:border-[#7c3bed] focus:outline-none transition-colors"><option>Efectivo</option><option>Transferencia</option><option>Pago Móvil</option><option>Zelle</option><option>Otro</option></select></div>
-                            {metodoPago !== 'Efectivo' && (<div><label className="block text-sm font-medium text-gray-300 mb-2">Referencia (opcional)</label><input type="text" value={referenciaPago} onChange={(e) => setReferenciaPago(e.target.value)} placeholder="Ej: 0123456789" className="w-full bg-[#23283a] text-white rounded-lg px-4 py-3 border border-[#2d3748] focus:border-[#7c3bed] focus:outline-none transition-colors" /></div>)}
+                    <div className="flex-1 flex flex-col min-h-0">
+                        {/* Header fijo */}
+                        <div className="flex-shrink-0 text-center space-y-2 pb-4 border-b border-gray-700">
+                            <div className="bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] w-12 h-12 rounded-full flex items-center justify-center mx-auto shadow-lg">
+                                <CreditCardIcon className="w-6 h-6 text-white" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-bold text-white">Registrar Pago</h2>
+                                <p className="text-gray-400 text-xs">Confirma tu método de pago</p>
+                            </div>
                         </div>
-                        <div className="bg-[#23283a] rounded-lg p-4 space-y-2"><div className="flex justify-between text-sm"><span className="text-gray-400">Jugador:</span><span className="text-white font-medium">{jugadores.find(j => j.id == selectedJugador)?.nombre} {jugadores.find(j => j.id == selectedJugador)?.apellido}</span></div><div className="flex justify-between text-sm"><span className="text-gray-400">Números:</span><span className="text-white font-medium">{numerosSeleccionados.length}</span></div><div className="flex justify-between text-lg font-bold"><span className="text-gray-300">Total:</span><span className="text-green-400">${(rifa?.precio_ticket * numerosSeleccionados.length).toFixed(2)}</span></div></div>
-                        <div className="flex justify-between items-center pt-4"><button onClick={() => setWizardStep(3)} className="px-4 py-2 rounded-lg bg-[#23283a] hover:bg-[#2d3748] text-white transition-colors">Atrás</button><button onClick={handleConfirmarPago} disabled={loading} className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center space-x-2">{loading ? (<><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div><span>Confirmando...</span></>) : (<span>Confirmar Pago</span>)}</button></div>
-                        <div className="flex space-x-2"><div className="w-2 h-2 bg-gray-600 rounded-full"></div><div className="w-2 h-2 bg-gray-600 rounded-full"></div><div className="w-2 h-2 bg-gray-600 rounded-full"></div><div className="w-2 h-2 bg-[#7c3bed] rounded-full"></div></div>
+
+                        {/* Contenido scrollable */}
+                        <div className="flex-1 overflow-y-auto py-4 space-y-4 scrollbar-thin scrollbar-thumb-[#7c3bed] scrollbar-track-[#23283a] hover:scrollbar-thumb-[#d54ff9]">
+                            {/* Tipo de Pago compacto */}
+                            <div className="bg-[#23283a] rounded-lg p-4 border border-[#2d3748]">
+                                <label className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+                                    <div className="w-2 h-2 bg-[#7c3bed] rounded-full"></div>
+                                    Tipo de Pago
+                                </label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setEsAbono(false)}
+                                        className={`p-3 rounded-lg border-2 transition-all ${
+                                            !esAbono
+                                                ? 'border-green-500 bg-green-500/10 text-green-400'
+                                                : 'border-[#2d3748] bg-[#181c24] text-gray-400 hover:border-gray-600'
+                                        }`}
+                                    >
+                                        <div className="text-center space-y-1">
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center mx-auto ${
+                                                !esAbono ? 'bg-green-500 text-white' : 'bg-gray-600 text-gray-400'
+                                            }`}>
+                                                <CheckCircleIcon className="w-4 h-4" />
+                                            </div>
+                                            <div className="text-xs font-medium">Pago Completo</div>
+                                            <div className="text-xs opacity-75">${(rifa?.precio_ticket * numerosSeleccionados.length).toFixed(2)}</div>
+                                        </div>
+                                        {!esAbono && (
+                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                                                <CheckCircleIcon className="w-2 h-2 text-white" />
+                                            </div>
+                                        )}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setEsAbono(true)}
+                                        className={`p-3 rounded-lg border-2 transition-all ${
+                                            esAbono
+                                                ? 'border-yellow-500 bg-yellow-500/10 text-yellow-400'
+                                                : 'border-[#2d3748] bg-[#181c24] text-gray-400 hover:border-gray-600'
+                                        }`}
+                                    >
+                                        <div className="text-center space-y-1">
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center mx-auto ${
+                                                esAbono ? 'bg-yellow-500 text-white' : 'bg-gray-600 text-gray-400'
+                                            }`}>
+                                                <ClockIcon className="w-4 h-4" />
+                                            </div>
+                                            <div className="text-xs font-medium">Abono Parcial</div>
+                                            <div className="text-xs opacity-75">Monto personalizado</div>
+                                        </div>
+                                        {esAbono && (
+                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center">
+                                                <ClockIcon className="w-2 h-2 text-white" />
+                                            </div>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Campo de monto del abono compacto */}
+                            {esAbono && (
+                                <div className="bg-[#23283a] rounded-lg p-4 border border-[#2d3748]">
+                                    <label className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                        Monto del Abono
+                                    </label>
+                                    <div className="space-y-3">
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <span className="text-gray-400 text-sm font-bold">$</span>
+                                            </div>
+                                            <input
+                                                type="number"
+                                                value={montoAbono}
+                                                onChange={(e) => setMontoAbono(e.target.value)}
+                                                placeholder="0.00"
+                                                min="0.01"
+                                                max={(rifa?.precio_ticket * numerosSeleccionados.length).toFixed(2)}
+                                                step="0.01"
+                                                className="w-full pl-8 pr-3 py-2 text-sm bg-[#181c24] border border-[#2d3748] rounded-lg text-white focus:border-yellow-500 focus:outline-none transition-colors"
+                                            />
+                                        </div>
+                                        <div className="flex justify-between text-xs text-gray-500">
+                                            <span>Mín: $0.01</span>
+                                            <span>Máx: ${(rifa?.precio_ticket * numerosSeleccionados.length).toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Método de pago compacto */}
+                            <div className="bg-[#23283a] rounded-lg p-4 border border-[#2d3748]">
+                                <label className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+                                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                    Método de Pago
+                                </label>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    {[
+                                        { id: 'efectivo', name: 'Efectivo', icon: BanknotesIcon, color: 'green' },
+                                        { id: 'transferencia', name: 'Transferencia', icon: ArrowDownTrayIcon, color: 'blue' },
+                                        { id: 'pago_movil', name: 'Pago Móvil', icon: DevicePhoneMobileIcon, color: 'purple' },
+                                        { id: 'zelle', name: 'Zelle', icon: CurrencyDollarIcon, color: 'yellow' },
+                                        { id: 'otro', name: 'Otro', icon: DocumentTextIcon, color: 'gray' }
+                                    ].map((metodo) => {
+                                        const Icon = metodo.icon;
+                                        const isSelected = metodoPago === metodo.name;
+                                        return (
+                                            <button
+                                                key={metodo.name}
+                                                type="button"
+                                                onClick={() => setMetodoPago(metodo.name)}
+                                                className={`group p-3 rounded-lg border-2 transition-all ${
+                                                    isSelected
+                                                        ? `border-${metodo.color}-500 bg-${metodo.color}-500/10`
+                                                        : 'border-[#2d3748] bg-[#181c24] hover:border-gray-600'
+                                                }`}
+                                            >
+                                                <div className="text-center space-y-1">
+                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center mx-auto ${
+                                                        isSelected ? `bg-${metodo.color}-500 text-white` : 'bg-gray-600 text-gray-400'
+                                                    }`}>
+                                                        <Icon className="w-3 h-3" />
+                                                    </div>
+                                                    <div className="text-xs font-medium text-white">{metodo.name}</div>
+                                                </div>
+                                                {isSelected && (
+                                                    <div className={`absolute -top-1 -right-1 w-3 h-3 bg-${metodo.color}-500 rounded-full flex items-center justify-center`}>
+                                                        <CheckCircleIcon className="w-1.5 h-1.5 text-white" />
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Referencia compacta */}
+                            {metodoPago !== 'efectivo' && (
+                                <div className="bg-[#23283a] rounded-lg p-4 border border-[#2d3748]">
+                                    <label className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                                        Número de Referencia
+                                        <span className="text-xs text-gray-400">(Opcional)</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={referenciaPago}
+                                        onChange={(e) => setReferenciaPago(e.target.value)}
+                                        placeholder="Ej: V-12345678"
+                                        className="w-full px-3 py-2 bg-[#181c24] border border-[#2d3748] rounded-lg text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none transition-colors text-sm"
+                                    />
+                                </div>
+                            )}
+
+                            {/* Resumen compacto */}
+                            {generatedTicketInfo && (
+                                <div className="bg-[#23283a] rounded-lg p-4 border border-[#2d3748] space-y-3">
+                                    <h3 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-[#7c3bed] rounded-full"></div>
+                                        Resumen del pago
+                                    </h3>
+                                    <div className="space-y-2 text-sm">
+                                        <div className="flex justify-between items-center py-2 px-3 bg-[#181c24] rounded border border-[#2d3748]">
+                                            <span className="text-gray-400 font-medium">Jugador:</span>
+                                            <span className="text-white font-bold text-sm max-w-32 truncate">{generatedTicketInfo.jugador}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-2 px-3 bg-[#181c24] rounded border border-[#2d3748]">
+                                            <span className="text-gray-400 font-medium">Números:</span>
+                                            <span className="text-white font-bold text-sm">{generatedTicketInfo.numeros.length}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-2 px-3 bg-[#181c24] rounded border border-[#2d3748]">
+                                            <span className="text-gray-400 font-medium">Precio x ticket:</span>
+                                            <span className="text-white font-bold text-sm">${rifa?.precio_ticket}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-2 px-3 bg-[#181c24] rounded border border-[#2d3748]">
+                                            <span className="text-gray-400 font-medium">Total:</span>
+                                            <span className="text-white font-bold text-sm">${generatedTicketInfo.total}</span>
+                                        </div>
+
+                                        {generatedTicketInfo.esAbono && (
+                                            <div className="flex justify-between items-center py-3 px-3 bg-yellow-900/20 border border-yellow-500/30 rounded">
+                                                <span className="text-yellow-400 font-bold text-sm">Abono:</span>
+                                                <span className="text-yellow-400 font-bold text-base">${generatedTicketInfo.montoPagado}</span>
+                                            </div>
+                                        )}
+
+                                        <div className={`flex justify-between items-center py-3 px-3 rounded text-lg font-bold ${
+                                            generatedTicketInfo.esAbono ? 'bg-yellow-900/20 border border-yellow-500/30 text-yellow-400' : 'bg-green-900/20 border border-green-500/30 text-green-400'
+                                        }`}>
+                                            <span>{generatedTicketInfo.esAbono ? 'Abono a pagar:' : 'Total pagado:'}</span>
+                                            <span>${generatedTicketInfo.total}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Botones fijos abajo */}
+                        <div className="flex-shrink-0 border-t border-gray-700 pt-4 mt-auto">
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <button
+                                    onClick={() => setWizardStep(3)}
+                                    className="flex-1 px-4 py-2 rounded-lg bg-[#23283a] hover:bg-[#2d3748] text-white transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <ArrowLeftIcon className="w-4 h-4" />
+                                    <span className="text-sm">Atrás</span>
+                                </button>
+                                <button
+                                    onClick={handleConfirmarPago}
+                                    disabled={loading || (esAbono && (!montoAbono || parseFloat(montoAbono) <= 0))}
+                                    className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {loading ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                            <span className="text-sm">Procesando...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircleIcon className="w-4 h-4" />
+                                            <span className="text-sm">{esAbono ? 'Registrar Abono' : 'Confirmar Pago'}</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+
+                            {/* Indicadores de progreso */}
+                            <div className="flex justify-center space-x-2 mt-4">
+                                <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                                <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                                <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                                <div className="w-2 h-2 bg-[#7c3bed] rounded-full"></div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
                 {wizardStep === 6 && generatedTicketInfo && (
-                    <div className="flex-1 flex flex-col space-y-6 overflow-y-auto">
-                        <div className="text-center"><div className="bg-green-500/20 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"><TicketIcon className="w-6 h-6 text-green-500" /></div><h2 className="text-xl font-bold text-white mb-2">¡Registro Exitoso!</h2><p className="text-gray-400 text-sm">Este es el resumen de tu participación en la rifa.</p></div>
-                        <div ref={ticketRef} className="bg-[#0f131b] border border-[#23283a] rounded-lg p-4 sm:p-6 space-y-4">
-                            <div className="text-center border-b border-solid border-gray-600 pb-4"><h3 className="text-lg font-bold text-[#7c3bed]">{generatedTicketInfo.rifa}</h3><p className="text-xs text-gray-400">Comprobante de Participación</p></div>
-                            <div className="space-y-3 text-sm">
-                                <div className="flex flex-col sm:flex-row sm:justify-between"><span className="text-gray-400">Jugador:</span><span className="text-white font-medium text-left sm:text-right">{generatedTicketInfo.jugador}</span></div>
-                                <div className="flex flex-col sm:flex-row sm:justify-between"><span className="text-gray-400">Teléfono:</span><span className="text-white text-left sm:text-right">{generatedTicketInfo.telefono || 'N/A'}</span></div>
-                                <div className="flex flex-col sm:flex-row sm:justify-between"><span className="text-gray-400">Método de Pago:</span><span className="text-white text-left sm:text-right">{generatedTicketInfo.metodoPago}</span></div>
-                                {generatedTicketInfo.referencia && generatedTicketInfo.referencia !== 'N/A' && (<div className="flex flex-col sm:flex-row sm:justify-between"><span className="text-gray-400">Referencia:</span><span className="text-white text-left sm:text-right">{generatedTicketInfo.referencia}</span></div>)}
-                                <div className="flex flex-col sm:flex-row sm:justify-between"><span className="text-gray-400">Fecha:</span><span className="text-white text-left sm:text-right">{generatedTicketInfo.fecha.toLocaleDateString('es-ES')}</span></div>
-                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center"><span className="text-gray-400">Total Pagado:</span><span className="text-green-400 font-bold text-lg sm:text-base">${generatedTicketInfo.total}</span></div>
+                    <div className="flex-1 flex flex-col min-h-0">
+                        {/* Header fijo */}
+                        <div className="flex-shrink-0 text-center pb-4 border-b border-gray-700">
+                            <div className="bg-green-500/20 w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <TicketIcon className="w-5 h-5 text-green-500" />
                             </div>
-                            <div className="border-t border-solid border-gray-600 pt-4"><p className="text-gray-400 text-sm mb-2">Números Adquiridos:</p><div className="flex flex-wrap gap-2 justify-center">{generatedTicketInfo.numeros.map(num => (<span key={num} className="bg-[#7c3bed] text-white font-mono font-bold px-3 py-1.5 rounded-md text-base">{formatTicketNumber(num, rifa?.total_tickets)}</span>))}</div></div>
-                            <div className="text-center pt-4 mt-4 border-t border-gray-700"><p className="text-xs text-gray-500">¡Mucha suerte! 🍀</p></div>
+                            <h2 className="text-lg font-bold text-white mb-1">¡Registro Exitoso!</h2>
+                            <p className="text-gray-400 text-xs">Comprobante de participación</p>
                         </div>
-                        <div className="max-md:flex max-md:flex-col sm:grid sm:grid-cols-2 gap-3 pt-4">
-                            <button onClick={handleDownloadTicket} className="bg-green-600 hover:bg-green-700 text-white px-4 py-3 sm:py-2 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2"><ArrowDownTrayIcon className="w-5 h-5" /><span>Descargar</span></button>
-                            <button onClick={handleCopyTicket} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 sm:py-2 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2"><ClipboardIcon className="w-5 h-5" /><span>Copiar</span></button>
-                            <button onClick={handleSendWhatsApp} disabled={!generatedTicketInfo?.telefono} className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-3 sm:py-2 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"><PaperAirplaneIcon className="w-5 h-5" /><span>WhatsApp</span></button>
-                            <button onClick={handleClose} className="px-4 py-3 sm:py-2 rounded-lg bg-[#23283a] hover:bg-[#2d3748] text-white transition-colors font-semibold">Finalizar</button>
+
+                        {/* Contenido scrollable */}
+                        <div className="flex-1 overflow-y-auto py-4 space-y-4 scrollbar-thin scrollbar-thumb-[#7c3bed] scrollbar-track-[#23283a] hover:scrollbar-thumb-[#d54ff9]">
+                            {/* Ticket compacto */}
+                            <div ref={ticketRef} className="bg-[#0f131b] border border-[#23283a] rounded-lg p-3 space-y-3">
+                                {/* Header del ticket */}
+                                <div className="text-center border-b border-gray-600 pb-2">
+                                    <h3 className="text-lg font-bold text-[#7c3bed] mb-1">{generatedTicketInfo.rifa}</h3>
+                                    <p className="text-xs text-gray-400">Comprobante de Participación</p>
+                                </div>
+
+                                {/* Información del jugador - Diseño adaptativo */}
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div className="min-h-0">
+                                        <span className="text-gray-400 block text-xs">Jugador:</span>
+                                        <span className="text-white font-medium truncate text-xs leading-tight">{generatedTicketInfo.jugador}</span>
+                                    </div>
+                                    <div className="min-h-0">
+                                        <span className="text-gray-400 block text-xs">Teléfono:</span>
+                                        <span className="text-white text-xs leading-tight">{generatedTicketInfo.telefono || 'N/A'}</span>
+                                    </div>
+                                    <div className="min-h-0">
+                                        <span className="text-gray-400 block text-xs">Método:</span>
+                                        <span className="text-white text-xs leading-tight">{generatedTicketInfo.metodoPago}</span>
+                                    </div>
+                                    <div className="min-h-0">
+                                        <span className="text-gray-400 block text-xs">Fecha:</span>
+                                        <span className="text-white text-xs leading-tight">{generatedTicketInfo.fecha.toLocaleDateString('es-ES')}</span>
+                                    </div>
+                                    {generatedTicketInfo.referencia && generatedTicketInfo.referencia !== 'N/A' && (
+                                        <div className="col-span-2 min-h-0">
+                                            <span className="text-gray-400 block text-xs">Referencia:</span>
+                                            <span className="text-white text-xs leading-tight">{generatedTicketInfo.referencia}</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Información específica de abonos - Diseño adaptativo */}
+                                {generatedTicketInfo.esAbono ? (
+                                    <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-2 space-y-1">
+                                        <div className="text-center">
+                                            <span className="text-yellow-400 font-medium text-xs">⚠️ Abono Parcial</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <div className="text-center">
+                                                <span className="text-gray-400 text-xs">Total:</span>
+                                                <div className="text-white text-sm font-medium">${generatedTicketInfo.total}</div>
+                                            </div>
+                                            <div className="text-center">
+                                                <span className="text-gray-400 text-xs">Abonado:</span>
+                                                <div className="text-yellow-400 text-sm font-bold">${generatedTicketInfo.montoPagado}</div>
+                                            </div>
+                                            <div className="col-span-2 text-center">
+                                                <span className="text-gray-400 text-xs">Pendiente:</span>
+                                                <div className="text-red-400 text-sm font-bold">${(parseFloat(generatedTicketInfo.total) - parseFloat(generatedTicketInfo.montoPagado)).toFixed(2)}</div>
+                                            </div>
+                                        </div>
+                                        <p className="text-yellow-400 text-xs text-center mt-1 leading-tight">
+                                            Debes completar el pago restante para confirmar tu participación
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="text-center border-t border-gray-700 pt-2">
+                                        <div className="text-gray-400 text-sm mb-1">Total Pagado:</div>
+                                        <div className="text-green-400 font-bold text-lg">${generatedTicketInfo.total}</div>
+                                    </div>
+                                )}
+
+                                {/* Números adquiridos - Diseño adaptativo */}
+                                <div className="border-t border-gray-600 pt-2">
+                                    <p className="text-gray-400 text-xs mb-2 text-center">Números Adquiridos:</p>
+                                    <div className="flex flex-wrap gap-1 justify-center ">
+                                        {generatedTicketInfo.numeros.map(num => {
+                                            const numeroCount = generatedTicketInfo.numeros.length;
+                                            const numeroSize = numeroCount <= 5 ? 'text-base' : numeroCount <= 10 ? 'text-sm' : numeroCount <= 20 ? 'text-xs' : 'text-xs';
+                                            const paddingSize = numeroCount <= 5 ? 'px-3 py-1.5' : numeroCount <= 10 ? 'px-2 py-1' : numeroCount <= 20 ? 'px-2 py-0.5' : 'px-1.5 py-0.5';
+
+                                            return (
+                                                <span key={num} className={`bg-[#7c3bed] text-white font-mono font-bold rounded ${paddingSize} ${numeroSize}`}>
+                                                    {formatTicketNumber(num, rifa?.total_tickets)}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Mensaje de suerte - Diseño compacto */}
+                                <div className="text-center pt-2 border-t border-gray-700">
+                                    <p className="text-xs text-gray-500">¡Mucha suerte! 🍀</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Botones de acción - Diseño compacto */}
+                        <div className="flex-shrink-0 border-t border-gray-700 pt-4">
+                            <div className="grid grid-cols-2 gap-2">
+                                <button onClick={handleDownloadTicket} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg font-semibold transition-all flex items-center justify-center gap-1 text-sm">
+                                    <ArrowDownTrayIcon className="w-4 h-4" />
+                                    <span>Descargar</span>
+                                </button>
+                                <button onClick={handleCopyTicket} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-semibold transition-all flex items-center justify-center gap-1 text-sm">
+                                    <ClipboardIcon className="w-4 h-4" />
+                                    <span>Copiar</span>
+                                </button>
+                                <button onClick={handleSendWhatsApp} disabled={!generatedTicketInfo?.telefono} className="bg-teal-500 hover:bg-teal-600 text-white px-3 py-2 rounded-lg font-semibold transition-all flex items-center justify-center gap-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <PaperAirplaneIcon className="w-4 h-4" />
+                                    <span>WhatsApp</span>
+                                </button>
+                                <button onClick={handleClose} className="px-3 py-2 rounded-lg bg-[#23283a] hover:bg-[#2d3748] text-white transition-colors font-semibold text-sm">
+                                    Finalizar
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
