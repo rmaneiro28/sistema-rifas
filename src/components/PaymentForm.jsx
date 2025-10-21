@@ -88,7 +88,7 @@ const METODOS_PAGO = [
   }
 ];
 
-export function PaymentForm({ ticket, onPaymentSuccess, empresaId }) {
+export function PaymentForm({ jugador, rifa, onPaymentSuccess, empresaId }) {
   const [monto, setMonto] = useState('');
   const [metodoPago, setMetodoPago] = useState('efectivo');
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -98,14 +98,23 @@ export function PaymentForm({ ticket, onPaymentSuccess, empresaId }) {
   const [referencia, setReferencia] = useState('');
   const [notas, setNotas] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [saldoPendiente, setSaldoPendiente] = useState(ticket?.saldo_pendiente || 0);
+  const [saldoPendiente, setSaldoPendiente] = useState(0);
 
   useEffect(() => {
-    if (ticket) {
-      setSaldoPendiente(ticket.saldo_pendiente);
-      setMonto(ticket.saldo_pendiente.toString());
+    if (jugador && rifa) {
+      // Calcular deuda total del jugador en esta rifa
+      const deudaTotalCalc = (jugador?.tickets?.length || 0) * (rifa?.precio_ticket || 0);
+      const montoPagadoCalc = jugador?.tickets?.reduce((total, ticket) => {
+        const montoTotal = ticket?.monto_total || 0;
+        const saldoPendienteTicket = ticket?.saldo_pendiente || 0;
+        return total + (montoTotal - saldoPendienteTicket);
+      }, 0) || 0;
+      const saldoActual = deudaTotalCalc - montoPagadoCalc;
+
+      setSaldoPendiente(saldoActual);
+      setMonto(saldoActual > 0 ? saldoActual.toString() : '');
     }
-  }, [ticket]);
+  }, [jugador, rifa]);
 
   // Formatea el número de referencia según el método de pago
   const formatReference = (method, ref) => {
@@ -136,7 +145,7 @@ export function PaymentForm({ ticket, onPaymentSuccess, empresaId }) {
 
   const validateForm = () => {
     const montoNum = parseFloat(monto);
-    
+
     if (isNaN(montoNum) || montoNum <= 0) {
       toast.error('Por favor ingrese un monto válido');
       amountInputRef.current?.focus();
@@ -159,59 +168,129 @@ export function PaymentForm({ ticket, onPaymentSuccess, empresaId }) {
   };
 
   const processPayment = async () => {
-    if (!ticket) return;
-    
+    if (!jugador || !rifa) return;
+
     const montoNum = parseFloat(pendingPayment || monto);
     setIsLoading(true);
-    
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const referenciaFormateada = formatReference(metodoPago, referencia);
-      
-      // 1. Registrar el pago
-      const { data: pago, error: pagoError } = await supabase
-        .from('t_pagos')
-        .insert([{
-          ticket_id: ticket.id,
-          empresa_id: empresaId, // Añadir empresa_id al pago
-          monto: montoNum,
+
+      // Calcular deuda actual del jugador
+      const deudaTotalActual = (jugador?.tickets?.length || 0) * (rifa?.precio_ticket || 0);
+      const montoPagadoActual = jugador?.tickets?.reduce((total, ticket) => {
+        return total + ((ticket?.monto_total || 0) - (ticket?.saldo_pendiente || 0));
+      }, 0) || 0;
+      const saldoActual = deudaTotalActual - montoPagadoActual;
+
+      // Si el pago es igual o mayor al saldo pendiente, marcar todos los tickets como pagados
+      if (montoNum >= saldoActual) {
+        // Marcar todos los tickets del jugador como pagados
+        const ticketIds = jugador.tickets.map(ticket => ticket.id);
+
+        const { error: updateError } = await supabase
+          .from('t_tickets')
+          .update({
+            saldo_pendiente: 0,
+            estado_pago: 'completado',
+            estado: 'pagado',
+            fecha_ultimo_pago: new Date().toISOString()
+          })
+          .eq('empresa_id', empresaId)
+          .in('id', ticketIds);
+
+        if (updateError) throw updateError;
+
+        // Registrar pago completo para cada ticket
+        const pagosToInsert = jugador.tickets.map(ticket => ({
+          id: ticket.id,
+          empresa_id: empresaId,
+          monto: (ticket?.monto_total || 0) - (ticket?.saldo_pendiente || 0),
           metodo_pago: metodoPago,
-          referencia: referenciaFormateada,
-          notas: notas.trim() || null,
-          usuario_id: user?.id || null,
-          estado: 'completado'
-        }])
-        .select()
-        .single();
+          referencia_bancaria: referenciaFormateada,
+          notas: notas.trim() || null
+        }));
 
-      if (pagoError) throw pagoError;
+        const { error: pagoError } = await supabase
+          .from('t_pagos')
+          .insert(pagosToInsert);
 
-      // 2. Actualizar el ticket
-      const nuevoSaldo = parseFloat((saldoPendiente - montoNum).toFixed(2));
-      const nuevoEstado = nuevoSaldo <= 0 ? 'completado' : 'parcial';
+        if (pagoError) throw pagoError;
 
-      const { error: ticketError } = await supabase
-        .from('t_tickets')
-        .update({
-          saldo_pendiente: nuevoSaldo,
-          estado_pago: nuevoEstado,
-          fecha_ultimo_pago: new Date().toISOString(),
-          ...(nuevoSaldo <= 0 && { estado_ticket: 'pagado' })
-        })
-        .eq('id', ticket.id);
+      } else {
+        // Pago parcial - distribuir proporcionalmente entre tickets con saldo pendiente
+        const ticketsConSaldo = jugador.tickets.filter(ticket => (ticket?.saldo_pendiente || 0) > 0);
 
-      if (ticketError) throw ticketError;
+        if (ticketsConSaldo.length === 0) {
+          throw new Error('No hay tickets con saldo pendiente');
+        }
+
+        // Distribuir el pago proporcionalmente
+        let montoRestante = montoNum;
+        const pagosToInsert = [];
+
+        for (const ticket of ticketsConSaldo) {
+          if (montoRestante <= 0) break;
+
+          const montoParaEsteTicket = Math.min((ticket?.saldo_pendiente || 0), montoRestante);
+          montoRestante -= montoParaEsteTicket;
+
+          // Actualizar ticket
+          const nuevoSaldo = (ticket?.saldo_pendiente || 0) - montoParaEsteTicket;
+          const nuevoEstado = nuevoSaldo <= 0 ? 'completado' : 'parcial';
+
+          const { error: updateError } = await supabase
+            .from('t_tickets')
+            .update({
+              saldo_pendiente: nuevoSaldo,
+              estado_pago: nuevoEstado,
+              fecha_ultimo_pago: new Date().toISOString(),
+              ...(nuevoSaldo <= 0 && { estado: 'pagado' })
+            })
+            .eq('id', ticket.id);
+
+          if (updateError) throw updateError;
+
+          // Registrar pago para este ticket
+          pagosToInsert.push({
+            id: ticket.id,
+            empresa_id: empresaId,
+            monto: montoParaEsteTicket,
+            metodo_pago: metodoPago,
+            referencia_bancaria: referenciaFormateada,
+            notas: notas.trim() || null
+          });
+        }
+
+        // Insertar todos los pagos
+        if (pagosToInsert.length > 0) {
+          const { error: pagoError } = await supabase
+            .from('t_pagos')
+            .insert(pagosToInsert);
+
+          if (pagoError) throw pagoError;
+        }
+      }
 
       toast.success('Pago registrado exitosamente');
+
+      // Recalcular saldo pendiente después del pago
+      const deudaTotalActualizada = (jugador?.tickets?.length || 0) * (rifa?.precio_ticket || 0);
+      const montoPagadoActualizado = jugador?.tickets?.reduce((total, ticket) => {
+        return total + ((ticket?.monto_total || 0) - (ticket?.saldo_pendiente || 0));
+      }, 0) || 0;
+      const nuevoSaldo = deudaTotalActualizada - montoPagadoActualizado;
+
       setSaldoPendiente(nuevoSaldo);
       setMonto(nuevoSaldo > 0 ? nuevoSaldo.toString() : '');
-      
+
       // Limpiar campos si el pago se completó
       if (nuevoSaldo <= 0) {
         setReferencia('');
         setNotas('');
       }
-      
+
       onPaymentSuccess?.();
     } catch (error) {
       console.error('Error al registrar el pago:', error);
@@ -224,29 +303,34 @@ export function PaymentForm({ ticket, onPaymentSuccess, empresaId }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!ticket) return;
-    
+    if (!jugador || !rifa) return;
+
     if (!validateForm()) return;
-    
+
     const montoNum = parseFloat(monto);
-    
+
     // Mostrar confirmación para pagos grandes (mayores al 50% del monto total)
-    if (montoNum > (ticket.monto_total * 0.5)) {
+    if (montoNum > ((jugador?.tickets?.length || 0) * (rifa?.precio_ticket || 0) * 0.5)) {
       setPendingPayment(monto);
       setShowConfirmation(true);
       return;
     }
-    
+
     setPendingPayment(monto);
     await processPayment();
   };
 
-  if (!ticket) return null;
+  if (!jugador || !rifa) return null;
 
   const selectedMethod = METODOS_PAGO.find(m => m.id === metodoPago) || METODOS_PAGO[0];
   const paymentComplete = saldoPendiente <= 0;
-  const paidAmount = ticket.monto_total - saldoPendiente;
-  const progressPercentage = Math.round((paidAmount / ticket.monto_total) * 100);
+  const deudaTotal = (jugador?.tickets?.length || 0) * (rifa?.precio_ticket || 0);
+  const montoPagado = jugador?.tickets?.reduce((total, ticket) => {
+    const montoTotal = ticket?.monto_total || 0;
+    const saldoPendienteTicket = ticket?.saldo_pendiente || 0;
+    return total + (montoTotal - saldoPendienteTicket);
+  }, 0) || 0;
+  const progressPercentage = deudaTotal > 0 && !isNaN(montoPagado / deudaTotal) ? Math.round((montoPagado / deudaTotal) * 100) : 0;
   
   // Efecto para manejar la tecla Escape en el modal
   useEffect(() => {
@@ -267,7 +351,7 @@ export function PaymentForm({ ticket, onPaymentSuccess, empresaId }) {
   
   // Efecto para enfocar el primer elemento interactivo cuando se abre el formulario
   useEffect(() => {
-    if (ticket && !paymentComplete) {
+    if (jugador && !paymentComplete) {
       // Pequeño retraso para asegurar que el DOM se haya actualizado
       const timer = setTimeout(() => {
         if (monto) {
@@ -281,7 +365,7 @@ export function PaymentForm({ ticket, onPaymentSuccess, empresaId }) {
       
       return () => clearTimeout(timer);
     }
-  }, [ticket, paymentComplete, monto]);
+  }, [jugador, paymentComplete, monto]);
 
   return (
     <>
@@ -323,11 +407,11 @@ export function PaymentForm({ ticket, onPaymentSuccess, empresaId }) {
           <div className="grid grid-cols-3 gap-4 pt-2">
             <div>
               <p className="text-xs text-gray-400">Total</p>
-              <p className="font-medium text-white">${ticket.monto_total?.toFixed(2)}</p>
+              <p className="font-medium text-white">${deudaTotal.toFixed(2)}</p>
             </div>
             <div className="text-center">
               <p className="text-xs text-gray-400">Pagado</p>
-              <p className="font-medium text-green-400">${paidAmount.toFixed(2)}</p>
+              <p className="font-medium text-green-400">${montoPagado.toFixed(2)}</p>
             </div>
             <div className="text-right">
               <p className="text-xs text-gray-400">Pendiente</p>
@@ -519,7 +603,7 @@ export function PaymentForm({ ticket, onPaymentSuccess, empresaId }) {
             </div>
             <h4 className="text-lg font-semibold text-white mb-1">¡Pago Completado!</h4>
             <p className="text-gray-400 text-sm mb-6">
-              Se ha registrado el pago completo de ${ticket.monto_total.toFixed(2)} exitosamente.
+              Se ha registrado el pago completo de ${deudaTotal.toFixed(2)} exitosamente.
             </p>
             <button
               onClick={onPaymentSuccess}

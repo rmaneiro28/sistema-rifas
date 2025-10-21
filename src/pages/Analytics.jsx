@@ -54,7 +54,9 @@ export default function Analytics() {
   const [barData, setBarData] = useState([]);
   const [topPlayersChartData, setTopPlayersChartData] = useState([]);
   const [ticketStatusData, setTicketStatusData] = useState([]);
-  const [filter, setFilter] = useState('last30days');
+  const [filter, setFilter] = useState('allTime');
+  const [rifaFilter, setRifaFilter] = useState('all'); // Filtro por rifa específica
+  const [availableRifas, setAvailableRifas] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [isPlayerModalAnimating, setIsPlayerModalAnimating] = useState(false);
@@ -85,26 +87,38 @@ export default function Analytics() {
           previousFilterEndDate = previousEnd.toISOString();
         }
 
-        const { data: previousPeriodTicketsData, error: previousTicketsError } = previousFilterStartDate ? await supabase.from('vw_tickets').select('precio_ticket').eq('empresa_id', empresaId)
-          .gte('fecha_creacion_ticket', previousFilterStartDate)
-          .lt('fecha_creacion_ticket', previousFilterEndDate) : { data: [], error: null };
+        const { data: previousPeriodTicketsData, error: previousTicketsError } = previousFilterStartDate ? (() => {
+          let query = supabase.from('vw_tickets').select('precio_ticket').eq('empresa_id', empresaId)
+            .gte('fecha_creacion_ticket', previousFilterStartDate)
+            .lt('fecha_creacion_ticket', previousFilterEndDate);
+          if (rifaFilter !== 'all') {
+            query = query.eq('rifa_id', rifaFilter);
+          }
+          return query;
+        })() : { data: [], error: null };
 
         if (previousTicketsError) {
           console.error('Error fetching previous period tickets:', previousTicketsError);
         };
 
-        // 1. Fetch ALL rifas for lookups
-        const { data: allRifas, error: allRifasError } = await supabase.from('vw_rifas').select('*').eq('empresa_id', empresaId);;
+        // 1. Fetch ALL rifas for lookups and filter options
+        const { data: allRifas, error: allRifasError } = await supabase.from('vw_rifas').select('*').eq('empresa_id', empresaId);
         if (allRifasError) {
           toast.error("Error al cargar las rifas.");
           console.error('Error fetching all raffles:', allRifasError);
           return;
         }
 
-        // 2. Fetch tickets from the period
+        // Set available rifas for filter
+        setAvailableRifas(allRifas.map(r => ({ id: r.id_rifa, name: r.nombre })));
+
+        // 2. Fetch tickets from the period and rifa filter
         let ticketsQuery = supabase.from('vw_tickets').select('*').eq('empresa_id', empresaId);
         if (filterDate) {
           ticketsQuery = ticketsQuery.gte('fecha_creacion_ticket', filterDate);
+        }
+        if (rifaFilter !== 'all') {
+          ticketsQuery = ticketsQuery.eq('rifa_id', rifaFilter);
         }
         const { data: periodTickets, error: ticketsError } = await ticketsQuery;
         if (ticketsError) {
@@ -114,7 +128,13 @@ export default function Analytics() {
         }
 
         // 3. Filter rifas created in the period
-        const periodRifas = filterDate ? allRifas.filter(r => new Date(r.created_at) >= new Date(filterDate)) : allRifas;
+        let periodRifas = allRifas;
+        if (filterDate) {
+          periodRifas = allRifas.filter(r => new Date(r.created_at) >= new Date(filterDate));
+        }
+        if (rifaFilter !== 'all') {
+          periodRifas = periodRifas.filter(r => r.id_rifa === rifaFilter);
+        }
 
         // 4. Fetch total players
         const { data: jugadores, error: jugadoresError } = await supabase.from('t_jugadores').select('id', { count: 'exact' }).eq('empresa_id', empresaId);
@@ -280,7 +300,7 @@ export default function Analytics() {
     };
 
     fetchData();
-  }, [filter]);
+  }, [filter, rifaFilter]);
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -365,15 +385,27 @@ export default function Analytics() {
         <h1 className="bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent text-3xl font-bold mb-1">
           Estadísticas
         </h1>
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="bg-[#181c24] px-4 py-2 rounded-lg text-xs text-white border border-[#23283a] hover:bg-[#23283a] focus:outline-none focus:border-[#7c3bed]"
-        >
-          <option value="last7days">Últimos 7 días</option>
-          <option value="last30days">Últimos 30 días</option>
-          <option value="allTime">Desde siempre</option>
-        </select>
+        <div className="flex gap-3">
+          <select
+            value={rifaFilter}
+            onChange={(e) => setRifaFilter(e.target.value)}
+            className="bg-[#181c24] px-4 py-2 rounded-lg text-xs text-white border border-[#23283a] hover:bg-[#23283a] focus:outline-none focus:border-[#7c3bed]"
+          >
+            <option value="all">Todas las rifas</option>
+            {availableRifas.map(rifa => (
+              <option key={rifa.id} value={rifa.id}>{rifa.name}</option>
+            ))}
+          </select>
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="bg-[#181c24] px-4 py-2 rounded-lg text-xs text-white border border-[#23283a] hover:bg-[#23283a] focus:outline-none focus:border-[#7c3bed]"
+          >
+            <option value="last7days">Últimos 7 días</option>
+            <option value="last30days">Últimos 30 días</option>
+            <option value="allTime">Desde siempre</option>
+          </select>
+        </div>
       </div>
       <p className="text-gray-400 mb-6">Monitorea el rendimiento y las estadísticas de tus campañas de rifas.</p>
 

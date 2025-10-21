@@ -8,6 +8,7 @@ import { LoadingScreen } from "../components/LoadingScreen";
 import { TicketRegistrationWizard } from "../components/TicketRegistrationWizard";
 import { WinnerRegistrationModal } from "../components/WinnerRegistrationModal";
 import { TicketDetailModal } from "../components/TicketDetailModal";
+import { ReminderReenvioModal } from "../components/ReminderReenvioModal.jsx";
 import { ReminderControlModal } from "../components/ReminderControlModal";
 import { useAuth } from '../context/AuthContext';
 
@@ -36,6 +37,7 @@ export function DetalleRifa() {
   const [showPlayerGroupModal, setShowPlayerGroupModal] = useState(false);
   const [selectedPlayerGroup, setSelectedPlayerGroup] = useState(null);
   const [selectedTicketForDetail, setSelectedTicketForDetail] = useState(null);
+  const [showReenvioModal, setShowReenvioModal] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [playersToRemind, setPlayersToRemind] = useState([]);
 
@@ -468,7 +470,38 @@ export function DetalleRifa() {
     }
   };
 
-  const handleSendReminders = async () => {
+  const handleReenvioConfirm = async () => {
+    setShowReenvioModal(false);
+    await clearReminderHistory();
+    // Después de limpiar, permitir enviar a todos los jugadores
+    setPlayersToRemind(playersArray);
+    setShowReminderModal(true);
+  };
+
+  const clearReminderHistory = async () => {
+    try {
+      const { error } = await supabase
+        .from('t_recordatorios_enviados')
+        .delete()
+        .eq('rifa_id', id)
+        .eq('empresa_id', empresaId);
+
+      if (error) {
+        console.error('Error clearing reminder history:', error);
+        toast.error('Error al limpiar el historial de recordatorios: ' + error.message);
+        return false;
+      }
+
+      toast.success('Historial de recordatorios limpiado. Ahora puedes enviar recordatorios nuevamente.');
+      return true;
+    } catch (error) {
+      console.error('Error clearing reminder history:', error);
+      toast.error('Error al limpiar el historial de recordatorios');
+      return false;
+    }
+  };
+
+  const handleSendReminders = () => {
     const playersWithReservedTickets = allTickets
       .filter(ticket => ticket.estado_ticket === 'apartado' && ticket.jugador_id)
       .reduce((acc, ticket) => {
@@ -491,48 +524,51 @@ export function DetalleRifa() {
       return;
     }
 
-    // Filtrar jugadores que no han recibido recordatorio
-    try {
-      // Primero verificar si la tabla existe
-      const { error: tableCheckError } = await supabase
-        .from('t_recordatorios_enviados')
-        .select('id')
-        .limit(1);
+    // Filtrar jugadores que no han recibido recordatorio usando promesas
+    supabase.from('t_recordatorios_enviados')
+      .select('id')
+      .limit(1)
+      .then(({ error: tableCheckError }) => {
+        if (tableCheckError && tableCheckError.code === 'PGRST116') {
+          // La tabla no existe, usar todos los jugadores
+          console.log('Tabla t_recordatorios_enviados no existe, usando todos los jugadores');
+          setPlayersToRemind(playersArray);
+          setShowReminderModal(true);
+          return;
+        }
 
-      if (tableCheckError && tableCheckError.code === 'PGRST116') {
-        // La tabla no existe, usar todos los jugadores
-        console.log('Tabla t_recordatorios_enviados no existe, usando todos los jugadores');
-        setPlayersToRemind(playersArray);
-        setShowReminderModal(true);
-        return;
-      }
+        return supabase.from('t_recordatorios_enviados')
+          .select('jugador_id')
+          .eq('rifa_id', id)
+          .eq('empresa_id', empresaId)
+          .then(({ data: sentReminders, error }) => {
+            if (error) {
+              console.error('Error fetching sent reminders:', error);
+              toast.error('Error al verificar recordatorios enviados');
+              return;
+            }
 
-      const { data: sentReminders, error } = await supabase
-        .from('t_recordatorios_enviados')
-        .select('jugador_id')
-        .eq('rifa_id', id)
-        .eq('empresa_id', empresaId);
+            const sentPlayerIds = new Set(sentReminders.map(r => r.jugador_id));
+            const playersToRemind = playersArray.filter(player => !sentPlayerIds.has(player.id));
 
-      if (error) {
-        console.error('Error fetching sent reminders:', error);
-        toast.error('Error al verificar recordatorios enviados');
-        return;
-      }
+            if (playersToRemind.length === 0) {
+              // Si no hay jugadores sin recordatorios, mostrar modal de confirmación
+              setShowReenvioModal(true);
+              return;
+            }
 
-      const sentPlayerIds = new Set(sentReminders.map(r => r.jugador_id));
-      const playersToRemind = playersArray.filter(player => !sentPlayerIds.has(player.id));
-
-      if (playersToRemind.length === 0) {
-        toast.info("Todos los jugadores ya han recibido recordatorio.");
-        return;
-      }
-
-      setPlayersToRemind(playersToRemind);
-      setShowReminderModal(true);
-    } catch (error) {
-      console.error('Error filtering players:', error);
-      toast.error('Error al filtrar jugadores para recordar');
-    }
+            setPlayersToRemind(playersToRemind);
+            setShowReminderModal(true);
+          })
+          .catch(error => {
+            console.error('Error filtering players:', error);
+            toast.error('Error al filtrar jugadores para recordar');
+          });
+      })
+      .catch(error => {
+        console.error('Error checking table:', error);
+        toast.error('Error al verificar tabla de recordatorios');
+      });
   };
 
   useEffect(() => {
@@ -905,6 +941,12 @@ export function DetalleRifa() {
         rifa={rifa}
         empresa={empresa}
         empresaId={empresaId}
+      />
+
+      <ReminderReenvioModal
+        isOpen={showReenvioModal}
+        onClose={() => setShowReenvioModal(false)}
+        onConfirm={handleReenvioConfirm}
       />
     </div>
   );

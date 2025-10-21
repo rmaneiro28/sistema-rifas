@@ -173,75 +173,143 @@ export function WinnerRegistrationModal({ isOpen, onClose, rifa, allTickets, onS
                 setAnnouncementStep('reveal');
 
                 (async () => {
-                    // Buscar jugador existente por cédula (no crear nuevos jugadores)
-                    console.log('🔍 Buscando jugador existente por cédula:', foundTicket.cedula_jugador);
-                    
+                    // Buscar jugador existente o crear temporal
                     let jugadorId = null;
-                    
-                    // Buscar jugador por cédula
-                    const { data: existingPlayer, error: checkError } = await supabase
-                        .from('t_jugadores')
-                        .select('id')
-                        .eq('cedula', foundTicket.cedula_jugador)
-                        .single();
-                    
-                    console.log('📋 Resultado de búsqueda de jugador:', { existingPlayer, checkError });
-                    
-                    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows found
-                        console.error('Error al verificar jugador:', checkError);
-                    }
-                    
-                    if (existingPlayer) {
-                        jugadorId = existingPlayer.id;
-                        console.log('✅ Jugador encontrado:', existingPlayer);
+
+                    if (foundTicket.cedula_jugador && foundTicket.cedula_jugador.trim() !== '') {
+                        // Buscar jugador existente por cédula
+                        const { data: existingPlayer, error: checkError } = await supabase
+                            .from('t_jugadores')
+                            .select('id')
+                            .eq('cedula', foundTicket.cedula_jugador)
+                            .single();
+
+                        if (checkError && checkError.code !== 'PGRST116') {
+                            console.error('Error al verificar jugador:', checkError);
+                            toast.error('Error al verificar jugador: ' + checkError.message);
+                            setLoading(false);
+                            return;
+                        }
+
+                        if (existingPlayer) {
+                            jugadorId = existingPlayer.id;
+                            console.log('✅ Jugador encontrado por cédula:', existingPlayer);
+                        } else {
+                            console.log('❌ No se encontró jugador con cédula:', foundTicket.cedula_jugador);
+                            toast.error('No se encontró un jugador registrado con la cédula: ' + foundTicket.cedula_jugador);
+                            setLoading(false);
+                            return;
+                        }
                     } else {
-                        console.error('❌ No se encontró jugador con cédula:', foundTicket.cedula_jugador);
-                        toast.error('No se encontró un jugador registrado con la cédula: ' + foundTicket.cedula_jugador);
-                        setLoading(false);
-                        return;
+                        // Crear jugador temporal
+                        console.log('ℹ️ No hay cédula, creando jugador temporal');
+                        const tempPlayerData = {
+                            nombre: foundTicket.nombre_jugador || 'Ganador',
+                            apellido: '',
+                            cedula: '',
+                            email: '',
+                            telefono: foundTicket.telefono_jugador || '',
+                            direccion: '',
+                            numeros_favoritos: [],
+                            empresa_id: rifa.empresa_id
+                        };
+
+                        const { data: newPlayer, error: insertError } = await supabase
+                            .from('t_jugadores')
+                            .insert(tempPlayerData)
+                            .select('id')
+                            .single();
+
+                        if (insertError) {
+                            console.error('Error al crear jugador temporal:', insertError);
+                            toast.error('Error al crear jugador temporal: ' + insertError.message);
+                            setLoading(false);
+                            return;
+                        }
+
+                        jugadorId = newPlayer.id;
+                        console.log('✅ Jugador temporal creado:', newPlayer);
                     }
                     
-                    console.log('Insertando ganador:', {
-                        rifa_id: rifa.id_rifa,
-                        ticket_id: foundTicket.id,
-                        jugador_id: jugadorId,
-                        numero_ganador: foundTicket.numero_ticket,
-                        premio: rifa.nombre
-                    });
-                    
-                    const { error: insertError } = await supabase
-                        .from('t_ganadores')
-                        .insert([{
-                            rifa_id: rifa.id_rifa,
-                            ticket_id: foundTicket.id,
-                            jugador_id: jugadorId,
-                            numero_ganador: foundTicket.numero_ticket,
-                            premio: rifa.nombre
-                        }]);
-                    
-                    if (insertError) {
-                        console.error('Error al insertar ganador:', insertError);
-                        toast.error('Error al registrar el ganador: ' + insertError.message);
+                    // Iniciar transacción para operaciones críticas
+                    const { data: transactionData, error: transactionError } = await supabase.rpc('begin_transaction');
+
+                    if (transactionError) {
+                        console.error('Error al iniciar transacción:', transactionError);
+                        toast.error('Error al iniciar el proceso de registro');
                         setLoading(false);
                         return;
                     }
 
-                    const { error: updateRaffleError } = await supabase
-                        .from('t_rifas')
-                        .update({ estado: 'finalizada' })
-                        .eq('id_rifa', rifa.id_rifa);
+                    try {
+                        // Insertar ganador
+                        const { error: insertGanadorError } = await supabase
+                            .from('t_ganadores')
+                            .insert([{
+                                rifa_id: rifa.id_rifa,
+                                ticket_id: foundTicket.id,
+                                jugador_id: jugadorId,
+                                numero_ganador: foundTicket.numero_ticket,
+                                premio: rifa.nombre,
+                                fecha_registro: new Date().toISOString()
+                            }]);
 
-                    if (updateRaffleError) {
-                        toast.error('Ganador registrado, pero hubo un error al actualizar el estado de la rifa.');
-                    } else {
+                        if (insertGanadorError) {
+                            throw new Error('Error al registrar el ganador: ' + insertGanadorError.message);
+                        }
+
+                        // Actualizar estado de la rifa
+                        const { error: updateRaffleError } = await supabase
+                            .from('t_rifas')
+                            .update({
+                                estado: 'finalizada',
+                                fecha_finalizacion: new Date().toISOString()
+                            })
+                            .eq('id_rifa', rifa.id_rifa);
+
+                        if (updateRaffleError) {
+                            throw new Error('Error al actualizar el estado de la rifa: ' + updateRaffleError.message);
+                        }
+
+                        // Crear registro de historial/backup
+                        const { error: historyError } = await supabase
+                            .from('t_historial_acciones')
+                            .insert([{
+                                rifa_id: rifa.id_rifa,
+                                jugador_id: jugadorId,
+                                ticket_id: foundTicket.id,
+                                accion: 'registro_ganador',
+                                detalles: {
+                                    numero_ganador: foundTicket.numero_ticket,
+                                    premio: rifa.nombre,
+                                    jugador_temporal: !foundTicket.cedula_jugador
+                                },
+                                fecha_accion: new Date().toISOString(),
+                                empresa_id: rifa.empresa_id
+                            }]);
+
+                        if (historyError) {
+                            console.warn('Error al crear registro de historial:', historyError);
+                            // No lanzar error aquí ya que la operación principal fue exitosa
+                        }
+
+                        // Confirmar transacción
+                        await supabase.rpc('commit_transaction');
+
                         toast.success(`¡Ganador #${winningNumber} registrado exitosamente!`);
-                        
-                        // Esperar 5 segundos antes de cerrar para que el usuario vea el resultado
+
+                        // Esperar 5 segundos antes de cerrar
                         setTimeout(() => {
                             onSuccess();
                         }, 5000);
+
+                    } catch (error) {
+                        // Revertir transacción en caso de error
+                        await supabase.rpc('rollback_transaction');
+                        console.error('Error durante el registro del ganador:', error);
+                        toast.error(error.message || 'Error durante el registro del ganador');
+                        throw error;
                     }
-                    setLoading(false);
                 })();
             }
         }, 1000);

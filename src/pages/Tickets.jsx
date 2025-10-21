@@ -478,7 +478,7 @@ export function Tickets() {
         </div>
         <div style="background-color: #0f131b; padding: 16px; border-radius: 12px; text-align: center;">
           <p style="color: #a0aec0; font-size: 0.875rem; margin-bottom: 8px;">Números Adquiridos</p>
-          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 8px; max-height: 150px; overflow-y: auto; padding-right: 5px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 8px; padding-right: 5px;">
           ${ticketsHtml}
           </div>
         </div>
