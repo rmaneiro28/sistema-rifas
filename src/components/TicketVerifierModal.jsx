@@ -55,7 +55,7 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets, rifa }) {
             }
 
             const searchableString = normalizeText(
-                `${ticket.nombre_jugador || ''} ${ticket.apellido_jugador || ''} ${ticket.telefono_jugador || ''} ${ticket.cedula_jugador || ''}`
+                `${ticket.nombre_jugador || ''} ${ticket.apellido_jugador || ''} ${ticket.telefono_jugador || ''} ${ticket.cedula_jugador || ''} ${ticket.email_jugador || ''}`
             );
             return searchTerms.every(term => searchableString.includes(term));
         });
@@ -158,6 +158,34 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets, rifa }) {
                                     </div>
                                 </div>
                                 
+                                {selectedTicket.email_jugador && (
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex-shrink-0 w-10 h-10 bg-cyan-500/20 rounded-lg flex items-center justify-center">
+                                            <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-gray-400">Email</p>
+                                            <p className="text-white font-semibold">{selectedTicket.email_jugador}</p>
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {selectedTicket.cedula_jugador && (
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex-shrink-0 w-10 h-10 bg-indigo-500/20 rounded-lg flex items-center justify-center">
+                                            <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-gray-400">Cédula</p>
+                                            <p className="text-white font-semibold">{selectedTicket.cedula_jugador}</p>
+                                        </div>
+                                    </div>
+                                )}
+                                
                                 <div className="flex items-center gap-3">
                                     <div className="flex-shrink-0 w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
                                         <CheckCircleIcon className="w-5 h-5 text-green-400" />
@@ -231,13 +259,13 @@ export function TicketVerifierModal({ isOpen, onClose, allTickets, rifa }) {
                         <MagnifyingGlassIcon className="w-6 h-6 text-white" />
                     </div>
                     <h2 className="text-2xl font-bold text-white mb-2">Verifica tu Ticket</h2>
-                    <p className="text-gray-400 text-sm">Ingresa tu número de ticket, nombre o teléfono.</p>
+                    <p className="text-gray-400 text-sm">Ingresa tu número de ticket, nombre, teléfono, email o cédula.</p>
                 </div>
 
                 <div className="flex gap-2 mb-6">
                     <input 
                         type="text" 
-                        placeholder="Ej: 0001 o Juan Pérez" 
+                        placeholder="Ej: 0001, Juan Pérez, email@ejemplo.com" 
                         value={query} 
                         onChange={(e) => setQuery(e.target.value)} 
                         onKeyDown={(e) => e.key === 'Enter' && handleVerify()} 

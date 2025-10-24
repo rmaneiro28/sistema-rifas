@@ -43,9 +43,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
     const [ticketToRelease, setTicketToRelease] = useState(null);
     const [showPaymentForm, setShowPaymentForm] = useState(false);
-    const [loadingPayments, setLoadingPayments] = useState(false);
-    const [paymentLoadError, setPaymentLoadError] = useState(null);
-    const [ticketPaymentInfo, setTicketPaymentInfo] = useState(null); // Estado para información de pagos del jugador
+    const [ticketPaymentInfo, setTicketPaymentInfo] = useState(null);
     const ticketRef = useRef();
     const { empresaId } = useAuth();
     
@@ -82,10 +80,6 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
     useEffect(() => {
         if (isOpen) {
             setTimeout(() => setIsAnimating(true), 10);
-            // Inicializar información de pagos cuando se abre el modal
-            setTicketPaymentInfo(null);
-            setLoadingPayments(true);
-            setPaymentLoadError(null);
         } else {
             setIsAnimating(false);
         }
@@ -101,113 +95,71 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                 total: rifa?.precio_ticket || 0,
                 telefono: playerGroup?.info?.telefono_jugador || ticket.telefono_jugador || ticket.telefono || 'N/A',
                 metodoPago: playerGroup?.info?.metodo_pago || ticket.metodo_pago || 'N/A',
-                referencia: playerGroup?.info?.referencia_bancaria || ticket.referencia_bancaria || ticket.referencia_bancaria || 'N/A',
-                fecha: new Date(ticket.fecha_creacion_ticket || ticket.created_at || Date.now()),
-                bankName: playerGroup?.info?.bankName || null,
-                bankLogoUrl: playerGroup?.info?.bankLogoUrl || null
+                referencia: playerGroup?.info?.referencia_pago || ticket.referencia_pago || ticket.referencia || 'N/A',
+                fecha: new Date(ticket.fecha_creacion_ticket || ticket.created_at || Date.now())
             });
         }
     }, [ticket, playerGroup, rifa]);
 
-    // Cargar información de pagos del jugador
+    // Cargar información de pagos del ticket
     useEffect(() => {
         const loadPaymentInfo = async () => {
-            console.log('🔄 Cargando información de pagos...', { playerGroup: !!playerGroup, rifa: !!rifa, empresaId });
-
-            if (!playerGroup || !rifa || !empresaId) {
-                console.log('❌ Datos insuficientes para cargar pagos');
-                setLoadingPayments(false);
-                return;
-            }
-
-            setLoadingPayments(true);
-            setPaymentLoadError(null);
+            if (!ticket || !ticket.id) return;
 
             try {
-                // Obtener información de pagos de todos los tickets del jugador
-                const ticketIds = playerGroup.tickets.map(ticket => ticket.id);
-                console.log('🎫 Ticket IDs del jugador:', ticketIds);
-
-                if (ticketIds.length === 0) {
-                    console.log('⚠️ No hay tickets válidos para consultar pagos');
-                    setTicketPaymentInfo({
-                        montoTotal: 0,
-                        montoPagado: 0,
-                        saldoPendiente: 0,
-                        payments: [],
-                        estadoPago: 'sin_tickets'
-                    });
-                    setLoadingPayments(false);
-                    return;
-                }
-
+                // Obtener información de pagos del ticket
                 const { data: payments, error: paymentsError } = await supabase
                     .from('t_pagos')
                     .select('*')
+                    .eq('ticket_id', ticket.id)
                     .eq('empresa_id', empresaId)
-                    .in('id', ticketIds)
                     .order('fecha_pago', { ascending: false });
 
                 if (paymentsError) {
-                    console.error('❌ Error loading payments:', paymentsError);
-                    setPaymentLoadError(`Error al cargar pagos: ${paymentsError.message}`);
-                    setLoadingPayments(false);
+                    console.error('Error loading payments:', paymentsError);
                     return;
                 }
 
-                console.log('💰 Pagos encontrados:', payments);
+                // Calcular totales
+                const montoTotal = rifa?.precio_ticket || 0;
+                const montoPagado = payments.reduce((sum, pago) => sum + pago.monto, 0);
+                const saldoPendiente = montoTotal - montoPagado;
 
-                // Calcular totales del jugador
-                const deudaTotal = playerGroup.tickets.length * rifa.precio_ticket;
-                const montoPagado = payments ? payments.reduce((sum, pago) => sum + pago.monto, 0) : 0;
-                const saldoPendiente = deudaTotal - montoPagado;
-
-                console.log('📊 Cálculos:', { deudaTotal, montoPagado, saldoPendiente });
-
-                const paymentInfo = {
-                    montoTotal: deudaTotal,
+                setTicketPaymentInfo({
+                    montoTotal,
                     montoPagado,
                     saldoPendiente,
-                    payments: payments || [],
+                    payments,
                     estadoPago: saldoPendiente <= 0 ? 'completado' : 'parcial'
-                };
-
-                console.log('✅ Información de pagos calculada:', paymentInfo);
-                setTicketPaymentInfo(paymentInfo);
-                setLoadingPayments(false);
+                });
             } catch (error) {
-                console.error('❌ Error loading payment info:', error);
-                setPaymentLoadError(`Error inesperado: ${error.message}`);
-                setLoadingPayments(false);
+                console.error('Error loading payment info:', error);
             }
         };
 
         loadPaymentInfo();
-    }, [playerGroup, rifa, empresaId]);
+    }, [ticket, rifa, empresaId]);
 
     const handlePaymentSuccess = () => {
         setShowPaymentForm(false);
-        setLoadingPayments(false);
-        setPaymentLoadError(null);
         onStatusUpdate(); // Refrescar datos del padre
         // Recargar información de pagos
-        if (playerGroup && rifa) {
+        if (ticket && rifa) {
             const loadPaymentInfo = async () => {
-                const ticketIds = playerGroup.tickets.map(ticket => ticket.id);
                 const { data: payments, error: paymentsError } = await supabase
                     .from('t_pagos')
                     .select('*')
+                    .eq('ticket_id', ticket.id)
                     .eq('empresa_id', empresaId)
-                    .in('id', ticketIds)
                     .order('fecha_pago', { ascending: false });
 
                 if (!paymentsError) {
-                    const deudaTotal = playerGroup.tickets.length * rifa.precio_ticket;
+                    const montoTotal = rifa?.precio_ticket || 0;
                     const montoPagado = payments.reduce((sum, pago) => sum + pago.monto, 0);
-                    const saldoPendiente = deudaTotal - montoPagado;
+                    const saldoPendiente = montoTotal - montoPagado;
 
                     setTicketPaymentInfo({
-                        montoTotal: deudaTotal,
+                        montoTotal,
                         montoPagado,
                         saldoPendiente,
                         payments,
@@ -223,8 +175,6 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         setIsAnimating(false);
         setShowPaymentForm(false);
         setTicketPaymentInfo(null);
-        setLoadingPayments(false);
-        setPaymentLoadError(null);
         setTimeout(() => {
             onClose();
         }, 300); // Wait for animation
@@ -362,30 +312,20 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         let message = `*${empresa}*\n\n`;
         message += `Hola ${jugador}! 👋\n\n`;
         message += `*Rifa:* ${nombreRifa}\n`;
-        message += `*Fecha:* ${new Date().toLocaleDateString('es-ES')}\n\n`;
+        message += `*Fecha de Sorteo:* ${rifa?.fecha_fin ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES') : new Date().toLocaleDateString('es-ES')}\n\n`;
         message += `*Tus números:*\n• ${ticketNumbers}\n\n`;
         
         if (isFullyPaid) {
             message += `*Estado del pago:* ✅ *Completo*\n`;
-            message += `*Total pagado:* $${totalAmount}\n`;
-            if (generatedTicketInfo.metodoPago === 'Transferencia' && generatedTicketInfo.bankName) {
-                message += `*Banco:* ${generatedTicketInfo.bankName}\n`;
-                if (generatedTicketInfo.referencia && generatedTicketInfo.referencia !== 'N/A') {
-                    message += `*Referencia:* ${generatedTicketInfo.referencia}\n`;
-                }
-            }
-            message += `\n¡Muchas gracias por tu pago! Tu participación está confirmada. 🎉\n\n`;
+            message += `*Total pagado:* $${totalAmount}\n\n`;
+            message += `¡Muchas gracias por tu pago! Tu participación está confirmada. 🎉\n\n`;
         } else {
             const pendingAmount = allTickets.filter(t => t.estado_ticket !== 'pagado').length * rifa?.precio_ticket;
             message += `*Estado del pago:* ⚠️ *Pendiente*\n`;
             message += `*Total pendiente:* $${pendingAmount}\n\n`;
             message += `*Recordatorio de pago:*\n`;
             message += `Por favor, completa tu pago para asegurar tus números. Puedes realizar el pago mediante:\n`;
-            message += `• Transferencia bancaria`;
-            if (generatedTicketInfo.bankName) {
-                message += ` (${generatedTicketInfo.bankName})`;
-            }
-            message += `\n`;
+            message += `• Transferencia bancaria\n`;
             message += `• Efectivo en nuestras oficinas\n\n`;
             message += `¡No pierdas la oportunidad de ganar! 🏆\n\n`;
         }
@@ -419,7 +359,6 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
     console.log('Modal props:', { isOpen, ticket: !!ticket, playerGroup: !!playerGroup, rifa: !!rifa });
     console.log('Ticket data:', ticket);
     console.log('Player group data:', playerGroup);
-    console.log('TicketPaymentInfo:', ticketPaymentInfo || 'null');
 
     return (
         <>
@@ -452,21 +391,6 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                         <span className="text-gray-400">Método de Pago:</span>
                                         <span className="text-white text-left sm:text-right">{generatedTicketInfo.metodoPago || 'N/A'}</span>
                                     </div>
-                                    {generatedTicketInfo.metodoPago === 'Transferencia' && generatedTicketInfo.bankName && (
-                                        <div className="flex flex-col sm:flex-row sm:justify-between">
-                                            <span className="text-gray-400">Banco:</span>
-                                            <div className="flex items-center gap-2 text-left sm:text-right">
-                                                <span className="text-white">{generatedTicketInfo.bankName}</span>
-                                                {generatedTicketInfo.bankLogoUrl && (
-                                                    <img
-                                                        src={generatedTicketInfo.bankLogoUrl}
-                                                        alt="Logo del banco"
-                                                        className="h-4 w-auto object-contain"
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
                                     {generatedTicketInfo.referencia && generatedTicketInfo.referencia !== 'N/A' && (
                                         <div className="flex flex-col sm:flex-row sm:justify-between">
                                             <span className="text-gray-400">Referencia:</span>
@@ -487,6 +411,10 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                     </div>
                                 </>
                             )}
+                            <div className="flex flex-col sm:flex-row sm:justify-between">
+                                <span className="text-gray-400">Fecha de Sorteo:</span>
+                                <span className="text-white text-left sm:text-right">{rifa?.fecha_fin ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES') : 'Por confirmar'}</span>
+                            </div>
                             <div className="flex flex-col sm:flex-row sm:justify-between">
                                 <span className="text-gray-400">Fecha:</span>
                                 <span className="text-white text-left sm:text-right">{generatedTicketInfo.fecha?.toLocaleDateString('es-ES') || 'N/A'}</span>
@@ -590,40 +518,18 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                 </div>
                             </div>
 
+                            {playerGroup && (
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-semibold text-white flex items-center"><UserIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />Información del Jugador</h3>
+                                    <div className="bg-[#23283a] rounded-lg p-4 space-y-3">
+                                        <div className="flex justify-between items-center"><span className="text-gray-400">Nombre:</span><span className="text-white font-medium">{`${playerGroup.info.nombre_jugador || 'N/A'} ${playerGroup.info.apellido_jugador || ''}`.trim()}</span></div>
+                                        <div className="flex justify-between items-center"><span className="text-gray-400">Cédula de Identidad:</span><span className="text-white">{playerGroup.info.cedula_jugador || 'N/A'}</span></div>
+                                        <div className="flex justify-between items-center"><span className="text-gray-400">Teléfono:</span><span className="text-white">{formatTelephone(playerGroup.info.telefono_jugador)}</span></div>
+                                    </div>
+                                </div>
+                            )}
 
-                            {loadingPayments ? (
-                                <div className="space-y-4">
-                                    <h3 className="text-lg font-semibold text-white flex items-center">
-                                        <CurrencyDollarIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />
-                                        Información de Pagos
-                                    </h3>
-                                    <div className="bg-[#23283a] rounded-lg p-4 text-center">
-                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#7c3bed] mx-auto mb-2"></div>
-                                        <p className="text-gray-400 text-sm">Cargando información de pagos...</p>
-                                    </div>
-                                </div>
-                            ) : paymentLoadError ? (
-                                <div className="space-y-4">
-                                    <h3 className="text-lg font-semibold text-white flex items-center">
-                                        <CurrencyDollarIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />
-                                        Información de Pagos
-                                    </h3>
-                                    <div className="bg-[#23283a] rounded-lg p-4 text-center">
-                                        <div className="text-red-400 mb-2">⚠️ Error al cargar pagos</div>
-                                        <p className="text-gray-400 text-sm">{paymentLoadError}</p>
-                                        <button
-                                            onClick={() => {
-                                                setPaymentLoadError(null);
-                                                // Forzar recarga
-                                                setTicketPaymentInfo(null);
-                                            }}
-                                            className="mt-2 px-3 py-1 bg-[#7c3bed] text-white rounded text-sm hover:bg-[#6c2bd9]"
-                                        >
-                                            Reintentar
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : ticketPaymentInfo ? (
+                            {ticketPaymentInfo && (
                                 <div className="space-y-4">
                                     <h3 className="text-lg font-semibold text-white flex items-center">
                                         <CurrencyDollarIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />
@@ -670,7 +576,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                         )}
                                     </div>
                                 </div>
-                            ) : null}
+                            )}
 
                             {playerGroup && playerGroup.tickets && playerGroup.tickets.filter(t => t.numero_ticket_ticket !== ticket.numero_ticket_ticket).length > 0 && (
                                 <div className="space-y-4">
@@ -688,7 +594,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     </div>
 
                     {/* Payment Actions */}
-                    {ticketPaymentInfo && ticketPaymentInfo.saldoPendiente > 0 && !loadingPayments && !paymentLoadError && (
+                    {ticketPaymentInfo && ticketPaymentInfo.saldoPendiente > 0 && (
                         <div className="p-4 border-t border-[#23283a] bg-[#0f131b]">
                             <h3 className="text-base font-semibold text-white mb-3">
                                 Registrar Pago
@@ -740,22 +646,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                             Cambiar Estado
                         </h3>
                         <div className="grid grid-cols-2 gap-2">
-                            <button 
-                                onClick={() => {
-                                    if (ticketPaymentInfo && ticketPaymentInfo.saldoPendiente > 0) {
-                                        // Si hay saldo pendiente, abrir formulario de pago en lugar de cambiar estado directamente
-                                        setShowPaymentForm(true);
-                                    } else {
-                                        // Si no hay saldo pendiente, cambiar estado directamente
-                                        handleUpdateSingleTicketStatus("pagado");
-                                    }
-                                }} 
-                                disabled={loading || ticket.estado_ticket === 'pagado' || (ticketPaymentInfo && ticketPaymentInfo.saldoPendiente > 0)}
-                                className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                                title={ticketPaymentInfo && ticketPaymentInfo.saldoPendiente > 0 ? "Primero complete el pago pendiente" : "Marcar como pagado"}
-                            >
-                                Pagado
-                            </button>
+                            <button onClick={() => handleUpdateSingleTicketStatus("pagado")} disabled={loading || ticket.estado_ticket === 'pagado'} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Pagado</button>
                             <button onClick={() => handleUpdateSingleTicketStatus("apartado")} disabled={loading || ticket.estado_ticket === 'apartado'} className="w-full bg-yellow-500 hover:bg-yellow-600 text-yellow-900 py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Apartado</button>
                             <button onClick={() => handleUpdateSingleTicketStatus("familiares")} disabled={loading || ticket.estado_ticket === 'familiares'} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm">Familiar</button>
                             <button 
@@ -775,8 +666,11 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                 <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
                     <div className="bg-[#181c24] rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
                         <PaymentForm
-                            jugador={playerGroup}
-                            rifa={rifa}
+                            ticket={{
+                                ...ticket,
+                                monto_total: ticketPaymentInfo?.montoTotal || rifa?.precio_ticket || 0,
+                                saldo_pendiente: ticketPaymentInfo?.saldoPendiente || rifa?.precio_ticket || 0
+                            }}
                             onPaymentSuccess={handlePaymentSuccess}
                             empresaId={empresaId}
                         />
