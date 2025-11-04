@@ -116,8 +116,7 @@ export function WinnerRegistrationModal({ isOpen, onClose, rifa, allTickets, onS
             nombre_jugador: foundTicket.nombre_jugador,
             telefono: foundTicket.telefono,
             telefono_jugador: foundTicket.telefono_jugador,
-            id_jugador: foundTicket.id_jugador,
-            jugador_id: foundTicket.jugador_id
+            id_jugador: foundTicket.id_jugador
         }, null, 2));
 
         // Verificar si tiene alguna propiedad relacionada con jugador

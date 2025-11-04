@@ -12,7 +12,7 @@ import {
     PlusIcon
 } from "@heroicons/react/24/outline";
 import { toBlob } from "html-to-image";
-import logoRifasPlus from "../assets/RifasPlus.png";
+import logoRifasPlus from "../assets/Logo Rifas Plus Dark.jpg";
 import { useAuth } from "../context/AuthContext";
 import { PaymentForm } from "./PaymentForm";
 
@@ -120,32 +120,89 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     return;
                 }
 
+                // Obtener el estado actual del ticket para verificar si está pagado
+                const { data: ticketData, error: ticketError } = await supabase
+                    .from('t_tickets')
+                    .select('estado, estado_pago, saldo_pendiente')
+                    .eq('id', ticket.id)
+                    .single();
+
+                if (ticketError) {
+                    console.error('Error loading ticket data:', ticketError);
+                    return;
+                }
+
                 // Calcular totales
                 const montoTotal = rifa?.precio_ticket || 0;
-                const montoPagado = payments.reduce((sum, pago) => sum + pago.monto, 0);
-                const saldoPendiente = montoTotal - montoPagado;
+                const montoPagado = payments.reduce((sum, pago) => sum + parseFloat(pago.monto || 0), 0);
+                
+                // Calcular el saldo pendiente basado en los pagos realizados
+                let saldoPendiente = montoTotal - montoPagado;
+                
+                // Si hay un saldo pendiente en la base de datos y es mayor que 0, usarlo
+                if (ticketData?.saldo_pendiente !== undefined && ticketData.saldo_pendiente > 0) {
+                    saldoPendiente = parseFloat(ticketData.saldo_pendiente);
+                } else {
+                    // Asegurarse de que el saldo pendiente no sea negativo
+                    saldoPendiente = Math.max(0, saldoPendiente);
+                }
+
+                // Determinar el estado del pago
+                let estadoPago = 'pendiente';
+                if (ticketData?.estado === 'pagado' || saldoPendiente <= 0) {
+                    estadoPago = 'completado';
+                } else if (montoPagado > 0) {
+                    estadoPago = 'parcial';
+                }
 
                 setTicketPaymentInfo({
                     montoTotal,
                     montoPagado,
                     saldoPendiente,
                     payments,
-                    estadoPago: saldoPendiente <= 0 ? 'completado' : 'parcial'
+                    estadoPago,
+                    estadoTicket: ticketData?.estado || ticket.estado_ticket || 'pendiente'
                 });
             } catch (error) {
                 console.error('Error loading payment info:', error);
             }
         };
 
-        loadPaymentInfo();
-    }, [ticket, rifa, empresaId]);
+        if (isOpen) {
+            loadPaymentInfo();
+        }
+    }, [ticket, rifa, empresaId, isOpen]);
 
-    const handlePaymentSuccess = () => {
+    const handlePaymentSuccess = async () => {
         setShowPaymentForm(false);
-        onStatusUpdate(); // Refrescar datos del padre
-        // Recargar información de pagos
+        toast.success('¡Pago registrado exitosamente!', {
+            duration: 5000,
+            position: 'top-center',
+            style: {
+                background: '#10B981',
+                color: '#fff',
+                border: 'none',
+                padding: '12px 20px',
+                borderRadius: '8px',
+                fontSize: '16px',
+                fontWeight: '500',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+            }
+        });
+        
+        // Recargar información del ticket y pagos
         if (ticket && rifa) {
-            const loadPaymentInfo = async () => {
+            try {
+                // Obtener información actualizada del ticket
+                const { data: ticketData, error: ticketError } = await supabase
+                    .from('t_tickets')
+                    .select('*')
+                    .eq('id', ticket.id)
+                    .single();
+
+                if (ticketError) throw ticketError;
+
+                // Obtener pagos actualizados
                 const { data: payments, error: paymentsError } = await supabase
                     .from('t_pagos')
                     .select('*')
@@ -153,21 +210,59 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     .eq('empresa_id', empresaId)
                     .order('fecha_pago', { ascending: false });
 
-                if (!paymentsError) {
-                    const montoTotal = rifa?.precio_ticket || 0;
-                    const montoPagado = payments.reduce((sum, pago) => sum + pago.monto, 0);
-                    const saldoPendiente = montoTotal - montoPagado;
+                if (paymentsError) throw paymentsError;
 
-                    setTicketPaymentInfo({
-                        montoTotal,
-                        montoPagado,
-                        saldoPendiente,
-                        payments,
-                        estadoPago: saldoPendiente <= 0 ? 'completado' : 'parcial'
-                    });
+                // Calcular totales
+                const montoTotal = rifa?.precio_ticket || 0;
+                const montoPagado = payments.reduce((sum, pago) => sum + parseFloat(pago.monto || 0), 0);
+                
+                // Calcular el saldo pendiente basado en los pagos realizados
+                let saldoPendiente = montoTotal - montoPagado;
+                
+                // Si hay un saldo pendiente en la base de datos y es mayor que 0, usarlo
+                if (ticketData?.saldo_pendiente !== undefined && ticketData.saldo_pendiente > 0) {
+                    saldoPendiente = parseFloat(ticketData.saldo_pendiente);
+                } else {
+                    // Asegurarse de que el saldo pendiente no sea negativo
+                    saldoPendiente = Math.max(0, saldoPendiente);
                 }
-            };
-            loadPaymentInfo();
+
+                // Determinar el estado del pago
+                let estadoPago = 'pendiente';
+                if (ticketData?.estado === 'pagado' || saldoPendiente <= 0) {
+                    estadoPago = 'completado';
+                } else if (montoPagado > 0) {
+                    estadoPago = 'parcial';
+                }
+
+                setTicketPaymentInfo({
+                    montoTotal,
+                    montoPagado,
+                    saldoPendiente,
+                    payments,
+                    estadoPago,
+                    estadoTicket: ticketData?.estado || ticket.estado_ticket || 'pendiente'
+                });
+
+                // Actualizar el estado del ticket si está completamente pagado
+                if (saldoPendiente <= 0 && ticketData?.estado !== 'pagado') {
+                    await supabase
+                        .from('t_tickets')
+                        .update({ 
+                            estado: 'pagado',
+                            estado_pago: 'completado',
+                            saldo_pendiente: 0,
+                            fecha_ultimo_pago: new Date().toISOString()
+                        })
+                        .eq('id', ticket.id);
+                }
+
+                // Notificar al componente padre para actualizar la lista de tickets
+                onStatusUpdate();
+            } catch (error) {
+                console.error('Error al actualizar la información de pagos:', error);
+                toast.error('Error al actualizar la información de pagos');
+            }
         }
     };
 
@@ -340,7 +435,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
     const handleCopyTicket = async () => {
         if (!ticketRef.current) return toast.error("No se encontró la referencia del ticket.");
         try {
-            const blob = await toBlob(ticketRef.current, { cacheBust: true, quality: 0.95, pixelRatio: 2, backgroundColor: '#0f131b' });
+            const blob = await toBlob(ticketRef.current, { cacheBust: true, quality: 0.95, pixelRatio: 2, backgroundColor: '#FFF' });
             if (blob) {
                 await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
                 toast.success('¡Imagen del ticket copiada al portapapeles!');
@@ -362,7 +457,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
 
     return (
         <>
-            <div ref={ticketRef} className="bg-[#0f131b] w-[400px] border border-[#23283a] rounded-lg p-4 sm:p-6 space-y-4">
+            <div ref={ticketRef} className="bg-[#FFF] w-[400px] border border-[#23283a] rounded-lg p-4 sm:p-6 space-y-4">
                 {generatedTicketInfo ? (
                     <>
                         {/* Header con logos */}
@@ -370,64 +465,81 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                             <div className="flex items-center space-x-3">
                                 <img src={LogoUrl} alt="Logo Cliente" className="h-8 w-auto" />
                                 <div>
-                                    <h3 className="text-lg font-bold text-[#7c3bed]">{generatedTicketInfo.rifa}</h3>
-                                    <p className="text-xs text-gray-400">Comprobante de Participación</p>
+                                    <h3 className="text-lg font-bold text-[#23283a]">{generatedTicketInfo.rifa}</h3>
+                                    <p className="text-xs text-[#23283a]">Comprobante de Participación</p>
                                 </div>
                             </div>
                             <img src={logoRifasPlus} alt="RifasPlus" className="h-10 w-auto" />
                         </div>
                         <div className="space-y-3 text-sm">
-                            <div className="flex flex-col sm:flex-row sm:justify-between">
-                                <span className="text-gray-400">Jugador:</span>
-                                <span className="text-white font-medium text-left sm:text-right">{generatedTicketInfo.jugador}</span>
-                            </div>
-                            <div className="flex flex-col sm:flex-row sm:justify-between">
-                                <span className="text-gray-400">Teléfono:</span>
-                                <span className="text-white text-left sm:text-right">{generatedTicketInfo.telefono || 'N/A'}</span>
-                            </div>
-                            {playerGroup?.tickets?.every(t => t.estado_ticket === 'pagado') && (
-                                <>
+                                <div className="flex flex-col sm:flex-row sm:justify-between">
+                                    <span className="text-[#23283a]">Jugador:</span>
+                                    <span className="text-[#23283a] font-medium text-left sm:text-right">{generatedTicketInfo.jugador}</span>
+                                </div>
+                            <div className="grid grid-cols-2 gap-2 mb-4">
+                                <div className="flex flex-col sm:flex-row sm:justify-between">
+                                    <span className="text-[#23283a]">Teléfono:</span>
+                                    <span className="text-[#23283a] text-left sm:text-right">{generatedTicketInfo.telefono || 'N/A'}</span>
+                                </div>
+                            
                                     <div className="flex flex-col sm:flex-row sm:justify-between">
-                                        <span className="text-gray-400">Método de Pago:</span>
-                                        <span className="text-white text-left sm:text-right">{generatedTicketInfo.metodoPago || 'N/A'}</span>
+                                        <span className="text-[#23283a]">Método de Pago:</span>
+                                        <span className="text-[#23283a] text-left sm:text-right">{generatedTicketInfo.metodoPago || 'N/A'}</span>
                                     </div>
                                     {generatedTicketInfo.referencia && generatedTicketInfo.referencia !== 'N/A' && (
                                         <div className="flex flex-col sm:flex-row sm:justify-between">
-                                            <span className="text-gray-400">Referencia:</span>
-                                            <span className="text-white text-left sm:text-right">{generatedTicketInfo.referencia}</span>
+                                            <span className="text-[#23283a]">Referencia:</span>
+                                            <span className="text-[#23283a] text-left sm:text-right">{generatedTicketInfo.referencia}</span>
                                         </div>
                                     )}
                                     <div className="flex flex-col sm:flex-row sm:justify-between">
-                                        <span className="text-gray-400">Precio por ticket:</span>
-                                        <span className="text-white">${rifa?.precio_ticket || 'N/A'}</span>
+                                        <span className="text-[#23283a]">Precio por ticket:</span>
+                                        <span className="text-[#23283a]">${rifa?.precio_ticket || 'N/A'}</span>
                                     </div>
                                     <div className="flex flex-col sm:flex-row sm:justify-between">
-                                        <span className="text-gray-400">Cantidad de tickets:</span>
-                                        <span className="text-white">{playerGroup?.tickets?.length || 1}</span>
+                                        <span className="text-[#23283a]">Cantidad de tickets:</span>
+                                        <span className="text-[#23283a]">{playerGroup?.tickets?.length || 1}</span>
                                     </div>
-                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center border-t border-gray-700 pt-2 mt-1">
-                                        <span className="text-gray-400 font-medium">Total Pagado:</span>
-                                        <span className="text-green-400 font-bold text-lg sm:text-base">${(rifa?.precio_ticket * (playerGroup?.tickets?.length || 1)).toFixed(2)}</span>
+                            </div>
+                                    <div className="flex flex-col items-center justify-center border-t border-gray-700 pt-2 mt-1">
+                                        <div className="flex justify-between w-full mb-1">
+                                            <span className="text-[#23283a] font-medium">Total del Ticket:</span>
+                                            <span className="text-[#23283a] font-bold">${rifa?.precio_ticket?.toFixed(2) || '0.00'}</span>
+                                        </div>
+                                        {ticketPaymentInfo && (
+                                            <>
+                                                <div className="flex justify-between w-full text-sm">
+                                                    <span className="text-[#23283a]">Pagado:</span>
+                                                    <span className="text-green-600 font-medium">${(ticketPaymentInfo.montoPagado).toFixed(2)}</span>
+                                                </div>
+                                                <div className="flex justify-between w-full text-sm">
+                                                    <span className="text-[#23283a]">Saldo pendiente:</span>
+                                                    <span className={`font-medium ${ticketPaymentInfo.saldoPendiente > 0 ? 'text-yellow-600' : 'text-green-600'}`}>
+                                                        ${ticketPaymentInfo.saldoPendiente.toFixed(2)}
+                                                    </span>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
-                                </>
-                            )}
-                            <div className="flex flex-col sm:flex-row sm:justify-between">
-                                <span className="text-gray-400">Fecha de Sorteo:</span>
-                                <span className="text-white text-left sm:text-right">{rifa?.fecha_fin ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES') : 'Por confirmar'}</span>
-                            </div>
-                            <div className="flex flex-col sm:flex-row sm:justify-between">
-                                <span className="text-gray-400">Fecha:</span>
-                                <span className="text-white text-left sm:text-right">{generatedTicketInfo.fecha?.toLocaleDateString('es-ES') || 'N/A'}</span>
-                            </div>
-                        </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="flex flex-col sm:flex-row sm:justify-between">
+                                            <span className="text-[#23283a]">Fecha de Sorteo:</span>
+                                            <span className="text-[#23283a] text-left sm:text-right">{rifa?.fecha_fin ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES') : 'Por confirmar'}</span>
+                                        </div>
+                                        <div className="flex flex-col sm:flex-row sm:justify-between">
+                                            <span className="text-[#23283a]">Fecha de Compra:</span>
+                                            <span className="text-[#23283a] text-left sm:text-right">{generatedTicketInfo.fecha?.toLocaleDateString('es-ES') || 'N/A'}</span>
+                                        </div>
+                                    </div>
+                                </div>
                         <div className="border-t border-solid border-gray-600 pt-3">
-                            <p className="text-gray-400 text-sm mb-3 font-medium">Números Adquiridos</p>
+                            <p className="text-[#23283a] text-sm mb-3 font-medium">Números Adquiridos</p>
                             <div className={playerGroup?.tickets?.length > 0 ? 'grid grid-cols-6 gap-1.5 px-1' : playerGroup?.tickets?.length > 10 ? 'grid grid-cols-8 gap-1.5 px-1' : 'grid grid-cols-5 gap-1.5 px-1'}>
                                 {playerGroup?.tickets?.length > 0 ? (
                                     playerGroup.tickets.map((t, index) => {
                                         const statusInfo = filterOptions.find(f => f.key === t.estado_ticket) || { 
                                             color: 'bg-gray-600', 
-                                            textColor: 'text-white',
+                                            textColor: 'text-[#23283a]',
                                             label: t.estado_ticket || 'N/A',
                                             border: 'border-gray-500'
                                         };
@@ -448,7 +560,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                     })
                                 ) : (
                                     <div className="flex flex-col items-center group relative">
-                                        <div className="bg-[#7c3bed] text-white w-9 h-9 rounded-sm flex items-center justify-center text-xs font-bold border border-opacity-30 shadow-sm hover:scale-105 transition-transform">
+                                        <div className="bg-[#7c3bed] text-[#23283a] w-9 h-9 rounded-sm flex items-center justify-center text-xs font-bold border border-opacity-30 shadow-sm hover:scale-105 transition-transform">
                                             {formatTicketNumber(ticket?.numero_ticket, rifa?.total_tickets)}
                                         </div>
                                         <span className="text-[9px] text-gray-300 mt-1 text-center leading-none opacity-0 group-hover:opacity-100 transition-opacity absolute -bottom-5">
@@ -462,16 +574,16 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                         <div className="text-center pt-4 mt-4 border-t border-gray-700">
                             <p className="text-xs text-gray-500 mb-2">¡Mucha suerte! 🍀</p>
                             <div className="flex justify-center items-center space-x-4">
-                                <span className="text-xs text-gray-400">Organizado por:</span>
+                                <span className="text-xs text-[#23283a]">Organizado por:</span>
                                 <img src={LogoUrl} alt="Logo Cliente" className="h-6 w-auto" />
-                                <span className="text-xs text-gray-400">|</span>
-                                <span className="text-xs text-gray-400">Sistema:</span>
+                                <span className="text-xs text-[#23283a]">|</span>
+                                <span className="text-xs text-[#23283a]">Sistema:</span>
                                 <img src={logoRifasPlus} alt="RifasPlus" className="h-6 w-auto" />
                             </div>
                         </div>
                     </>
                 ) : (
-                    <div className="text-center text-gray-400 py-8">
+                    <div className="text-center text-[#23283a] py-8">
                         <p>Cargando información del ticket...</p>
                     </div>
                 )}
@@ -597,18 +709,89 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     {ticketPaymentInfo && ticketPaymentInfo.saldoPendiente > 0 && (
                         <div className="p-4 border-t border-[#23283a] bg-[#0f131b]">
                             <h3 className="text-base font-semibold text-white mb-3">
-                                Registrar Pago
+                                {ticketPaymentInfo.estadoPago === 'parcial' ? 'Abonar al Pago' : 'Registrar Pago'}
                             </h3>
-                            <div className="grid grid-cols-1 gap-2">
+                            <div className="space-y-2">
+                                <div className="bg-[#1a1e2e] p-3 rounded-lg">
+                                    <div className="flex justify-between text-sm mb-1">
+                                        <span className="text-gray-400">Saldo pendiente:</span>
+                                        <span className="font-medium text-yellow-400">${ticketPaymentInfo.saldoPendiente.toFixed(2)}</span>
+                                    </div>
+                                    <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
+                                        <div 
+                                            className="bg-yellow-500 h-2 rounded-full" 
+                                            style={{ 
+                                                width: `${Math.min(100, ((ticketPaymentInfo.montoTotal - ticketPaymentInfo.saldoPendiente) / ticketPaymentInfo.montoTotal) * 100)}%` 
+                                            }}
+                                        ></div>
+                                    </div>
+                                    <div className="flex justify-between text-xs text-gray-400">
+                                        <span>Pagado: ${(ticketPaymentInfo.montoTotal - ticketPaymentInfo.saldoPendiente).toFixed(2)}</span>
+                                        <span>Total: ${ticketPaymentInfo.montoTotal.toFixed(2)}</span>
+                                    </div>
+                                </div>
+                                
                                 <button
-                                    onClick={() => setShowPaymentForm(true)}
-                                    className="group relative overflow-hidden bg-gradient-to-r from-green-500 to-emerald-600 text-white py-2 px-3 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 text-sm"
-                                    title="Registrar pago parcial"
+                                    onClick={() => {
+                                        if (confirm(`¿Desea registrar un pago para este ticket?\n\nTotal del ticket: $${rifa?.precio_ticket?.toFixed(2) || '0.00'}\nSaldo pendiente: $${ticketPaymentInfo?.saldoPendiente?.toFixed(2) || '0.00'}`)) {
+                                            setShowPaymentForm(true);
+                                        }
+                                    }}
+                                    className="w-full group relative overflow-hidden bg-gradient-to-r from-yellow-500 to-amber-600 text-white py-2.5 px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 text-sm"
+                                    title={ticketPaymentInfo.estadoPago === 'parcial' ? 'Registrar abono' : 'Registrar pago'}
                                 >
-                                    <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+                                    <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-amber-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
                                     <CurrencyDollarIcon className="w-4 h-4 relative z-10 group-hover:animate-pulse" />
-                                    <span className="relative z-10">Registrar Pago</span>
+                                    <span className="relative z-10">
+                                        {ticketPaymentInfo.estadoPago === 'parcial' ? 'Abonar al Pago' : 'Registrar Pago'}
+                                    </span>
                                 </button>
+                                
+                                {ticketPaymentInfo.estadoPago === 'parcial' && (
+                                    <button
+                                        onClick={async () => {
+                                            // Preguntar si desea marcar como pagado completamente
+                                            if (confirm('¿Desea marcar este ticket como completamente pagado? Esto registrará un pago por el saldo pendiente.')) {
+                                                try {
+                                                    const { error } = await supabase
+                                                        .from('t_tickets')
+                                                        .update({ 
+                                                            estado: 'pagado',
+                                                            estado_pago: 'completado',
+                                                            saldo_pendiente: 0,
+                                                            fecha_ultimo_pago: new Date().toISOString()
+                                                        })
+                                                        .eq('id', ticket.id);
+
+                                                    if (error) throw error;
+
+                                                    // Registrar el pago del saldo pendiente
+                                                    await supabase
+                                                        .from('t_pagos')
+                                                        .insert([{
+                                                            ticket_id: ticket.id,
+                                                            empresa_id: empresaId,
+                                                            monto: ticketPaymentInfo.saldoPendiente,
+                                                            metodo_pago: 'efectivo',
+                                                            notas: 'Pago completo del saldo pendiente',
+                                                            fecha_pago: new Date().toISOString()
+                                                        }]);
+
+                                                    // Actualizar la UI
+                                                    handlePaymentSuccess();
+                                                    toast.success('Ticket marcado como pagado completamente');
+                                                } catch (error) {
+                                                    console.error('Error al marcar como pagado:', error);
+                                                    toast.error('Error al actualizar el estado del ticket');
+                                                }
+                                            }
+                                        }}
+                                        className="w-full mt-2 group relative overflow-hidden bg-gradient-to-r from-green-600 to-emerald-700 text-white py-2.5 px-4 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 text-sm hover:shadow-lg hover:shadow-green-500/20"
+                                    >
+                                        <CheckCircleIcon className="w-4 h-4" />
+                                        <span>Marcar como Pagado (${ticketPaymentInfo.saldoPendiente.toFixed(2)})</span>
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )}

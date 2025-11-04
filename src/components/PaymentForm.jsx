@@ -186,30 +186,57 @@ export function PaymentForm({ jugador, rifa, onPaymentSuccess, empresaId }) {
 
       // Si el pago es igual o mayor al saldo pendiente, marcar todos los tickets como pagados
       if (montoNum >= saldoActual) {
-        // Marcar todos los tickets del jugador como pagados
+        // Obtener todos los IDs de tickets del jugador
         const ticketIds = jugador.tickets.map(ticket => ticket.id);
-
-        const { error: updateError } = await supabase
+        
+        // Primero, actualizar el saldo pendiente a 0 para todos los tickets
+        const { error: updateBalanceError } = await supabase
           .from('t_tickets')
           .update({
             saldo_pendiente: 0,
             estado_pago: 'completado',
-            estado: 'pagado',
             fecha_ultimo_pago: new Date().toISOString()
           })
-          .eq('empresa_id', empresaId)
-          .in('id', ticketIds);
+          .in('id', ticketIds)
+          .eq('empresa_id', empresaId);
 
-        if (updateError) throw updateError;
+        // Luego verificar si hay tickets que necesitan ser actualizados a 'pagado'
+        const { data: ticketsToUpdate, error: fetchTicketsError } = await supabase
+          .from('t_tickets')
+          .select('id, estado, saldo_pendiente')
+          .in('id', ticketIds)
+          .eq('empresa_id', empresaId)
+          .neq('estado', 'ganador')
+          .neq('estado', 'pagado')
+          .gt('saldo_pendiente', 0);
+
+        if (!fetchTicketsError && ticketsToUpdate && ticketsToUpdate.length > 0) {
+          const ticketIdsToUpdate = ticketsToUpdate.map(t => t.id);
+          const { error: updateStatusError } = await supabase
+            .from('t_tickets')
+            .update({
+              estado: 'pagado',
+              estado_pago: 'completado',
+              fecha_ultimo_pago: new Date().toISOString()
+            })
+            .in('id', ticketIdsToUpdate)
+            .eq('empresa_id', empresaId);
+
+          if (updateStatusError) {
+            console.error('Error actualizando estados de tickets:', updateStatusError);
+          }
+        }
 
         // Registrar pago completo para cada ticket
         const pagosToInsert = jugador.tickets.map(ticket => ({
-          id: ticket.id,
+          ticket_id: ticket.id,  // Asegurando que el ticket_id esté incluido
           empresa_id: empresaId,
           monto: (ticket?.monto_total || 0) - (ticket?.saldo_pendiente || 0),
           metodo_pago: metodoPago,
           referencia_bancaria: referenciaFormateada,
-          notas: notas.trim() || null
+          notas: notas.trim() || null,
+          fecha_pago: new Date().toISOString(),
+          usuario_id: user?.id || null
         }));
 
         const { error: pagoError } = await supabase
@@ -220,47 +247,67 @@ export function PaymentForm({ jugador, rifa, onPaymentSuccess, empresaId }) {
 
       } else {
         // Pago parcial - distribuir proporcionalmente entre tickets con saldo pendiente
-        const ticketsConSaldo = jugador.tickets.filter(ticket => (ticket?.saldo_pendiente || 0) > 0);
+        const ticketsConSaldo = jugador.tickets
+          .filter(ticket => (ticket?.saldo_pendiente || 0) > 0)
+          .sort((a, b) => (a.saldo_pendiente - b.saldo_pendiente)); // Ordenar por menor saldo primero
 
         if (ticketsConSaldo.length === 0) {
           throw new Error('No hay tickets con saldo pendiente');
         }
 
-        // Distribuir el pago proporcionalmente
+        // Distribuir el pago
         let montoRestante = montoNum;
         const pagosToInsert = [];
+        const updatedTickets = [];
 
         for (const ticket of ticketsConSaldo) {
           if (montoRestante <= 0) break;
 
-          const montoParaEsteTicket = Math.min((ticket?.saldo_pendiente || 0), montoRestante);
+          const saldoActual = ticket.saldo_pendiente || 0;
+          const montoParaEsteTicket = Math.min(saldoActual, montoRestante);
           montoRestante -= montoParaEsteTicket;
 
-          // Actualizar ticket
-          const nuevoSaldo = (ticket?.saldo_pendiente || 0) - montoParaEsteTicket;
-          const nuevoEstado = nuevoSaldo <= 0 ? 'completado' : 'parcial';
-
-          const { error: updateError } = await supabase
-            .from('t_tickets')
-            .update({
-              saldo_pendiente: nuevoSaldo,
-              estado_pago: nuevoEstado,
-              fecha_ultimo_pago: new Date().toISOString(),
-              ...(nuevoSaldo <= 0 && { estado: 'pagado' })
-            })
-            .eq('id', ticket.id);
-
-          if (updateError) throw updateError;
+          // Calcular nuevo saldo
+          const nuevoSaldo = saldoActual - montoParaEsteTicket;
+          const esPagoCompleto = nuevoSaldo <= 0;
+          
+          // Agregar a la lista de actualizaciones
+          updatedTickets.push({
+            id: ticket.id,
+            saldo_pendiente: Math.max(0, nuevoSaldo),
+            estado_pago: esPagoCompleto ? 'completado' : 'parcial',
+            estado: esPagoCompleto ? 'pagado' : ticket.estado
+          });
 
           // Registrar pago para este ticket
           pagosToInsert.push({
-            id: ticket.id,
+            ticket_id: ticket.id,
             empresa_id: empresaId,
             monto: montoParaEsteTicket,
             metodo_pago: metodoPago,
             referencia_bancaria: referenciaFormateada,
-            notas: notas.trim() || null
+            notas: notas.trim() || null,
+            fecha_pago: new Date().toISOString(),
+            usuario_id: user?.id || null
           });
+        }
+
+        // Actualizar todos los tickets en lote
+        for (const ticket of updatedTickets) {
+          const { error: updateError } = await supabase
+            .from('t_tickets')
+            .update({
+              saldo_pendiente: ticket.saldo_pendiente,
+              estado_pago: ticket.estado_pago,
+              estado: ticket.estado,
+              fecha_ultimo_pago: new Date().toISOString()
+            })
+            .eq('id', ticket.id);
+
+          if (updateError) {
+            console.error(`Error actualizando ticket ${ticket.id}:`, updateError);
+            throw updateError;
+          }
         }
 
         // Insertar todos los pagos
