@@ -724,7 +724,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                         <div className="flex items-center space-x-3">
                             <div className="w-10 h-10 bg-[#7c3bed]/20 rounded-full flex items-center justify-center"><TicketIcon className="w-6 h-6 text-[#7c3bed]" /></div>
                             <h2 className="text-xl font-bold text-white">
-                                Detalles del Ticket #{formatTicketNumber(ticket.numero_ticket, rifa?.total_tickets)}
+                                Detalles del Ticket <span className={`${ticket.estado_ticket === 'apartado' ? 'text-[#ffdf20]' : 'text-[#05df72]'}`}>#{formatTicketNumber(ticket.numero_ticket, rifa?.total_tickets)}</span>
                             </h2>
                         </div>
                         <button onClick={handleClose} className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-[#23283a]"><XMarkIcon className="w-6 h-6" /></button>
@@ -733,8 +733,20 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     {/* Content */}
                     <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                         <div className="space-y-6">
+                            
+                            {playerGroup && (
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-semibold text-white flex items-center"><UserIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />Información del Jugador</h3>
+                                    <div className="bg-[#23283a] rounded-lg p-4 space-y-3">
+                                        <div className="flex justify-between items-center"><span className="text-gray-400">Nombre:</span><span className="text-white font-medium">{`${playerGroup.info.nombre_jugador || 'N/A'} ${playerGroup.info.apellido_jugador || ''}`.trim()}</span></div>
+                                        <div className="flex justify-between items-center"><span className="text-gray-400">Cédula de Identidad:</span><span className="text-white">{playerGroup.info.cedula_jugador || 'N/A'}</span></div>
+                                        <div className="flex justify-between items-center"><span className="text-gray-400">Teléfono:</span><span className="text-white">{formatTelephone(playerGroup.info.telefono_jugador)}</span></div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="space-y-4">
-                                <h3 className="text-lg font-semibold text-white flex items-center"><TicketIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />Información del Tickets</h3>
+                                <h3 className="text-lg font-semibold text-white flex items-center"><TicketIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />Información del Ticket</h3>
                                 <div className="bg-[#23283a] rounded-lg p-4 space-y-3">
                                     <div className="flex justify-between items-center">
                                         <span className="text-gray-400">Número:</span>
@@ -755,17 +767,6 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                     )}
                                 </div>
                             </div>
-
-                            {playerGroup && (
-                                <div className="space-y-4">
-                                    <h3 className="text-lg font-semibold text-white flex items-center"><UserIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />Información del Jugador</h3>
-                                    <div className="bg-[#23283a] rounded-lg p-4 space-y-3">
-                                        <div className="flex justify-between items-center"><span className="text-gray-400">Nombre:</span><span className="text-white font-medium">{`${playerGroup.info.nombre_jugador || 'N/A'} ${playerGroup.info.apellido_jugador || ''}`.trim()}</span></div>
-                                        <div className="flex justify-between items-center"><span className="text-gray-400">Cédula de Identidad:</span><span className="text-white">{playerGroup.info.cedula_jugador || 'N/A'}</span></div>
-                                        <div className="flex justify-between items-center"><span className="text-gray-400">Teléfono:</span><span className="text-white">{formatTelephone(playerGroup.info.telefono_jugador)}</span></div>
-                                    </div>
-                                </div>
-                            )}
 
                             {ticketPaymentInfo?.montoTotal !== undefined && (
                                 <div className="space-y-4">
