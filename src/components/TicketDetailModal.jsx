@@ -415,13 +415,21 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         
         const { id, numero_ticket } = ticketToRelease;
 
-        console.log('Deleting ticket:', { id, numero_ticket });
+        console.log('Releasing ticket (update to disponible):', { id, numero_ticket });
 
         try {
-            // Try to delete using id first, if that fails, try ticket_id
+            const updateData = {
+                estado: 'disponible',
+                jugador_id: null,
+                estado_pago: null,
+                saldo_pendiente: 0,
+                fecha_ultimo_pago: null,
+            };
+
+            // Try to update using id first, if that fails, try ticket_id
             let { error } = await supabase
                 .from("t_tickets")
-                .delete()
+                .update(updateData)
                 .eq("empresa_id", empresaId)
                 .eq("id", id);
 
@@ -430,24 +438,24 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                 console.log('Trying with ticket_id column instead');
                 const result = await supabase
                     .from("t_tickets")
-                    .delete()
+                    .update(updateData)
                     .eq("empresa_id", empresaId)
                     .eq("ticket_id", id);
                 error = result.error;
             }
 
             if (error) {
-                console.error('Supabase delete error:', error);
+                console.error('Supabase release (update) error:', error);
                 toast.error(`Error al liberar el ticket: ${error.message}`);
                 return;
             }
 
-            console.log('Delete successful');
+            console.log('Release (update) successful');
             toast.success(`Ticket #${numero_ticket} liberado exitosamente`);
             onStatusUpdate();
-            handleClose(); // Close modal after successful deletion
+            handleClose(); // Close modal after successful release
         } catch (err) {
-            console.error('Unexpected error deleting ticket:', err);
+            console.error('Unexpected error releasing ticket:', err);
             toast.error('Error inesperado al liberar el ticket');
         } finally {
             setLoading(false);
