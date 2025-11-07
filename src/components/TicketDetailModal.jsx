@@ -32,6 +32,7 @@ const filterOptions = [
     { key: "disponible", label: "Disponibles", color: "bg-[#23283a]", textColor: "text-white" },
     { key: "apartado", label: "Apartados", color: "bg-yellow-400", textColor: "text-yellow-900" },
     { key: "pagado", label: "Pagados", color: "bg-green-500", textColor: "text-white" },
+    { key: "abonado", label: "Abonados", color: "bg-blue-500", textColor: "text-white" },
     { key: "familiares", label: "Familiares", color: "bg-purple-500", textColor: "text-white" }
 ];
 
@@ -202,8 +203,8 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
             const montoTotal = rifa?.precio_ticket || 0;
             const montoPagado = payments.reduce((sum, pago) => sum + parseFloat(pago.monto || 0), 0);
             
-            // Calcular el saldo pendiente
-            const saldoPendiente = Math.max(0, (montoTotal - montoPagado).toFixed(2));
+            // Calcular el saldo pendiente (asegurar tipo number, no string)
+            const saldoPendiente = Math.max(0, Number((montoTotal - montoPagado).toFixed(2)));
             
             // Determinar el estado del pago
             let estadoPago = 'pendiente';
@@ -219,7 +220,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                 .update({ 
                     saldo_pendiente: saldoPendiente,
                     estado_pago: estadoPago,
-                    estado: saldoPendiente <= 0 ? 'pagado' : 'apartado',
+                    estado: saldoPendiente <= 0 ? 'pagado' : 'abonado',
                     fecha_ultimo_pago: new Date().toISOString()
                 })
                 .eq('id', ticket.id);
@@ -233,7 +234,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                 saldoPendiente,
                 payments: payments || [],
                 estadoPago,
-                estadoTicket: saldoPendiente <= 0 ? 'pagado' : 'apartado'
+                estadoTicket: saldoPendiente <= 0 ? 'pagado' : 'abonado'
             });
 
             // Mostrar notificación de éxito
@@ -357,6 +358,9 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
             updateData.estado_pago = 'completado';
             updateData.saldo_pendiente = 0;
             updateData.fecha_ultimo_pago = new Date().toISOString();
+        } else if (newStatus === 'abonado') {
+            // Abonado implica pago parcial
+            updateData.estado_pago = 'parcial';
         }
 
         console.log('Updating ticket:', { id, numero_ticket, updateData });
@@ -414,48 +418,76 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         setShowConfirmDialog(false);
         
         const { id, numero_ticket } = ticketToRelease;
+        const ticketIdAlt = ticketToRelease.ticket_id;
 
-        console.log('Releasing ticket (update to disponible):', { id, numero_ticket });
+        console.log('Releasing ticket (delete with cascade):', { id, numero_ticket });
 
         try {
-            const updateData = {
-                estado: 'disponible',
-                jugador_id: null,
-                estado_pago: null,
-                saldo_pendiente: 0,
-                fecha_ultimo_pago: null,
-            };
+            // 1) Borrar pagos asociados al ticket por ticket_id directamente (considerando id y ticket_id)
+            const candidateTicketIds = [id, ticketIdAlt].filter(Boolean);
+            const { data: pagosBorrados, error: pagosDelErr } = await supabase
+                .from('t_pagos')
+                .delete()
+                .in('ticket_id', candidateTicketIds)
+                .select('id');
+            if (pagosDelErr) {
+                toast.error(`Error al eliminar pagos del ticket: ${pagosDelErr.message}`);
+                throw pagosDelErr;
+            }
 
-            // Try to update using id first, if that fails, try ticket_id
+            // 2) Desasociar cualquier pago remanente para romper la FK
+            const { error: nullifyErr } = await supabase
+                .from('t_pagos')
+                .update({ ticket_id: null })
+                .in('ticket_id', candidateTicketIds);
+            if (nullifyErr) {
+                toast.error('No se pudo desasociar ticket_id de pagos: ' + nullifyErr.message);
+                throw nullifyErr;
+            }
+
+            // 3) Verificar que no existan pagos aún referenciando el ticket
+            const { data: pagosRemanentes, error: checkErr } = await supabase
+                .from('t_pagos')
+                .select('id')
+                .in('ticket_id', candidateTicketIds);
+            if (checkErr) {
+                console.warn('No se pudo verificar pagos remanentes:', checkErr);
+            }
+            if (Array.isArray(pagosRemanentes) && pagosRemanentes.length > 0) {
+                toast.error('No se pudo liberar porque aún hay pagos referenciando el ticket. Intenta nuevamente o revisa RLS/Permisos.');
+                setLoading(false);
+                setIsReleasing(false);
+                return;
+            }
+
+            // 4) Borrar el ticket
             let { error } = await supabase
-                .from("t_tickets")
-                .update(updateData)
-                .eq("empresa_id", empresaId)
-                .eq("id", id);
+                .from('t_tickets')
+                .delete()
+                .eq('empresa_id', empresaId)
+                .eq('id', id);
 
-            // If error suggests invalid column, try with ticket_id
             if (error && error.message.includes('column "id" does not exist')) {
-                console.log('Trying with ticket_id column instead');
                 const result = await supabase
-                    .from("t_tickets")
-                    .update(updateData)
-                    .eq("empresa_id", empresaId)
-                    .eq("ticket_id", id);
+                    .from('t_tickets')
+                    .delete()
+                    .eq('empresa_id', empresaId)
+                    .eq('ticket_id', id);
                 error = result.error;
             }
 
             if (error) {
-                console.error('Supabase release (update) error:', error);
+                console.error('Supabase release (delete) error:', error);
                 toast.error(`Error al liberar el ticket: ${error.message}`);
                 return;
             }
 
-            console.log('Release (update) successful');
+            console.log('Release (delete) successful');
             toast.success(`Ticket #${numero_ticket} liberado exitosamente`);
             onStatusUpdate();
-            handleClose(); // Close modal after successful release
+            handleClose(); // Close modal after successful deletion
         } catch (err) {
-            console.error('Unexpected error releasing ticket:', err);
+            console.error('Unexpected error releasing (deleting) ticket:', err);
             toast.error('Error inesperado al liberar el ticket');
         } finally {
             setLoading(false);
@@ -488,6 +520,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         const ticketNumbers = allTickets.map(t => {
             const statusEmoji = {
                 'pagado': '✅',
+                'abonado': '🔵',
                 'apartado': '⏳',
                 'disponible': '❌',
                 'familiares': '👨‍👩‍👧‍👦'
@@ -733,7 +766,6 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     {/* Content */}
                     <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                         <div className="space-y-6">
-                            
                             {playerGroup && (
                                 <div className="space-y-4">
                                     <h3 className="text-lg font-semibold text-white flex items-center"><UserIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />Información del Jugador</h3>
@@ -744,7 +776,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                     </div>
                                 </div>
                             )}
-
+                            
                             <div className="space-y-4">
                                 <h3 className="text-lg font-semibold text-white flex items-center"><TicketIcon className="w-5 h-5 mr-2 text-[#7c3bed]" />Información del Ticket</h3>
                                 <div className="bg-[#23283a] rounded-lg p-4 space-y-3">
@@ -767,6 +799,8 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                     )}
                                 </div>
                             </div>
+
+                            
 
                             {ticketPaymentInfo?.montoTotal !== undefined && (
                                 <div className="space-y-4">

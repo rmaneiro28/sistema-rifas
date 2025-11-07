@@ -321,7 +321,42 @@ export function Tickets() {
   const handleDeleteTicket = useCallback(async (ticket) => {
     if (window.confirm(`¿Estás seguro de eliminar el ticket #${formatTicketNumber(ticket.numero_ticket, 1000)}?`)) {
       try {
-        const { error } = await supabase.from("t_tickets").delete().eq("id", ticket.ticket_id);
+        // 1) Obtener los pagos del ticket (considerando posibles identificadores)
+        let pagoIds = [];
+        const candidateTicketIds = [ticket.ticket_id, ticket.id].filter(Boolean);
+        const { data: pagos, error: pagosErr } = await supabase
+          .from('t_pagos')
+          .select('id')
+          .in('ticket_id', candidateTicketIds);
+        if (pagosErr) throw pagosErr;
+        if (Array.isArray(pagos)) pagoIds = pagos.map(p => p.id);
+
+        // 2) Borrar pagos relacionados por ticket_id (considerando ambas columnas)
+        const { error: pagosDelErr } = await supabase
+          .from('t_pagos')
+          .delete()
+          .in('ticket_id', candidateTicketIds);
+        if (pagosDelErr) throw pagosDelErr;
+
+        // 2b) Desasociar cualquier pago remanente para romper posible FK
+        const { error: nullifyErr } = await supabase
+          .from('t_pagos')
+          .update({ ticket_id: null })
+          .in('ticket_id', candidateTicketIds);
+        if (nullifyErr) throw nullifyErr;
+
+        // 3) Borrar el ticket (usando id principal; si falla, intentar columna alternativa)
+        let { error } = await supabase
+          .from('t_tickets')
+          .delete()
+          .eq('id', ticket.ticket_id);
+        if (error && error.message.includes('column "id" does not exist')) {
+          const alt = await supabase
+            .from('t_tickets')
+            .delete()
+            .eq('ticket_id', ticket.ticket_id);
+          error = alt.error;
+        }
         if (error) throw error;
         toast.success("Ticket eliminado exitosamente");
         closeTicketModal();

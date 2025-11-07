@@ -472,8 +472,8 @@ export function PaymentForm({
       // Actualizar el estado del ticket
       if (nuevoSaldo <= 0) {
         updateData.estado = 'pagado';
-      } else if (ticket.estado === 'disponible') {
-        updateData.estado = 'apartado';
+      } else {
+        updateData.estado = 'abonado';
       }
 
       // Asegurarse de que el jugador_id esté presente
