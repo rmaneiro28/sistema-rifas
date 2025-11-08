@@ -281,21 +281,41 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
         }
 
         if (esAbono && parseFloat(montoAbono) > montoTotal) {
-            toast.error("El monto del abono no puede ser mayor al total");
+            toast.error("El abono no puede ser mayor al total de los tickets seleccionados");
             setLoading(false);
             return;
         }
 
-        const nuevoEstado = esAbono ? 'apartado' : 'pagado';
+        const updateData = esAbono ? { estado: 'abonado' } : { estado: 'pagado' };
 
-        const { error: updateError } = await supabase
+        let { error: updateError } = await supabase
             .from("t_tickets")
-            .update({ estado: nuevoEstado, fecha_pago: esAbono ? null : fechaPago })
+            .update(updateData)
+            .eq("empresa_id", empresaId)
             .eq("rifa_id", rifa.id_rifa)
             .eq("jugador_id", selectedJugador)
             .in("numero", numerosSeleccionados);
 
-        if (updateError) {
+        // Fallback si la BD no acepta 'abonado' por la restricción del CHECK
+        if (updateError && updateError.message?.includes('t_tickets_estado_check')) {
+            const fallbackData = esAbono
+                ? { estado: 'apartado', estado_pago: 'parcial' }
+                : { estado: 'pagado', estado_pago: 'completado' };
+
+            const { error: fallbackError } = await supabase
+                .from("t_tickets")
+                .update(fallbackData)
+                .eq("empresa_id", empresaId)
+                .eq("rifa_id", rifa.id_rifa)
+                .eq("jugador_id", selectedJugador)
+                .in("numero", numerosSeleccionados);
+
+            if (fallbackError) {
+                toast.error("Error al actualizar los tickets: " + fallbackError.message);
+                setLoading(false);
+                return;
+            }
+        } else if (updateError) {
             toast.error("Error al actualizar los tickets: " + updateError.message);
             setLoading(false);
             return;

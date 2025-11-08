@@ -32,8 +32,7 @@ const filterOptions = [
     { key: "disponible", label: "Disponibles", color: "bg-[#23283a]", textColor: "text-white" },
     { key: "apartado", label: "Apartados", color: "bg-yellow-400", textColor: "text-yellow-900" },
     { key: "pagado", label: "Pagados", color: "bg-green-500", textColor: "text-white" },
-    { key: "abonado", label: "Abonados", color: "bg-blue-500", textColor: "text-white" },
-    { key: "familiares", label: "Familiares", color: "bg-purple-500", textColor: "text-white" }
+    { key: "abonado", label: "Abonados", color: "bg-purple-500", textColor: "text-white" }
 ];
 
 export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, onStatusUpdate }) {
@@ -108,13 +107,13 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
             if (!ticket || !ticket.id) return;
 
             try {
-                // Obtener pagos del CLIENTE para la RIFA (historial común a todos sus tickets)
+                // Obtener pagos SOLO del TICKET actual (historial individual)
+                const candidateTicketIds = [ticket.id, ticket.ticket_id].filter(Boolean);
                 const { data: payments, error: paymentsError } = await supabase
                     .from('t_pagos')
                     .select('*')
                     .eq('empresa_id', empresaId)
-                    .eq('jugador_id', playerGroup?.info?.jugador_id)
-                    .eq('rifa_id', rifa?.id_rifa || rifa?.id)
+                    .in('ticket_id', candidateTicketIds)
                     .order('fecha_pago', { ascending: false });
 
                 if (paymentsError) {
@@ -134,7 +133,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     return;
                 }
 
-                // Calcular totales base del ticket actual (sección combinada ya usa groupTotals/combined)
+                // Calcular totales base del ticket actual (individual)
                 const montoTotal = rifa?.precio_ticket || 0;
                 const montoPagado = payments.reduce((sum, pago) => sum + parseFloat(pago.monto || 0), 0);
                 
@@ -188,18 +187,18 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
 
             if (ticketError) throw ticketError;
 
-            // Obtener pagos actualizados (historial del cliente en la rifa)
+            // Obtener pagos actualizados SOLO del TICKET actual (historial individual)
+            const candidateTicketIds = [ticket.id, ticket.ticket_id].filter(Boolean);
             const { data: payments, error: paymentsError } = await supabase
                 .from('t_pagos')
                 .select('*')
                 .eq('empresa_id', empresaId)
-                .eq('jugador_id', playerGroup?.info?.jugador_id)
-                .eq('rifa_id', rifa?.id_rifa || rifa?.id)
+                .in('ticket_id', candidateTicketIds)
                 .order('fecha_pago', { ascending: false });
 
             if (paymentsError) throw paymentsError;
 
-            // Calcular totales
+            // Calcular totales del ticket
             const montoTotal = rifa?.precio_ticket || 0;
             const montoPagado = payments.reduce((sum, pago) => sum + parseFloat(pago.monto || 0), 0);
             
@@ -278,58 +277,29 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
             // Si ya está pagado, no hacer nada
             if (ticket.estado_ticket === 'pagado') return;
             
-            // Calcular totales del cliente (todos sus tickets)
+            // Calcular totales SOLO del ticket actual (abonos por ticket individual)
             const price = rifa?.precio_ticket || 0;
-            const totalGeneral = (playerGroup.tickets?.length || 0) * price;
-            // Monto pagado por tickets (tickets completos + monto_pagado si existe)
-            const pagadoPorTickets = playerGroup.tickets.reduce((sum, t) => {
-                if (t.estado_ticket === 'pagado') return sum + price;
-                const mp = parseFloat(t.monto_pagado || 0);
-                return sum + (isNaN(mp) ? 0 : mp);
-            }, 0);
-            // Consultar pagos del jugador en la rifa para sumar al historial
-            let pagosPrevios = Array.isArray(ticketPaymentInfo?.payments) ? ticketPaymentInfo.payments : [];
-            try {
-                const { data: pagosJugador, error: pagosJugadorError } = await supabase
-                    .from('t_pagos')
-                    .select('*')
-                    .eq('empresa_id', empresaId)
-                    .eq('jugador_id', playerGroup.info.jugador_id)
-                    .eq('rifa_id', rifa.id_rifa || rifa.id);
-                if (!pagosJugadorError && Array.isArray(pagosJugador)) {
-                    pagosPrevios = pagosJugador;
-                }
-            } catch (e) {
-                console.warn('No se pudieron cargar pagosPrevios del jugador:', e);
-            }
-            const sumaHistorial = pagosPrevios.reduce((s, p) => s + parseFloat(p?.monto || 0), 0);
-            const montoPagadoCombinado = Math.min(totalGeneral, pagadoPorTickets + sumaHistorial);
-            const totalPendiente = Math.max(0, Number((totalGeneral - montoPagadoCombinado).toFixed(2)));
+            const ticketActual = ticket;
+            const saldoPendienteTicket = Number(ticketActual?.saldo_pendiente ?? price);
+            const montoPagadoTicket = Math.max(0, Number((price - saldoPendienteTicket).toFixed(2)));
 
-            // Si hay saldo pendiente, mostrar el formulario de pago
-            if (totalPendiente > 0) {
-                // Monto pagado combinado
-                const montoPagado = montoPagadoCombinado;
-
-                // Obtener todos los tickets pendientes
-                const ticketsPendientes = playerGroup.tickets
-                    .filter(t => t.estado_ticket !== 'pagado')
-                    .map(t => ({
-                        id: t.id || t.ticket_id,
-                        numero_ticket: t.numero_ticket || t.numero_ticket_ticket,
-                        monto: rifa.precio_ticket || 0,
-                        estado: t.estado_ticket || t.estado,
-                        ...t // Include all other ticket properties
-                    }));
-
-                // Actualizar la información de pago con los totales combinados
+            // Si hay saldo pendiente en el ticket, mostrar formulario de pago SOLO para este ticket
+            if (saldoPendienteTicket > 0) {
                 setTicketPaymentInfo({
-                    montoTotal: totalGeneral,
-                    montoPagado: montoPagado,
-                    saldoPendiente: totalPendiente,
-                    payments: pagosPrevios,
+                    montoTotal: price,
+                    montoPagado: montoPagadoTicket,
+                    saldoPendiente: saldoPendienteTicket,
+                    payments: Array.isArray(ticketPaymentInfo?.payments) ? ticketPaymentInfo.payments : [],
                     isPartialPayment: true,
-                    tickets: ticketsPendientes,
+                    tickets: [
+                      {
+                        id: ticketActual.id || ticketActual.ticket_id,
+                        numero_ticket: ticketActual.numero_ticket || ticketActual.numero_ticket_ticket,
+                        monto: price,
+                        estado: ticketActual.estado_ticket || ticketActual.estado,
+                        ...ticketActual
+                      }
+                    ],
                     jugador: {
                         id: playerGroup.info.jugador_id,
                         nombre: `${playerGroup.info.nombre_jugador || ''} ${playerGroup.info.apellido_jugador || ''}`.trim(),
@@ -341,7 +311,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                         precio_ticket: rifa.precio_ticket
                     }
                 });
-                
+
                 setShowPaymentForm(true);
                 return;
             }
@@ -583,31 +553,9 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
     console.log('Ticket data:', ticket);
     console.log('Player group data:', playerGroup);
 
-    // Totales por cliente (todos sus tickets)
-    const groupTotals = (() => {
-        if (!playerGroup || !rifa) return null;
-        const price = rifa?.precio_ticket || 0;
-        const count = playerGroup?.tickets?.length || 0;
-        const total = price * count;
-        const paid = (playerGroup?.tickets || []).reduce((sum, t) => {
-            if (t.estado_ticket === 'pagado') return sum + price;
-            const mp = parseFloat(t.monto_pagado || 0);
-            return sum + (isNaN(mp) ? 0 : mp);
-        }, 0);
-        const pending = Math.max(0, total - paid);
-        return { total, paid, pending };
-    })();
-
-    // Pagos adicionales desde historial del ticket actual (abonos recientes)
-    const historyPaid = (ticketPaymentInfo?.payments || []).reduce((s, p) => s + parseFloat(p?.monto || 0), 0);
-    const combinedTotal = Number(groupTotals?.total ?? ticketPaymentInfo?.montoTotal ?? 0);
-    const ticketPaid = Number(groupTotals?.paid ?? 0);
-    // Regla anti-doble-conteo: si la suma no excede el total, sumar; si excede, usar el mayor
-    let combinedPaidCalc = ticketPaid + Number(historyPaid || 0);
-    if (combinedPaidCalc > combinedTotal) {
-        combinedPaidCalc = Math.max(ticketPaid, Number(historyPaid || 0));
-    }
-    const combinedPaid = Math.min(combinedTotal, combinedPaidCalc);
+    // Totales individuales del ticket (sin contar todos los del jugador)
+    const combinedTotal = Number(ticketPaymentInfo?.montoTotal ?? rifa?.precio_ticket ?? 0);
+    const combinedPaid = Number(ticketPaymentInfo?.montoPagado ?? 0);
     const combinedPending = Math.max(0, Number((combinedTotal - combinedPaid).toFixed(2)));
 
     return (

@@ -140,7 +140,7 @@ export function DetalleRifa() {
     { key: "disponible", label: "Disponibles", color: "bg-[#23283a]", textColor: "text-white" },
     { key: "apartado", label: "Apartados", color: "bg-yellow-400", textColor: "text-yellow-900" },
     { key: "pagado", label: "Pagados", color: "bg-green-500", textColor: "text-white" },
-    { key: "familiares", label: "Familiares", color: "bg-purple-500", textColor: "text-white" }
+    { key: "abonado", label: "Abonados", color: "bg-purple-500", textColor: "text-white" }
   ];
 
   // Unified function to generate all tickets with proper status
@@ -579,12 +579,10 @@ export function DetalleRifa() {
   const disponibles = allTickets.filter((t) => t.estado_ticket === "disponible").length;
   const apartados = allTickets.filter((t) => t.estado_ticket === "apartado").length;
   const pagados = allTickets.filter((t) => t.estado_ticket === "pagado").length;
-  const familiares = allTickets.filter((t) => t.estado_ticket === "familiares").length
   const ticketStats = [
     { key: "disponible", label: "Disponibles", color: "bg-[#23283a]", count: disponibles },
     { key: "apartado", label: "Apartados", color: "bg-yellow-400", count: apartados },
-    { key: "pagado", label: "Pagados", color: "bg-green-500", count: pagados },
-    { key: "familiares", label: "Familiares", color: "bg-purple-500", count: familiares }
+    { key: "pagado", label: "Pagados", color: "bg-green-500", count: pagados }
   ];
 
   if (loading && !rifa) {
@@ -736,7 +734,7 @@ export function DetalleRifa() {
                   // Show filtered count when searching
                   opt.key === "all"
                     ? filteredTickets.length
-                    : filteredTickets.filter(t => t.estado === opt.key).length
+                    : filteredTickets.filter(t => t.estado_ticket === opt.key).length
                 ) : (
                   // Show total count when not searching
                   opt.key === "all"
@@ -747,7 +745,9 @@ export function DetalleRifa() {
                         ? apartados
                         : opt.key === "pagado"
                           ? pagados
-                          : allTickets.filter(t => t.estado_ticket === "familiares").length
+                          : opt.key === "abonado"
+                            ? allTickets.filter(t => t.estado_ticket === "abonado").length
+                            : 0
                 )}
               </span>
             </button>
@@ -811,7 +811,7 @@ export function DetalleRifa() {
             </div>
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 bg-purple-500 border border-purple-600 rounded opacity-75"></div>
-              <span className="text-gray-300">Familiares</span>
+              <span className="text-gray-300">Abonado</span>
             </div>
           </div>
         </div>
@@ -836,7 +836,7 @@ export function DetalleRifa() {
                 title={`N°${ticket.numero_ticket} - ${ticket.estado_ticket === "disponible" ? "Disponible - Haz clic para comprar"
                   : ticket.estado_ticket === "apartado" ? `Apartado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
                     : ticket.estado_ticket === "pagado" ? `Pagado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
-                      : ticket.estado_ticket === "familiares" ? "Familiares"
+                      : ticket.estado_ticket === "abonado" ? "Abonado"
                         : ""
                   }`}
                 className={`
@@ -845,7 +845,7 @@ export function DetalleRifa() {
                 ${ticket.estado_ticket === "disponible" ? "bg-[#23283a] text-white hover:bg-[#2d3748] border border-[#4a5568]" : ""}
                 ${ticket.estado_ticket === "apartado" ? "bg-yellow-400 text-yellow-900 hover:bg-yellow-300 shadow-md border border-yellow-500" : ""}
                 ${ticket.estado_ticket === "pagado" ? "bg-green-500 text-white hover:bg-green-400 shadow-md border border-green-600" : ""}
-                ${ticket.estado_ticket === "familiares" ? "bg-purple-500 text-white hover:bg-purple-400 shadow-md border border-purple-600 opacity-75" : ""}
+                ${ticket.estado_ticket === "abonado" ? "bg-purple-500 text-white hover:bg-purple-400 shadow-md border border-purple-600 opacity-75" : ""}
                 ${selectedTicketsFromMap.includes(ticket.numero_ticket) ? "!bg-[#d54ff9] ring-2 ring-white" : ""}
                 ${ganador && ganador.numero_ganador === ticket.numero_ticket ? "bg-gradient-to-br from-yellow-400 to-orange-500 text-black font-bold ring-4 ring-white shadow-2xl animate-pulse" : ""}
               `}

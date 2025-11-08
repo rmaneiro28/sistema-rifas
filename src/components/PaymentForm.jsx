@@ -366,20 +366,39 @@ export function PaymentForm({
                  metodoPago === 'zelle' ? 'Zelle' :
                  metodoPago === 'transferencia' ? 'Transferencia Bancaria' : 'Otro';
 
-    // Obtener los tickets con su información más reciente
-    const { data: ticketsActualizados, error: errorTickets } = await supabase
-      .from('t_tickets')
-      .select('*')
-      .in('id', propTickets.map(t => t.id));
+    // Determinar el ticket objetivo (único)
+    const ticketProp = Array.isArray(propTickets) && propTickets.length > 0 ? propTickets[0] : null;
+    if (!ticketProp) throw new Error('No se recibió el ticket a abonar.');
 
-    if (errorTickets) {
-      throw new Error('Error al obtener la información actualizada de los tickets');
+    // Obtener el ticket más reciente, soportando id/ticket_id
+    let ticketActual = null;
+    try {
+      const tryId = ticketProp.id || ticketProp.ticket_id;
+      let { data, error } = await supabase
+        .from('t_tickets')
+        .select('*')
+        .eq('id', tryId)
+        .single();
+      if (error) {
+        // Reintentar con ticket_id
+        const res2 = await supabase
+          .from('t_tickets')
+          .select('*')
+          .eq('ticket_id', tryId)
+          .single();
+        data = res2.data;
+        if (res2.error) throw res2.error;
+      }
+      ticketActual = data;
+    } catch (e) {
+      throw new Error('Error al obtener el ticket seleccionado');
     }
 
-    // 1. Registrar el pago principal
-    const ticketPrincipal = ticketsActualizados?.[0] || propTickets?.[0];
-    const esPagoCompleto = montoNum >= saldoPendienteCalculado;
-    
+    const precioTicket = rifa?.precio_ticket || Number(ticketActual?.monto || 0) || 0;
+    const saldoTicket = Number(ticketActual?.saldo_pendiente ?? precioTicket);
+    const esPagoCompleto = montoNum >= saldoTicket - 1e-6;
+
+    // 1. Registrar el pago
     const { data: pago, error: pagoError } = await supabase
       .from('t_pagos')
       .insert({
@@ -387,13 +406,13 @@ export function PaymentForm({
         metodo_pago: metodoPago,
         tipo_pago: esPagoCompleto ? 'completo' : 'abono',
         referencia_bancaria: referenciaFormateada,
-        banco: banco,
+        banco,
         notas: notas.trim() || null,
         fecha_pago: new Date().toISOString(),
         empresa_id: empresaId,
         jugador_id: jugadorId,
-        rifa_id: rifa?.id || null,
-        ticket_id: ticketPrincipal?.id || null,
+        rifa_id: rifa?.id_rifa || rifa?.id || null,
+        ticket_id: ticketActual?.id || ticketProp?.id || ticketProp?.ticket_id || null,
         es_abono: !esPagoCompleto
       })
       .select()
@@ -401,134 +420,95 @@ export function PaymentForm({
 
     if (pagoError) throw pagoError;
 
-    // 2. Si es pago completo, marcar todos los tickets como pagados
-    if (esPagoCompleto) {
-      const { error: updateError } = await supabase
+    // 2. Actualizar el ticket con el nuevo saldo y estado
+    const nuevoSaldo = Math.max(0, Number((saldoTicket - montoNum).toFixed(2)));
+    const estadoPago = nuevoSaldo <= 0 ? 'completado' : (montoNum > 0 ? 'parcial' : 'pendiente');
+    const updateData = {
+      saldo_pendiente: nuevoSaldo,
+      estado_pago: estadoPago,
+      fecha_ultimo_pago: new Date().toISOString(),
+      estado: nuevoSaldo <= 0 ? 'pagado' : 'abonado',
+      jugador_id: ticketActual.jugador_id || jugadorId
+    };
+
+    // Intentar actualizar por id y luego por ticket_id, incluyendo empresa_id
+    let { error: updErr } = await supabase
+      .from('t_tickets')
+      .update(updateData)
+      .eq('empresa_id', empresaId)
+      .eq('rifa_id', rifa?.id_rifa || rifa?.id)
+      .eq('jugador_id', jugadorId)
+      .eq('id', ticketActual.id);
+    if (updErr) {
+      const res = await supabase
         .from('t_tickets')
-        .update({
-          estado: 'pagado',
-          estado_pago: 'completado',
-          saldo_pendiente: 0,
-          fecha_ultimo_pago: new Date().toISOString()
-        })
-        .in('id', ticketsActualizados.map(t => t.id));
-
-      if (updateError) throw updateError;
-
-      // Mostrar mensaje de éxito
-      toast.success(`¡Pago completo de $${montoNum.toFixed(2)} registrado exitosamente!`);
-      onPaymentSuccess?.();
-      return;
+        .update(updateData)
+        .eq('empresa_id', empresaId)
+        .eq('rifa_id', rifa?.id_rifa || rifa?.id)
+        .eq('jugador_id', jugadorId)
+        .eq('ticket_id', ticketActual.ticket_id || ticketProp.ticket_id || ticketActual.id);
+      updErr = res.error;
     }
 
-    // 3. Si es un abono parcial, distribuir el pago
-    let montoRestante = montoNum;
-    const ticketsOrdenados = [...ticketsActualizados || propTickets]
-      .filter(t => (t.saldo_pendiente || t.monto || 0) > 0)
-      .sort((a, b) => (a.saldo_pendiente || a.monto) - (b.saldo_pendiente || b.monto));
+    // Fallback general para pagos parciales si cualquier error ocurre (p. ej., CHECK constraint o políticas)
+    if (updErr && nuevoSaldo > 0) {
+      const fallbackData = {
+        ...updateData,
+        estado: nuevoSaldo <= 0 ? 'pagado' : 'apartado',
+        // asegurar coherencia del estado de pago
+        estado_pago: nuevoSaldo <= 0 ? 'completado' : 'parcial'
+      };
 
-    // Registrar los detalles del pago para cada ticket
-    const pagosDetalle = [];
+      // Reintentar por id
+      let fb = await supabase
+        .from('t_tickets')
+        .update(fallbackData)
+        .eq('empresa_id', empresaId)
+        .eq('rifa_id', rifa?.id_rifa || rifa?.id)
+        .eq('jugador_id', jugadorId)
+        .eq('id', ticketActual.id);
+      let fbErr = fb.error;
 
-    for (const ticket of ticketsOrdenados) {
-      if (montoRestante <= 0) break;
+      // Reintentar por ticket_id si aún falla
+      if (fbErr) {
+        const fb2 = await supabase
+          .from('t_tickets')
+          .update(fallbackData)
+          .eq('empresa_id', empresaId)
+          .eq('rifa_id', rifa?.id_rifa || rifa?.id)
+          .eq('jugador_id', jugadorId)
+          .eq('ticket_id', ticketActual.ticket_id || ticketProp.ticket_id || ticketActual.id);
+        fbErr = fb2.error;
+      }
 
-      const saldoTicket = ticket.saldo_pendiente || ticket.monto || 0;
-      if (saldoTicket <= 0) continue; // Saltar tickets ya pagados
+      if (!fbErr) {
+        updErr = null; // fallback exitoso
+      } else {
+        updErr = fbErr;
+      }
+    }
 
-      const montoAAplicar = Math.min(saldoTicket, montoRestante);
-      const nuevoSaldo = Math.max(0, saldoTicket - montoAAplicar);
-      
-      // Guardar el detalle del pago para este ticket
-      pagosDetalle.push({
+    if (updErr) {
+      // rollback del pago si falla la actualización en todos los intentos
+      await supabase.from('t_pagos').delete().eq('id', pago.id);
+      throw new Error(`No se pudo actualizar el ticket con el abono: ${updErr.message}`);
+    }
+
+    // 3. Registrar detalle del pago (opcional, por ticket)
+    try {
+      await supabase.from('t_pagos_detalle').insert([{
         pago_id: pago.id,
-        ticket_id: ticket.id,
-        monto: montoAAplicar,
+        ticket_id: ticketActual.id,
+        monto: montoNum,
         saldo_anterior: saldoTicket,
         saldo_nuevo: nuevoSaldo,
         fecha: new Date().toISOString()
-      });
-
-      // Obtener el monto total del ticket (usando el precio de la rifa si está disponible)
-      const montoTotalTicket = rifa?.precio_ticket || ticket.monto || (ticket.saldo_pendiente + montoAAplicar);
-      const montoPagado = montoTotalTicket - nuevoSaldo;
-      
-      // Determinar el estado del pago
-      let estadoPago = 'pendiente';
-      if (nuevoSaldo <= 0) {
-        estadoPago = 'completado';
-      } else if (montoPagado > 0) {
-        estadoPago = 'parcial';
-      }
-
-      // Preparar los datos de actualización del ticket
-      const updateData = {
-        saldo_pendiente: nuevoSaldo,
-        estado_pago: estadoPago,
-        fecha_ultimo_pago: new Date().toISOString(),
-        monto_pagado: montoPagado
-      };
-
-      // Actualizar el estado del ticket
-      if (nuevoSaldo <= 0) {
-        updateData.estado = 'pagado';
-      } else {
-        updateData.estado = 'abonado';
-      }
-
-      // Asegurarse de que el jugador_id esté presente
-      if (ticket.jugador_id || jugadorId) {
-        updateData.jugador_id = ticket.jugador_id || jugadorId;
-      }
-
-      // Actualizar el ticket
-      const { error: updateError } = await supabase
-        .from('t_tickets')
-        .update(updateData)
-        .eq('id', ticket.id);
-
-      if (updateError) {
-        console.error('Error actualizando ticket:', updateError);
-        // Intento de rollback manual
-        await supabase.from('t_pagos').delete().eq('id', pago.id);
-        throw new Error(`Error al actualizar el ticket #${ticket.numero_ticket || ticket.id}.`);
-      }
-
-      montoRestante -= montoAAplicar;
+      }]);
+    } catch (e) {
+      console.warn('No se pudo registrar el detalle del pago:', e);
     }
 
-    // Si aún queda monto por aplicar, registrar un abono adicional
-    if (montoRestante > 0) {
-      // Registrar el monto restante como un abono sin asignar a un ticket específico
-      const { error: abonoError } = await supabase
-        .from('t_pagos_abonos')
-        .insert({
-          pago_id: pago.id,
-          jugador_id: jugadorId,
-          monto: montoRestante,
-          saldo_anterior: montoNum,
-          saldo_nuevo: montoRestante,
-          fecha: new Date().toISOString(),
-          notas: 'Abono pendiente de asignar a tickets'
-        });
-
-      if (abonoError) {
-        console.error('Error registrando abono pendiente:', abonoError);
-      }
-    }
-
-    // Registrar los detalles de los pagos
-    if (pagosDetalle.length > 0) {
-      const { error: detalleError } = await supabase
-        .from('t_pagos_detalle')
-        .insert(pagosDetalle);
-
-      if (detalleError) {
-        console.error('Error registrando detalles de pago:', detalleError);
-      }
-    }
-
-    toast.success(`Abono de $${montoNum.toFixed(2)} registrado correctamente.`);
+    toast.success(`${esPagoCompleto ? 'Pago completo' : 'Abono'} de $${montoNum.toFixed(2)} registrado correctamente.`);
     onPaymentSuccess?.();
   };
 
@@ -599,11 +579,11 @@ export function PaymentForm({
     }
     
     const montoNum = parseFloat(monto);
-    const saldoPendienteTotal = saldoPendienteCombinado;
+    const limiteMax = Number(maxAllowed || 0);
     
-    // Validar que el monto no exceda el saldo pendiente total
-    if (montoNum > saldoPendienteTotal) {
-      toast.error(`El monto no puede ser mayor al saldo pendiente de $${saldoPendienteTotal.toFixed(2)}`);
+    // Validar que el monto no exceda el saldo permitido
+    if (montoNum > limiteMax) {
+      toast.error(`El monto no puede ser mayor a $${limiteMax.toFixed(2)}`);
       return;
     }
     
@@ -773,6 +753,7 @@ export function PaymentForm({
   const deudaTotal = resumenCliente.total > 0 ? resumenCliente.total : (montoTotalTickets > 0 ? montoTotalTickets : (propMontoTotal || 0));
   const montoPagadoCombinado = resumenCliente.pagadoCombinado > 0 ? resumenCliente.pagadoCombinado : Math.min(deudaTotal, (montoPagadoTickets > 0 ? montoPagadoTickets : (propMontoPagado || 0)) + (pagosJugador || []).reduce((s, p) => s + parseFloat(p?.monto || 0), 0));
   const saldoPendienteCombinado = resumenCliente.pendienteCombinado > 0 || resumenCliente.total > 0 ? resumenCliente.pendienteCombinado : Math.max(0, Number((deudaTotal - montoPagadoCombinado).toFixed(2)));
+  const maxAllowed = isPartialPayment ? (propSaldoPendiente || montoMaximo || 0) : saldoPendienteCombinado;
   
   // Actualizar el estado del saldo pendiente si es necesario
   useEffect(() => {
@@ -923,7 +904,7 @@ export function PaymentForm({
                   }}
                   step="0.01"
                   min="0.01"
-                  max={saldoPendienteCombinado}
+                  max={maxAllowed}
                   required
                   aria-required="true"
                   aria-label="Monto del pago"
@@ -936,7 +917,7 @@ export function PaymentForm({
               </div>
               <div className="flex justify-between text-xs text-gray-500">
                 <span>Mínimo: $0.01</span>
-                <span>Máximo: ${saldoPendienteCombinado.toFixed(2)}</span>
+                <span>Máximo: ${Number(maxAllowed || 0).toFixed(2)}</span>
               </div>
             </div>
 
