@@ -328,7 +328,18 @@ Has ganado la rifa *${rifa.nombre}* con el número *${winnerInfo.numero}*.
 ¡Nos pondremos en contacto contigo pronto para coordinar la entrega del premio! 🎉
     `.trim().replace(/\n/g, '%0A');
 
-        const whatsappUrl = `https://wa.me/${winnerInfo.telefono.replace(/\D/g, '')}?text=${message}`;
+        // Normalizar teléfono (E.164 sin '+') para WhatsApp
+        const rawDigits = (winnerInfo.telefono || '').replace(/\D/g, '');
+        let phoneForWa = rawDigits;
+        if (rawDigits.length === 11 && rawDigits.startsWith('0')) {
+            phoneForWa = `58${rawDigits.slice(1)}`;
+        } else if (rawDigits.length === 10 && /^4\d{9}$/.test(rawDigits)) {
+            phoneForWa = `58${rawDigits}`;
+        } else if (rawDigits.startsWith('58')) {
+            phoneForWa = rawDigits;
+        }
+
+        const whatsappUrl = `https://wa.me/${phoneForWa}?text=${message}`;
         window.open(whatsappUrl, '_blank');
     };
 

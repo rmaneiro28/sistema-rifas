@@ -34,18 +34,13 @@ export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa, 
     const ticketsList = player.tickets.join(', ');
     const amount = player.tickets.length * rifa.precio_ticket;
     
-    // Mensaje que se enviará por WhatsApp
     const message = `Hola! ${greeting} ${player.nombre}, le escribimos de ${nombreEmpresa}. Paso por aquí recordando el pago de sus números (${ticketsList}) para la rifa del ${nombreRifa}, por un monto de $${amount}. El sorteo será este ${fechaSorteo}.\n\n‼De no cancelar a tiempo su número puede pasar a rezagado‼`;
     
-    // Mostrar ejemplo en consola
-    const exampleMessage = `[Ejemplo de mensaje]\n\n${message}`;
-    console.log(exampleMessage);
     const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/${player.telefono.replace(/\D/g, '')}?text=${encodedMessage}`;
+    const whatsappUrl = `https://wa.me/${player.telefono}?text=${encodedMessage}`;
 
     window.open(whatsappUrl, '_blank');
 
-    // Guardar en la base de datos que se envió el recordatorio
     try {
       // Verificar que la rifa existe antes de intentar guardar
       const { data: rifaCheck, error: rifaError } = await supabase

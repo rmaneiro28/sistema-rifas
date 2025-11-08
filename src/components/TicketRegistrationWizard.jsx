@@ -321,17 +321,46 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
             return;
         }
 
+        // Buscar los tickets afectados para enlazar el pago a un ticket específico (como en PaymentForm)
+        let ticketIdToLink = null;
+        try {
+            const { data: ticketsRows, error: tkErr } = await supabase
+                .from("t_tickets")
+                .select("id, ticket_id, numero")
+                .eq("empresa_id", empresaId)
+                .eq("rifa_id", rifa.id_rifa)
+                .eq("jugador_id", selectedJugador)
+                .in("numero", numerosSeleccionados);
+            if (!tkErr && ticketsRows && ticketsRows.length > 0) {
+                ticketIdToLink = ticketsRows[0]?.id || ticketsRows[0]?.ticket_id || null;
+            }
+        } catch (e) {
+            // Si falla, continuamos sin ticket_id; el historial por ticket no mostrará este pago
+        }
+
+        // Mapear banco de forma consistente con PaymentForm
+        const bancoMapped =
+            metodoPago === 'efectivo' ? 'Efectivo' :
+            metodoPago === 'pago_movil' ? 'Pago Móvil' :
+            metodoPago === 'zelle' ? 'Zelle' :
+            metodoPago === 'transferencia' ? 'Transferencia Bancaria' : 'Otro';
+
         const pagoData = {
             jugador_id: selectedJugador,
             monto: montoDelPago,
-            banco: metodoPago,
+            banco: bancoMapped,
             telefono: jugador?.telefono || null,
             cedula: jugador?.cedula || null,
             referencia_bancaria: referenciaPago || null,
             metodo_pago: metodoPago,
             empresa_id: empresaId,
             tipo_pago: esAbono ? 'abono' : 'completo',
-            notas: esAbono ? `Abono parcial de $${montoDelPago.toFixed(2)} (pendiente: $${(montoTotal - montoDelPago).toFixed(2)})` : null
+            notas: esAbono ? `Abono parcial de $${montoDelPago.toFixed(2)} (pendiente: $${(montoTotal - montoDelPago).toFixed(2)})` : null,
+            // Campos para alinear con PaymentForm
+            rifa_id: rifa?.id_rifa || rifa?.id || null,
+            fecha_pago: fechaPago,
+            es_abono: !!esAbono,
+            ticket_id: ticketIdToLink
         };
 
         const { error: pagoError } = await supabase.from("t_pagos").insert([pagoData]);
@@ -426,7 +455,18 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
         message += `¡Mucha suerte! 🍀\n`;
         message += `_Equipo ${empresa}_`;
 
-        const whatsappUrl = `https://wa.me/${generatedTicketInfo.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+        // Normalizar teléfono (E.164 sin '+') para WhatsApp
+        const rawDigits = (generatedTicketInfo.telefono || '').replace(/\D/g, '');
+        let phoneForWa = rawDigits;
+        if (rawDigits.length === 11 && rawDigits.startsWith('0')) {
+            phoneForWa = `58${rawDigits.slice(1)}`;
+        } else if (rawDigits.length === 10 && /^4\d{9}$/.test(rawDigits)) {
+            phoneForWa = `58${rawDigits}`;
+        } else if (rawDigits.startsWith('58')) {
+            phoneForWa = rawDigits;
+        }
+
+        const whatsappUrl = `https://wa.me/${phoneForWa}?text=${encodeURIComponent(message)}`;
         window.open(whatsappUrl, '_blank');
     };
 

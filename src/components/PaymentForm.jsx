@@ -1,5 +1,5 @@
 // src/components/PaymentForm.jsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../api/supabaseClient';
 import { toast } from 'sonner';
 import { 
@@ -19,7 +19,71 @@ const ConfirmationModal = ({ isOpen, onConfirm, onCancel, amount }) => {
   
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1e2235] rounded-xl border border-[#2d3748] w-full max-w-md">
+      <div className="bg-[#1e2235] rounded-xl border border-[#2d3748] p-6 w-full max-w-2xl">
+        {/* Selección de tickets */}
+        {propTickets?.length > 1 && (
+          <div className={`mb-6 p-4 rounded-lg ${fieldErrors.tickets ? 'bg-red-500/10 border border-red-500' : 'bg-[#2d3748]'}`}>
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="font-medium text-white">Tickets del jugador</h3>
+              <button
+                type="button"
+                onClick={() => handleSelectAll(!allSelected)}
+                className="text-sm text-blue-400 hover:text-blue-300"
+              >
+                {allSelected ? 'Deseleccionar todos' : 'Seleccionar todos'}
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-1">
+              {propTickets.map((ticket) => {
+                const ticketId = ticket.id || ticket.ticket_id;
+                const isSelected = selectedTickets[ticketId] || false;
+                const saldo = Number(ticket.saldo_pendiente) || Number(rifa?.precio_ticket) || 0;
+                const isPagado = saldo <= 0;
+                
+                return (
+                  <div 
+                    key={ticketId}
+                    onClick={() => !isPagado && handleTicketSelect(ticketId, !isSelected)}
+                    className={`p-2 rounded-md cursor-pointer transition-colors ${isPagado ? 'opacity-60 cursor-not-allowed' : 'hover:bg-[#3c4556]'} ${
+                      isSelected ? 'bg-blue-500/20 border border-blue-500' : 'bg-[#374151]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleTicketSelect(ticketId, !isSelected)}
+                          disabled={isPagado}
+                          className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800"
+                        />
+                        <span className="ml-2 text-sm font-medium text-white">
+                          Ticket #{ticket.numero_ticket || ticket.numero_ticket_ticket}
+                        </span>
+                      </div>
+                      <span className="text-sm font-medium">
+                        {isPagado ? (
+                          <span className="text-green-400">Pagado</span>
+                        ) : (
+                          <span>${saldo.toFixed(2)}</span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {fieldErrors.tickets && (
+              <p className="mt-1 text-sm text-red-400">Seleccione al menos un ticket</p>
+            )}
+            {selectedCount > 0 && (
+              <div className="mt-2 text-sm text-gray-300">
+                {selectedCount} {selectedCount === 1 ? 'ticket seleccionado' : 'tickets seleccionados'} • 
+                Total a pagar: <span className="font-semibold">${montoSeleccionado.toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+        )}
         <div className="p-6 text-center">
           <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-500/10 mb-4">
             <ExclamationTriangleIcon className="h-8 w-8 text-yellow-500" />
@@ -136,6 +200,15 @@ export function PaymentForm({
   const [referencia, setReferencia] = useState('');
   const [notas, setNotas] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedTickets, setSelectedTickets] = useState({});
+  const [fieldErrors, setFieldErrors] = useState({
+    monto: false,
+    referencia: false,
+    telefono: false,
+    banco: false,
+    cedula: false,
+    tickets: false,
+  });
   const [saldoPendiente, setSaldoPendiente] = useState(propSaldoPendiente || 0);
   const [montoMaximo, setMontoMaximo] = useState(propSaldoPendiente || 0);
   const [ticketsPendientes, setTicketsPendientes] = useState(propTickets || []);
@@ -149,7 +222,6 @@ export function PaymentForm({
     cantidadTickets: 0,
   });
   const [pagosJugador, setPagosJugador] = useState([]);
-  const [fieldErrors, setFieldErrors] = useState({ telefono: false, banco: false, cedula: false });
   const amountInputRef = useRef(null);
   const firstPaymentMethodRef = useRef(null);
 
@@ -256,6 +328,91 @@ export function PaymentForm({
     }
   }, [jugador, rifa, isPartialPayment]); // Removed saldoPendiente from dependencies
 
+  // Inicializar tickets seleccionados
+  useEffect(() => {
+    if (propTickets?.length > 0) {
+      const initialSelected = {};
+      propTickets.forEach(ticket => {
+        const ticketId = ticket.id || ticket.ticket_id;
+        if (ticketId) {
+          initialSelected[ticketId] = true;
+        }
+      });
+      setSelectedTickets(initialSelected);
+    }
+  }, [propTickets]);
+
+  // Calcular monto total de tickets seleccionados
+  const montoSeleccionado = useMemo(() => {
+    if (!propTickets?.length) return 0;
+    return propTickets.reduce((total, ticket) => {
+      const ticketId = ticket.id || ticket.ticket_id;
+      if (selectedTickets[ticketId]) {
+        const saldo = Number(ticket.saldo_pendiente) || Number(rifa?.precio_ticket) || 0;
+        return total + saldo;
+      }
+      return total;
+    }, 0);
+  }, [selectedTickets, propTickets, rifa]);
+
+  // Calcular montos para mostrar en el resumen
+  const { total, pagado, pendiente } = useMemo(() => {
+    if (!propTickets?.length) return { total: 0, pagado: 0, pendiente: 0 };
+    
+    return propTickets.reduce((acc, ticket) => {
+      const ticketId = ticket.id || ticket.ticket_id;
+      if (selectedTickets[ticketId]) {
+        const precioTicket = Number(rifa?.precio_ticket) || 0;
+        
+        // Calcular monto pagado y pendiente de forma consistente
+        let montoPagado = 0;
+        let saldoPendiente = precioTicket;
+        
+        // Si el ticket ya tiene un monto pagado, usarlo
+        if (ticket.monto_pagado !== undefined && ticket.monto_pagado !== null) {
+          montoPagado = Number(ticket.monto_pagado  );
+          saldoPendiente = Math.max(0, precioTicket - montoPagado);
+        } else if (ticket.saldo_pendiente !== undefined && ticket.saldo_pendiente !== null) {
+          // Si solo tenemos saldo pendiente, calcular el monto pagado
+          saldoPendiente = Number(ticket.saldo_pendiente);
+          montoPagado = Math.max(0, precioTicket - saldoPendiente);
+        }
+        
+        return {
+          total: acc.total + precioTicket,
+          pagado: acc.pagado + montoPagado,
+          pendiente: acc.pendiente + saldoPendiente
+        };
+      }
+      return acc;
+    }, { total: 0, pagado: 0, pendiente: 0 });
+  }, [selectedTickets, propTickets, rifa]);
+
+  // Actualizar el monto cuando cambian los tickets seleccionados
+  useEffect(() => {
+    if (montoSeleccionado > 0) {
+      setMonto(montoSeleccionado.toFixed(2));
+    }
+  }, [montoSeleccionado]);
+
+  const handleTicketSelect = (ticketId, isSelected) => {
+    setSelectedTickets(prev => ({
+      ...prev,
+      [ticketId]: isSelected
+    }));
+  };
+
+  const handleSelectAll = (isSelected) => {
+    const newSelection = {};
+    propTickets.forEach(ticket => {
+      const ticketId = ticket.id || ticket.ticket_id;
+      if (ticketId) {
+        newSelection[ticketId] = isSelected;
+      }
+    });
+    setSelectedTickets(newSelection);
+  };
+
   // Formatea el número de referencia según el método de pago
   const formatReference = (method, ref) => {
     if (!ref) return null;
@@ -284,23 +441,30 @@ export function PaymentForm({
   };
 
   const validateForm = () => {
-    const montoNum = parseFloat(monto);
-    const montoMaximoPermitido = isPartialPayment ? montoMaximo : saldoPendiente;
+    // Validar que se hayan seleccionado tickets
+    const selectedCount = Object.values(selectedTickets).filter(Boolean).length;
+    if (selectedCount === 0) {
+      setFieldErrors(prev => ({ ...prev, tickets: true }));
+      toast.error('Seleccione al menos un ticket para realizar el pago');
+      return false;
+    }
 
+    // Validar monto
+    const montoNum = parseFloat(monto);
     if (isNaN(montoNum) || montoNum <= 0) {
-      toast.error('Por favor ingrese un monto válido');
-      amountInputRef.current?.focus();
+      setFieldErrors(prev => ({ ...prev, monto: true }));
+      toast.error('Ingrese un monto válido mayor a cero');
       return false;
     }
 
     if (montoNum > montoMaximoPermitido) {
       toast.error(`El monto no puede ser mayor a $${montoMaximoPermitido.toFixed(2)}`);
-      amountInputRef.current?.focus();
       return false;
     }
 
     // Validar referencia para métodos que la requieren
     if (['transferencia', 'pago_movil', 'zelle'].includes(metodoPago) && !referencia.trim()) {
+      setFieldErrors(prev => ({ ...prev, referencia: true }));
       toast.error(`Por favor ingrese el número de referencia para ${METODOS_PAGO.find(m => m.id === metodoPago)?.name}`);
       return false;
     }
@@ -354,7 +518,37 @@ export function PaymentForm({
   /**
    * Maneja la lógica para un pago parcial (abono).
    */
-  const handlePartialPayment = async (montoNum, referenciaFormateada) => {
+  // Función para manejar pagos de múltiples tickets
+  const handleMultipleTicketsPayment = async (montoTotal, referenciaFormateada, tickets) => {
+    const jugadorId = getJugadorId();
+    if (!jugadorId) {
+      throw new Error("No se pudo determinar el ID del jugador. Los tickets deben estar asignados a un jugador.");
+    }
+
+    // Calcular el monto por ticket (distribuir el pago proporcionalmente)
+    const totalSaldoPendiente = tickets.reduce((sum, t) => {
+      const saldo = Number(t.saldo_pendiente) || Number(rifa?.precio_ticket) || 0;
+      return sum + saldo;
+    }, 0);
+
+    // Procesar cada ticket con su parte proporcional del pago
+    for (const ticket of tickets) {
+      const saldoTicket = Number(ticket.saldo_pendiente) || Number(rifa?.precio_ticket) || 0;
+      const montoTicket = (montoTotal * (saldoTicket / totalSaldoPendiente)).toFixed(2);
+      
+      if (saldoTicket <= 0) continue; // Saltar tickets ya pagados
+      
+      // Usar handlePartialPayment para cada ticket
+      await handlePartialPayment(parseFloat(montoTicket), referenciaFormateada, ticket);
+    }
+  };
+
+  const handlePartialPayment = async (montoNum, referenciaFormateada, ticketProp = null) => {
+    // Si no se proporciona un ticket específico, usar el primero de propTickets (compatibilidad hacia atrás)
+    if (!ticketProp) {
+      ticketProp = Array.isArray(propTickets) && propTickets.length > 0 ? propTickets[0] : null;
+      if (!ticketProp) throw new Error('No se recibió el ticket a abonar.');
+    }
     const jugadorId = getJugadorId();
     if (!jugadorId) {
       throw new Error("No se pudo determinar el ID del jugador. El ticket debe estar asignado a un jugador.");
@@ -366,14 +560,14 @@ export function PaymentForm({
                  metodoPago === 'zelle' ? 'Zelle' :
                  metodoPago === 'transferencia' ? 'Transferencia Bancaria' : 'Otro';
 
-    // Determinar el ticket objetivo (único)
-    const ticketProp = Array.isArray(propTickets) && propTickets.length > 0 ? propTickets[0] : null;
-    if (!ticketProp) throw new Error('No se recibió el ticket a abonar.');
+    // Usar el ticket proporcionado o el primero de propTickets
+    const ticketToUse = ticketProp || (Array.isArray(propTickets) && propTickets.length > 0 ? propTickets[0] : null);
+    if (!ticketToUse) throw new Error('No se recibió el ticket a abonar.');
 
     // Obtener el ticket más reciente, soportando id/ticket_id
     let ticketActual = null;
     try {
-      const tryId = ticketProp.id || ticketProp.ticket_id;
+      const tryId = ticketToUse.id || ticketToUse.ticket_id;
       let { data, error } = await supabase
         .from('t_tickets')
         .select('*')
@@ -423,13 +617,27 @@ export function PaymentForm({
     // 2. Actualizar el ticket con el nuevo saldo y estado
     const nuevoSaldo = Math.max(0, Number((saldoTicket - montoNum).toFixed(2)));
     const estadoPago = nuevoSaldo <= 0 ? 'completado' : (montoNum > 0 ? 'parcial' : 'pendiente');
+    const montoPagadoActual = Number(ticketActual.monto_pagado || 0);
+    const nuevoMontoPagado = montoPagadoActual + montoNum;
+    
     const updateData = {
       saldo_pendiente: nuevoSaldo,
+      monto_pagado: nuevoMontoPagado,
       estado_pago: estadoPago,
       fecha_ultimo_pago: new Date().toISOString(),
       estado: nuevoSaldo <= 0 ? 'pagado' : 'abonado',
       jugador_id: ticketActual.jugador_id || jugadorId
     };
+    
+    console.log('Actualizando ticket:', {
+      ticketId: ticketActual.id || ticketActual.ticket_id,
+      montoPagadoAnterior: montoPagadoActual,
+      montoPagadoNuevo: nuevoMontoPagado,
+      montoAbonado: montoNum,
+      saldoAnterior: saldoTicket,
+      nuevoSaldo: nuevoSaldo,
+      estado: updateData.estado
+    });
 
     // Intentar actualizar por id y luego por ticket_id, incluyendo empresa_id
     let { error: updErr } = await supabase
@@ -545,24 +753,53 @@ export function PaymentForm({
     const montoNum = parseFloat(pendingPayment || monto);
     setIsLoading(true);
 
-    try {
-      const referenciaFormateada = formatReference(metodoPago, referencia);
+    const handleProcessPayment = async (montoNum, referenciaFormateada) => {
+      try {
+        setIsLoading(true);
+        
+        // Filtrar solo los tickets seleccionados
+        const ticketsAPagar = propTickets.filter(ticket => {
+          const ticketId = ticket.id || ticket.ticket_id;
+          return selectedTickets[ticketId];
+        });
 
-      if (isPartialPayment) {
-        await handlePartialPayment(montoNum, referenciaFormateada);
-      } else {
-        if (!jugador || !rifa) {
-          throw new Error("Faltan datos del jugador o de la rifa para un pago completo.");
+        // Si es un solo ticket, usar la lógica existente
+        if (ticketsAPagar.length === 1) {
+          if (isPartialPayment) {
+            await handlePartialPayment(montoNum, referenciaFormateada, ticketsAPagar[0]);
+          } else {
+            await handleFullPayment(montoNum, referenciaFormateada, ticketsAPagar[0]);
+          }
+        } else {
+          // Para múltiples tickets, procesar cada uno con una fracción del pago
+          await handleMultipleTicketsPayment(montoNum, referenciaFormateada, ticketsAPagar);
         }
-        await handleFullPayment(montoNum, referenciaFormateada);
+      } catch (error) {
+        console.error('Error al registrar el pago:', error);
+        toast.error(`Error al registrar el pago: ${error.message}`);
+      } finally {
+        setIsLoading(false);
+        setPendingPayment(null);
       }
-    } catch (error) {
-      console.error('Error al registrar el pago:', error);
-      toast.error(`Error al registrar el pago: ${error.message}`);
-    } finally {
-      setIsLoading(false);
-      setPendingPayment(null);
+    };
+
+    if (!validateForm()) {
+      return;
     }
+
+    // Filtrar solo los tickets seleccionados
+    const ticketsAPagar = propTickets.filter(ticket => {
+      const ticketId = ticket.id || ticket.ticket_id;
+      return selectedTickets[ticketId];
+    });
+
+    if (ticketsAPagar.length === 0) {
+      toast.error('No hay tickets seleccionados para pagar');
+      return;
+    }
+
+    const referenciaFormateada = formatReference(metodoPago, referencia);
+    await handleProcessPayment(montoNum, referenciaFormateada);
   };
 
   const handleSubmit = async (e) => {
@@ -844,16 +1081,16 @@ export function PaymentForm({
           <div className="grid grid-cols-3 gap-4 pt-2">
             <div>
               <p className="text-xs text-gray-400">Total</p>
-              <p className="font-medium text-white">${displayDeudaTotal.toFixed(2)}</p>
+              <p className="font-medium text-white">${total.toFixed(2)}</p>
             </div>
             <div className="text-center">
               <p className="text-xs text-gray-400">Pagado</p>
-              <p className="font-medium text-green-400">${displayPagadoCombinado.toFixed(2)}</p>
+              <p className="font-medium text-green-400">${pagado.toFixed(2)}</p>
             </div>
             <div className="text-right">
               <p className="text-xs text-gray-400">Pendiente</p>
               <p className={`font-medium ${paymentComplete ? 'text-green-400' : 'text-yellow-400'}`}>
-                ${displaySaldoPendiente.toFixed(2)}
+                ${pendiente.toFixed(2)}
               </p>
             </div>
           </div>
@@ -862,10 +1099,21 @@ export function PaymentForm({
         {!paymentComplete && (
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Amount Input */}
-            <div className="space-y-2">
-              <label htmlFor="monto" className="block text-sm font-medium text-gray-300">
-                Monto del Pago
-              </label>
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-1">
+                <label htmlFor="monto" className="block text-sm font-medium text-gray-300">
+                  Monto a Pagar
+                </label>
+                {propTickets?.length > 1 && Object.values(selectedTickets).filter(Boolean).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setMonto(montoSeleccionado.toFixed(2))}
+                    className="text-xs text-blue-400 hover:text-blue-300"
+                  >
+                    Usar total seleccionado (${montoSeleccionado.toFixed(2)})
+                  </button>
+                )}
+              </div>
               <div className="relative rounded-lg overflow-hidden bg-[#23283a] border border-[#2d3748] focus-within:border-green-500 transition-colors">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <span className="text-gray-400">$</span>
