@@ -702,26 +702,6 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
                                 </div>
                             </div>
 
-                            {/* Monto */}
-                            <div className="bg-[#23283a] rounded-lg p-4 border border-[#2d3748]">
-                                <label className="text-sm font-medium text-white mb-2 block">
-                                    Monto a Pagar
-                                </label>
-                                <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                                    <input
-                                        type="number"
-                                        value={monto}
-                                        onChange={(e) => setMonto(parseFloat(e.target.value) || 0)}
-                                        min="0.01"
-                                        step="0.01"
-                                        className="w-full pl-8 pr-4 py-3 bg-[#181c24] border border-[#2d3748] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#7c3bed] focus:border-transparent"
-                                        placeholder="0.00"
-                                    />
-                                </div>
-                                <p className="text-xs text-gray-400 mt-1">Total del ticket: ${(rifa?.precio_ticket * numerosSeleccionados.length).toFixed(2)}</p>
-                            </div>
-
                             {/* Referencia compacta */}
                             {metodoPago !== 'efectivo' && (
                                 <div className="bg-[#23283a] rounded-lg p-4 border border-[#2d3748]">

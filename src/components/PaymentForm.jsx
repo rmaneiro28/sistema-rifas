@@ -88,7 +88,7 @@ const ConfirmationModal = ({ isOpen, onConfirm, onCancel, amount }) => {
           <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-500/10 mb-4">
             <ExclamationTriangleIcon className="h-8 w-8 text-yellow-500" />
           </div>
-          <h3 className="text-lg font-semibold text-white mb-2">Confirmar Pago Grande</h3>
+          <h3 className="text-lg font-semibold text-white mb-2">Confirmar Pago</h3>
           <p className="text-gray-400 mb-6">
             Estás a punto de registrar un pago de <span className="font-semibold text-white">${amount}</span>.
             ¿Estás seguro de que deseas continuar?

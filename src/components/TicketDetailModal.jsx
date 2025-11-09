@@ -230,7 +230,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
             const updateData = {
                 saldo_pendiente: saldoPendiente,
                 estado_pago: estadoPago,
-                estado: saldoPendiente <= 0 ? 'pagado' : 'abonado',
+                estado: saldoPendiente <= 0.01 ? 'pagado' : 'abonado', // Usar un pequeño margen para evitar errores de redondeo
                 updated_at: new Date().toISOString()
             };
 
@@ -365,25 +365,32 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                 // Si es un abono, sumar el monto del abono actual al total pagado
                 if (newStatus === 'abonado' && abonoMonto > 0) {
                     totalPagado += parseFloat(abonoMonto) || 0;
+                    // Forzar el estado a 'abonado' cuando se está haciendo un abono parcial
+                    updateData.estado = 'abonado';
+                    updateData.estado_pago = 'parcial';
                 }
                 
                 // Calcular el saldo pendiente y redondear a 2 decimales
                 let saldoPendiente = Math.max(0, precioTicket - totalPagado);
                 saldoPendiente = Math.round(saldoPendiente * 100) / 100;
 
-                // Actualizar el estado del ticket basado en el total pagado
-                if (totalPagado >= precioTicket) {
-                    // Pago completo
-                    updateData.estado = 'pagado';
-                    updateData.estado_pago = 'completado';
-                } else if (totalPagado > 0) {
-                    // Pago parcial
-                    updateData.estado = 'abonado';
-                    updateData.estado_pago = 'parcial';
-                } else {
-                    // Sin pagos
-                    updateData.estado = 'apartado';
-                    updateData.estado_pago = 'pendiente';
+                // Solo actualizar el estado si no es un abono parcial
+                if (newStatus !== 'abonado') {
+                    // Actualizar el estado del ticket basado en el total pagado
+                    if (Math.abs(totalPagado - precioTicket) <= 0.01) { // Usar un pequeño margen para evitar errores de redondeo
+                        // Pago completo (considerando posibles errores de redondeo)
+                        updateData.estado = 'pagado';
+                        updateData.estado_pago = 'completado';
+                        saldoPendiente = 0; // Asegurar que el saldo sea exactamente 0
+                    } else if (totalPagado > 0) {
+                        // Pago parcial
+                        updateData.estado = 'abonado';
+                        updateData.estado_pago = 'parcial';
+                    } else {
+                        // Sin pagos
+                        updateData.estado = 'apartado';
+                        updateData.estado_pago = 'pendiente';
+                    }
                 }
 
                 // Update only valid columns from the t_tickets table
