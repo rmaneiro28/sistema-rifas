@@ -615,7 +615,6 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                 'abonado': '🔵',
                 'apartado': '⏳',
                 'disponible': '❌',
-                'abonado': '👨‍👩‍👧‍👦'
             }[t.estado_ticket] || '❓';
 
             return `${formatTicketNumber(t.numero_ticket || t.numero_ticket_ticket, rifa?.total_tickets)} ${statusEmoji}`;

@@ -475,7 +475,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
     const handleDownloadTicket = async () => {
         if (!ticketRef.current) return toast.error("No se encontró la referencia del ticket.");
         try {
-            const dataUrl = await toPng(ticketRef.current, { cacheBust: true, quality: 0.95, pixelRatio: 2, backgroundColor: '#0f131b' });
+            const dataUrl = await toPng(ticketRef.current, { cacheBust: true, quality: 0.95, pixelRatio: 2, backgroundColor: '#FFF' });
             const link = document.createElement('a');
             link.download = `ticket-rifa-${generatedTicketInfo?.jugador?.replace(/\s/g, '_') || 'jugador'}.png`;
             link.href = dataUrl;
@@ -489,7 +489,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
     const handleCopyTicket = async () => {
         if (!ticketRef.current) return toast.error("No se encontró la referencia del ticket.");
         try {
-            const blob = await toBlob(ticketRef.current, { cacheBust: true, quality: 0.95, pixelRatio: 2, backgroundColor: '#0f131b' });
+            const blob = await toBlob(ticketRef.current, { cacheBust: true, quality: 0.95, pixelRatio: 2, backgroundColor: '#fff' });
             if (blob) {
                 await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
                 toast.success('¡Imagen del ticket copiada al portapapeles!');
@@ -853,7 +853,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
                                 {/* Información específica de abonos - Diseño adaptativo */}
                                 {generatedTicketInfo && (
                                     <div className="text-center border-t border-gray-700 pt-2">
-                                        <div className="text-gray-400 text-sm mb-1">Total Pagado:</div>
+                                        <div className="text-black text-sm mb-1">Total Pagado:</div>
                                         <div className="text-green-400 font-bold text-lg">${generatedTicketInfo.total}</div>
                                     </div>
                                 )}
