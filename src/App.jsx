@@ -116,7 +116,7 @@ function App() {
   return (
     <Router>
       <ScrollToTop />
-      <Toaster richColors />
+      <Toaster richColors position="top-right" />
       <Routes>
         <Route path="/public-rifa/:id" element={<PublicRifa />} />
         {/* Login route - no sidebar/navbar */}
