@@ -95,6 +95,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
             setGeneratedTicketInfo({
                 jugador: `${playerGroup?.info?.nombre_jugador || 'Jugador'} ${playerGroup?.info?.apellido_jugador || ''}`.trim(),
                 rifa: rifa?.nombre || 'Rifa',
+                empresa: empresa || rifa?.nombre_empresa || 'Nuestra Empresa',
                 numeros: [ticket.numero_ticket],
                 total: rifa?.precio_ticket || 0,
                 telefono: playerGroup?.info?.telefono_jugador || ticket.telefono_jugador || ticket.telefono || 'N/A',
@@ -544,69 +545,49 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         }
     };
 
-    const handleSendWhatsApp = () => {
+    const handleSendWhatsApp = async () => {
         if (!generatedTicketInfo?.telefono) return toast.error("Este jugador no tiene un número de teléfono registrado.");
 
-        const { jugador, rifa: nombreRifa } = generatedTicketInfo;
-        const pricePerTicket = rifa?.precio_ticket || 0;
+        const { jugador } = generatedTicketInfo;
+        const nombreRifa = rifa?.nombre;
+        const pricePerTicket = parseFloat(rifa?.precio_ticket) || 0;
         const playerTickets = playerGroup?.tickets?.length > 0 ? playerGroup.tickets : [ticket];
 
         // Calcular totales para todos los tickets del jugador
         const totalTickets = playerTickets.length;
-        const totalAmountNumber = pricePerTicket * totalTickets;
+        const totalAmount = pricePerTicket * totalTickets;
 
-        // Obtener pagos del historial para el ticket actual
-        const currentTicketPayments = ticketPaymentInfo?.payments || [];
-        const totalPaidFromHistory = currentTicketPayments.reduce(
-            (sum, p) => sum + parseFloat(p.monto || 0), 0
-        );
+        // Obtener todos los IDs de tickets del jugador
+        const ticketIds = playerTickets.map(t => t.id).filter(Boolean);
+        let totalPaid = 0;
 
-        // Calcular montos pagados y pendientes de forma consistente
-        const { paid: combinedPaid, pending: pendingAmountNumber } = playerTickets.reduce((acc, t) => {
-            const ticketPrice = pricePerTicket;
-            let paid = 0;
-            let pending = ticketPrice;
+        // Obtener todos los pagos de los tickets del jugador
+        if (ticketIds.length > 0) {
+            const { data: payments, error } = await supabase
+                .from('t_pagos')
+                .select('monto')
+                .in('ticket_id', ticketIds);
 
-            // Si el ticket está marcado como pagado, considerar el monto completo
-            if (t.estado_pago === 'pagado' || t.estado_ticket === 'pagado') {
-                paid = ticketPrice;
-                pending = 0;
+            if (!error && payments && payments.length > 0) {
+                totalPaid = payments.reduce((sum, pago) => sum + (parseFloat(pago.monto) || 0), 0);
+            } else {
+                // Si no hay pagos en el historial, calcular basado en el estado de los tickets
+                totalPaid = playerTickets.reduce((sum, t) => {
+                    if (t.estado_ticket === 'pagado') {
+                        return sum + (parseFloat(t.precio_ticket) || pricePerTicket);
+                    } else if (t.monto_pagado) {
+                        return sum + parseFloat(t.monto_pagado);
+                    } else if (t.saldo_pendiente !== undefined && t.saldo_pendiente !== null) {
+                        const ticketPrice = parseFloat(t.precio_ticket) || pricePerTicket;
+                        return sum + (ticketPrice - parseFloat(t.saldo_pendiente));
+                    }
+                    return sum;
+                }, 0);
             }
-            // Si el ticket tiene un monto pagado, usarlo
-            else if (t.monto_pagado !== undefined && t.monto_pagado !== null) {
-                // Sumar monto_pagado, monto_abonado y pagos del historial
-                paid = Number(t.monto_pagado) + Number(t.monto_abonado || 0);
+        }
 
-                // Si este es el ticket actual, sumar los pagos del historial
-                if (t.id === ticket.id) {
-                    paid += totalPaidFromHistory;
-                }
-
-                pending = Math.max(0, ticketPrice - paid);
-            }
-            // Si solo tenemos saldo pendiente, calcular el monto pagado
-            else if (t.saldo_pendiente !== undefined && t.saldo_pendiente !== null) {
-                pending = Number(t.saldo_pendiente);
-                paid = Math.max(0, ticketPrice - pending);
-
-                // Si este es el ticket actual, sumar los pagos del historial
-                if (t.id === ticket.id) {
-                    paid += totalPaidFromHistory;
-                    pending = Math.max(0, ticketPrice - paid);
-                }
-            } else if (t.estado_ticket === 'pagado') {
-                // Si está marcado como pagado pero no tiene monto_pagado
-                paid = ticketPrice;
-                pending = 0;
-            }
-
-            return {
-                paid: acc.paid + paid,
-                pending: acc.pending + pending
-            };
-        }, { paid: 0, pending: 0 });
-
-        const isFullyPaid = pendingAmountNumber <= 0.000001;
+        const pendingAmount = Math.max(0, totalAmount - totalPaid);
+        const isFullyPaid = pendingAmount <= 0.01;
 
         // Lista de todos los números de ticket con sus estados
         const ticketNumbers = playerTickets.map(t => {
@@ -628,8 +609,20 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
 
         if (isFullyPaid) {
             message += `*Estado del pago:* ✅ *Completo*\n`;
-            message += `*Total (${totalTickets} tickets):* $${totalAmountNumber.toFixed(2)}\n`;
+            message += `*Total:* $${totalAmount.toFixed(2)}\n`;
+            message += `*Pagado:* $${totalPaid.toFixed(2)}\n`;
+            message += `*Pendiente:* $0.00\n\n`;
             message += `¡Muchas gracias por tu pago! Tu participación está confirmada. 🎉\n\n`;
+        } else {
+            message += `*Estado del pago:* ⚠️ *Pendiente*\n`;
+            message += `*Total:* $${totalAmount.toFixed(2)}\n`;
+            message += `*Pagado:* $${totalPaid.toFixed(2)}\n`;
+            message += `*Pendiente:* $${pendingAmount.toFixed(2)}\n\n`;
+            message += `*Recordatorio de pago:*\n`;
+            message += `Por favor, completa tu pago para asegurar tus números. Puedes realizar el pago mediante:\n`;
+            message += `• Transferencia bancaria\n`;
+            message += `• Efectivo en nuestras oficinas\n\n`;
+            message += `¡No pierdas la oportunidad de ganar! 🏆\n\n`;
         }
 
         message += `¡Mucha suerte! 🍀\n`;
