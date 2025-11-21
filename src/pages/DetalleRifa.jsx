@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, NavLink } from "react-router-dom";
-import { ArrowLeftIcon, StarIcon, TicketIcon, XMarkIcon, MagnifyingGlassIcon, TrophyIcon, ShareIcon, PencilIcon, PlusIcon, BellAlertIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, StarIcon, TicketIcon, XMarkIcon, MagnifyingGlassIcon, TrophyIcon, ShareIcon, PencilIcon, PlusIcon, BellAlertIcon, PhotoIcon } from "@heroicons/react/24/outline";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
@@ -10,7 +10,10 @@ import { WinnerRegistrationModal } from "../components/WinnerRegistrationModal";
 import { TicketDetailModal } from "../components/TicketDetailModal";
 import { ReminderReenvioModal } from "../components/ReminderReenvioModal.jsx";
 import { ReminderControlModal } from "../components/ReminderControlModal";
+import { TicketSummaryGrid } from "../components/TicketSummaryGrid";
+import html2canvas from 'html2canvas';
 import { useAuth } from '../context/AuthContext';
+import logoRifasPlus from "../assets/Logo Rifas Plus Dark.jpg";
 
 const formatTicketNumber = (number, totalTickets) => {
   if (number === null || number === undefined || !totalTickets || totalTickets <= 0) {
@@ -40,15 +43,18 @@ export function DetalleRifa() {
   const [showReenvioModal, setShowReenvioModal] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [playersToRemind, setPlayersToRemind] = useState([]);
+  const [logosBase64, setLogosBase64] = useState({ empresa: null, system: null });
 
   const pdfRef = useRef(); // For the map export
+  const summaryGridRef = useRef();
+  const summaryGridRef2 = useRef(); // Ref for the second part of the summary (if > 1000 tickets) // For the summary image export
 
   useEffect(() => {
     const fetchEmpresa = async () => {
       if (empresaId) {
         const { data: empresaData, error } = await supabase
           .from('t_empresas')
-          .select('nombre_empresa')
+          .select('nombre_empresa, logo_url')
           .eq('id_empresa', empresaId)
           .single();
 
@@ -60,7 +66,42 @@ export function DetalleRifa() {
       }
     };
     fetchEmpresa();
+    fetchEmpresa();
   }, [empresaId]);
+
+  // Load logos as base64
+  useEffect(() => {
+    const toDataURL = (url) => {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = function () {
+          const reader = new FileReader();
+          reader.onloadend = function () {
+            resolve(reader.result);
+          };
+          reader.readAsDataURL(xhr.response);
+        };
+        xhr.onerror = () => reject(new Error('Error al cargar la imagen'));
+        xhr.open('GET', url);
+        xhr.responseType = 'blob';
+        xhr.send();
+      });
+    };
+
+    const loadLogos = async () => {
+      try {
+        const [empresaLogo, systemLogo] = await Promise.all([
+          empresa?.logo_url ? toDataURL(empresa.logo_url).catch(e => null) : Promise.resolve(null),
+          toDataURL(logoRifasPlus).catch(e => null)
+        ]);
+        setLogosBase64({ empresa: empresaLogo, system: systemLogo });
+      } catch (error) {
+        console.error("Error loading logos:", error);
+      }
+    };
+
+    loadLogos();
+  }, [empresa, logoRifasPlus]);
 
   // Handle keyboard shortcuts for search
   useEffect(() => {
@@ -154,7 +195,7 @@ export function DetalleRifa() {
       const rawNumero = i;
       const formattedNumero = formatTicketNumber(rawNumero, rifa.total_tickets);
       const existingTicket = ticketsMap.get(formattedNumero);
-      
+
       if (existingTicket) {
         // This ticket exists in the database, so it's occupied.
         // Map the database fields to our expected structure with formatted ticket number
@@ -224,17 +265,17 @@ export function DetalleRifa() {
 
   const handleTicketClick = (ticket) => {
     console.log('Ticket clicked:', ticket);
-    
+
     // Validación para evitar abrir modal con ticket null
     if (!ticket) {
       console.error('Ticket is null in handleTicketClick');
       return;
     }
-    
+
     console.log('Ticket estado:', ticket.estado_ticket);
     console.log('Ticket jugador_id:', ticket.jugador_id);
     console.log('Ticket nombre_jugador:', ticket.nombre_jugador);
-    
+
     if (ticket.estado_ticket === 'disponible') {
       console.log('Ticket is available, adding to selection');
       setSelectedTicketsFromMap(prev =>
@@ -250,18 +291,18 @@ export function DetalleRifa() {
 
   const openTicketDetail = (ticket) => {
     console.log('Opening ticket detail for:', ticket);
-    
+
     // Validación para evitar abrir modal con ticket null
     if (!ticket) {
       console.error('Ticket is null in openTicketDetail');
       toast.error('Error: No se pudo cargar la información del ticket');
       return;
     }
-    
+
     // Si no hay jugador_id pero hay información del jugador, crear un playerGroup con los datos disponibles
     if (!ticket.jugador_id) {
       console.log('No jugador_id found, but creating player group with available data');
-      
+
       const playerGroupData = {
         info: {
           nombre_jugador: ticket.nombre_jugador || 'N/A',
@@ -275,7 +316,7 @@ export function DetalleRifa() {
         },
         tickets: [ticket] // Solo este ticket ya que no podemos agrupar por jugador_id
       };
-      
+
       console.log('Setting player group with available data:', playerGroupData);
       setSelectedPlayerGroup(playerGroupData);
       setSelectedTicketForDetail(ticket);
@@ -301,7 +342,7 @@ export function DetalleRifa() {
         },
         tickets: [ticket]
       };
-      
+
       setSelectedPlayerGroup(playerGroupData);
       setSelectedTicketForDetail(ticket);
       setShowPlayerGroupModal(true);
@@ -321,11 +362,11 @@ export function DetalleRifa() {
       },
       tickets: playerTickets.sort((a, b) => a.numero_ticket - b.numero_ticket)
     };
-    
+
     console.log('Setting player group:', playerGroupData);
     setSelectedPlayerGroup(playerGroupData);
     setSelectedTicketForDetail(ticket);
-    
+
     console.log('Setting modal to open');
     setShowPlayerGroupModal(true);
   };
@@ -571,6 +612,51 @@ export function DetalleRifa() {
       });
   };
 
+  const handleGenerateSummary = async () => {
+    if (!summaryGridRef.current) return;
+
+    const toastId = toast.loading("Generando imagen(es) resumen...");
+
+    try {
+      // Wait a bit for any rendering to finish
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const generateImage = async (element, suffix = "") => {
+        // Temporarily inject logos into the component state or props if possible, 
+        // but since we are passing them as props, we need to trigger a re-render or ensure they are available.
+        // Actually, we should pass them as props to TicketSummaryGrid and they will be rendered.
+        // We need to wait for them to be rendered.
+
+        const canvas = await html2canvas(element, {
+          scale: 2, // Higher quality
+          backgroundColor: "#ffffff",
+          logging: false,
+          useCORS: true
+        });
+        const image = canvas.toDataURL("image/png");
+        const link = document.createElement("a");
+        link.href = image;
+        link.download = `Resumen-Tickets-${rifa?.nombre || 'Rifa'}-${new Date().toISOString().split('T')[0]}${suffix}.png`;
+        link.click();
+      };
+
+      // Generate first part
+      await generateImage(summaryGridRef.current, allTickets.length >= 1000 ? "-Parte1" : "");
+
+      // Generate second part if needed
+      if (allTickets.length >= 1000 && summaryGridRef2.current) {
+        // Small delay to ensure browser handles multiple downloads
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await generateImage(summaryGridRef2.current, "-Parte2");
+      }
+
+      toast.success("Imagen(es) generada(s) exitosamente", { id: toastId });
+    } catch (error) {
+      console.error('Error generating summary:', error);
+      toast.error(`Error al generar la imagen: ${error.message}`, { id: toastId });
+    }
+  };
+
   useEffect(() => {
     fetchRaffle();
     fetchTickets();
@@ -638,11 +724,11 @@ export function DetalleRifa() {
             </div>
           ))}
         </div>
-        
+
         {/* Action buttons */}
         <div className="md:flex md:items-end md:justify-end max-md:grid max-md:grid-cols-4 gap-4 w-full">
-          <button 
-          onClick={handleOpenRegistrationModal}
+          <button
+            onClick={handleOpenRegistrationModal}
             className="group relative overflow-hidden bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 sm:px-4 sm:py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 active:scale-95 min-h-[48px] sm:min-h-0"
             title="Registrar nuevo ticket"
             aria-label="Registrar nuevo ticket">
@@ -656,7 +742,7 @@ export function DetalleRifa() {
           >
             <StarIcon className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 group-hover:animate-pulse" />
           </button>
-          
+
           <button
             onClick={handleOpenWinnerModal}
             className="group relative overflow-hidden bg-gradient-to-r from-amber-500 to-orange-600 text-white px-6 py-3 sm:px-4 sm:py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 active:scale-95 min-h-[48px] sm:min-h-0"
@@ -687,6 +773,15 @@ export function DetalleRifa() {
             <BellAlertIcon className="w-5 h-5 md:w-6 md:h-6 relative z-10 group-hover:animate-tada" />
             <span className="md:hidden">Enviar recordatorio</span>
             {apartados > 0 && <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center">{apartados}</div>}
+          </button>
+
+          <button
+            onClick={handleGenerateSummary}
+            className="group relative overflow-hidden bg-gradient-to-r from-pink-500 to-rose-600 text-white px-6 py-3 sm:px-4 sm:py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 active:scale-95 min-h-[48px] sm:min-h-0"
+            title="Generar imagen resumen de tickets"
+          >
+            <PhotoIcon className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 group-hover:animate-pulse" />
+            <span className="hidden sm:inline relative z-10">Resumen</span>
           </button>
         </div>
       </div>
@@ -821,25 +916,25 @@ export function DetalleRifa() {
           className="grid max-md:grid-cols-6 max-lg:grid-cols-10 min-lg:grid-cols-15 gap-2 max-h-140 overflow-y-scroll"
         >
           <AnimatePresence>
-          {filteredTickets.map((ticket) => (
-            <motion.div
-              layout
-              key={ticket.numero_ticket}
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ duration: 0.2 }}
-              className="relative"
-            >
-              <div
-                onClick={() => handleTicketClick(ticket)}
-                title={`N°${ticket.numero_ticket} - ${ticket.estado_ticket === "disponible" ? "Disponible - Haz clic para comprar"
-                  : ticket.estado_ticket === "apartado" ? `Apartado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
-                    : ticket.estado_ticket === "pagado" ? `Pagado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
-                      : ticket.estado_ticket === "abonado" ? "Abonado"
-                        : ""
-                  }`}
-                className={`
+            {filteredTickets.map((ticket) => (
+              <motion.div
+                layout
+                key={ticket.numero_ticket}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.2 }}
+                className="relative"
+              >
+                <div
+                  onClick={() => handleTicketClick(ticket)}
+                  title={`N°${ticket.numero_ticket} - ${ticket.estado_ticket === "disponible" ? "Disponible - Haz clic para comprar"
+                    : ticket.estado_ticket === "apartado" ? `Apartado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
+                      : ticket.estado_ticket === "pagado" ? `Pagado${ticket.nombre_jugador ? ` por ${ticket.nombre_jugador}` : ""} - Haz clic para ver detalles`
+                        : ticket.estado_ticket === "abonado" ? "Abonado"
+                          : ""
+                    }`}
+                  className={`
                 w-10 h-10 flex items-center justify-center rounded-lg cursor-pointer
                 text-xs font-bold transition-all duration-200 transform hover:scale-110 hover:ring-2 hover:ring-[#7c3bed] hover:shadow-lg
                 ${ticket.estado_ticket === "disponible" ? "bg-[#23283a] text-white hover:bg-[#2d3748] border border-[#4a5568]" : ""}
@@ -849,49 +944,49 @@ export function DetalleRifa() {
                 ${selectedTicketsFromMap.includes(ticket.numero_ticket) ? "!bg-[#d54ff9] ring-2 ring-white" : ""}
                 ${ganador && ganador.numero_ganador === ticket.numero_ticket ? "bg-gradient-to-br from-yellow-400 to-orange-500 text-black font-bold ring-4 ring-white shadow-2xl animate-pulse" : ""}
               `}
-              >
-                <div className="flex flex-col items-center justify-center">
-                  <span className="leading-none">{ticket.numero_ticket}</span>
-                  {ticket.estado_ticket !== "disponible" && (
-                    <div className="w-1 h-1 bg-current rounded-full mt-0.5 opacity-60"></div>
-                  )}
+                >
+                  <div className="flex flex-col items-center justify-center">
+                    <span className="leading-none">{ticket.numero_ticket}</span>
+                    {ticket.estado_ticket !== "disponible" && (
+                      <div className="w-1 h-1 bg-current rounded-full mt-0.5 opacity-60"></div>
+                    )}
+                  </div>
                 </div>
-              </div>
-              {ganador && ganador.numero_ganador === ticket.numero_ticket && (
-                <TrophyIcon className="w-4 h-4 absolute top-1 right-1 text-black/70" />
-              )}
-            </motion.div>
-          ))}
+                {ganador && ganador.numero_ganador === ticket.numero_ticket && (
+                  <TrophyIcon className="w-4 h-4 absolute top-1 right-1 text-black/70" />
+                )}
+              </motion.div>
+            ))}
           </AnimatePresence>
 
           {/* Mensaje cuando no hay resultados */}
           {filteredTickets.length === 0 && (
             <AnimatePresence>
-            <div className="col-span-full w-full text-center py-12">
-              <div className="bg-[#23283a] rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                <MagnifyingGlassIcon className="w-8 h-8 text-gray-400" /> 
+              <div className="col-span-full w-full text-center py-12">
+                <div className="bg-[#23283a] rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                  <MagnifyingGlassIcon className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-white text-lg font-semibold mb-2">
+                  No se encontraron tickets
+                </h3>
+                <p className="text-gray-400 text-sm mb-4">
+                  {searchQuery
+                    ? `No hay tickets que coincidan con "${searchQuery}"`
+                    : `No hay tickets con el estado "${filterOptions.find(f => f.key === ticketFilter)?.label}"`
+                  }
+                </p>
+                {(searchQuery || ticketFilter !== "all") && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery("");
+                      setTicketFilter("all");
+                    }}
+                    className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    Limpiar filtros
+                  </button>
+                )}
               </div>
-              <h3 className="text-white text-lg font-semibold mb-2">
-                No se encontraron tickets
-              </h3>
-              <p className="text-gray-400 text-sm mb-4">
-                {searchQuery
-                  ? `No hay tickets que coincidan con "${searchQuery}"`
-                  : `No hay tickets con el estado "${filterOptions.find(f => f.key === ticketFilter)?.label}"`
-                }
-              </p>
-              {(searchQuery || ticketFilter !== "all") && (
-                <button
-                  onClick={() => {
-                    setSearchQuery("");
-                    setTicketFilter("all");
-                  }}
-                  className="bg-[#7c3bed] hover:bg-[#d54ff9] text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-                >
-                  Limpiar filtros
-                </button>
-              )}
-            </div>
             </AnimatePresence>
           )}
         </motion.div>
@@ -948,6 +1043,26 @@ export function DetalleRifa() {
         onClose={() => setShowReenvioModal(false)}
         onConfirm={handleReenvioConfirm}
       />
-    </div>
+
+      {/* Hidden Ticket Summary Grid for Image Generation */}
+      <div style={{ position: 'fixed', left: 0, top: 0, zIndex: -1000, opacity: 0, pointerEvents: 'none' }}>
+        <TicketSummaryGrid
+          ref={summaryGridRef}
+          rifa={rifa}
+          tickets={allTickets.length >= 1000 ? allTickets.slice(0, 500) : allTickets}
+          empresaLogo={logosBase64.empresa}
+          systemLogo={logosBase64.system}
+        />
+        {allTickets.length >= 1000 && (
+          <TicketSummaryGrid
+            ref={summaryGridRef2}
+            rifa={rifa}
+            tickets={allTickets.slice(500)}
+            empresaLogo={logosBase64.empresa}
+            systemLogo={logosBase64.system}
+          />
+        )}
+      </div>
+    </div >
   );
 }
