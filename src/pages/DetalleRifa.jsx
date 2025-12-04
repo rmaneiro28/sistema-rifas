@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, Fragment } from 'react';
 import { useParams, NavLink } from "react-router-dom";
 import { ArrowLeftIcon, StarIcon, TicketIcon, XMarkIcon, MagnifyingGlassIcon, TrophyIcon, ShareIcon, PencilIcon, PlusIcon, BellAlertIcon, PhotoIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon } from '@heroicons/react/20/solid';
 import { motion, AnimatePresence } from "framer-motion";
+import { Menu, Transition } from '@headlessui/react';
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
 import { LoadingScreen } from "../components/LoadingScreen";
@@ -12,6 +14,7 @@ import { ReminderReenvioModal } from "../components/ReminderReenvioModal.jsx";
 import { ReminderControlModal } from "../components/ReminderControlModal";
 import { TicketSummaryGrid } from "../components/TicketSummaryGrid";
 import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 import { useAuth } from '../context/AuthContext';
 import logoRifasPlus from "../assets/Logo Rifas Plus Dark.jpg";
 
@@ -657,6 +660,56 @@ export function DetalleRifa() {
     }
   };
 
+  const handleGeneratePDF = async () => {
+    if (!summaryGridRef.current) return;
+
+    const toastId = toast.loading("Generando PDF...");
+
+    try {
+      // Wait a bit for any rendering to finish
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const generatePDFPage = async (element) => {
+        const canvas = await html2canvas(element, {
+          scale: 3, // Higher quality for PDF
+          backgroundColor: "#ffffff",
+          logging: false,
+          useCORS: true
+        });
+        return canvas;
+      };
+
+      const canvas1 = await generatePDFPage(summaryGridRef.current);
+
+      const imgWidth = canvas1.width;
+      const imgHeight = canvas1.height;
+
+      const pdf = new jsPDF({
+        orientation: imgWidth > imgHeight ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [imgWidth, imgHeight] // Custom size matching the high-res capture
+      });
+
+      pdf.addImage(canvas1.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+
+      if (allTickets.length >= 1000 && summaryGridRef2.current) {
+        const canvas2 = await generatePDFPage(summaryGridRef2.current);
+        const imgWidth2 = canvas2.width;
+        const imgHeight2 = canvas2.height;
+
+        pdf.addPage([imgWidth2, imgHeight2], imgWidth2 > imgHeight2 ? 'landscape' : 'portrait');
+        pdf.addImage(canvas2.toDataURL('image/png'), 'PNG', 0, 0, imgWidth2, imgHeight2);
+      }
+
+      pdf.save(`Resumen-Tickets-${rifa?.nombre || 'Rifa'}-${new Date().toISOString().split('T')[0]}.pdf`);
+
+      toast.success("PDF generado exitosamente", { id: toastId });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error(`Error al generar el PDF: ${error.message}`, { id: toastId });
+    }
+  };
+
   useEffect(() => {
     fetchRaffle();
     fetchTickets();
@@ -775,21 +828,63 @@ export function DetalleRifa() {
             {apartados > 0 && <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center">{apartados}</div>}
           </button>
 
-          <button
-            onClick={handleGenerateSummary}
-            className="group relative overflow-hidden bg-gradient-to-r from-pink-500 to-rose-600 text-white px-6 py-3 sm:px-4 sm:py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 active:scale-95 min-h-[48px] sm:min-h-0"
-            title="Generar imagen resumen de tickets"
-          >
-            <PhotoIcon className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 group-hover:animate-pulse" />
-            <span className="hidden sm:inline relative z-10">Resumen</span>
-          </button>
-        </div>
-      </div>
+          <Menu as="div" className="relative inline-block text-left">
+            <div>
+              <Menu.Button className="group relative overflow-hidden bg-gradient-to-r from-pink-500 to-rose-600 text-white px-6 py-3 sm:px-4 sm:py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 active:scale-95 min-h-[48px] sm:min-h-0 w-full">
+                <PhotoIcon className="w-5 h-5 sm:w-6 sm:h-6 relative z-10 group-hover:animate-pulse" />
+                <span className="hidden sm:inline relative z-10">Resumen</span>
+                <ChevronDownIcon className="w-5 h-5 text-white/70 hover:text-white relative z-10" aria-hidden="true" />
+              </Menu.Button>
+            </div>
+            <Transition
+              as={Fragment}
+              enter="transition ease-out duration-100"
+              enterFrom="transform opacity-0 scale-95"
+              enterTo="transform opacity-100 scale-100"
+              leave="transition ease-in duration-75"
+              leaveFrom="transform opacity-100 scale-100"
+              leaveTo="transform opacity-0 scale-95"
+            >
+              <Menu.Items className="absolute right-0 mt-2 w-56 origin-top-right divide-y divide-gray-100 rounded-md bg-[#181c24] shadow-lg ring-1 ring-black/5 focus:outline-none z-50 border border-[#23283a]">
+                <div className="px-1 py-1 ">
+                  <Menu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={handleGenerateSummary}
+                        className={`${active ? 'bg-[#7c3bed] text-white' : 'text-gray-300'
+                          } group flex w-full items-center rounded-md px-2 py-2 text-sm`}
+                      >
+                        <PhotoIcon className="mr-2 h-5 w-5" aria-hidden="true" />
+                        Descargar Imagen
+                      </button>
+                    )}
+                  </Menu.Item>
+                  <Menu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={handleGeneratePDF}
+                        className={`${active ? 'bg-[#7c3bed] text-white' : 'text-gray-300'
+                          } group flex w-full items-center rounded-md px-2 py-2 text-sm`}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="mr-2 h-5 w-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                        </svg>
+                        Descargar PDF
+                      </button>
+                    )}
+                  </Menu.Item>
+                </div>
+              </Menu.Items>
+            </Transition>
+          </Menu>
+
+        </div >
+      </div >
 
       {/* Buscador y Filtros */}
-      <div className="flex flex-col sm:flex-row max-md:w-full gap-4 mb-4">
+      < div className="flex flex-col sm:flex-row max-md:w-full gap-4 mb-4" >
         {/* Buscador */}
-        <div className="relative flex-1  max-md:w-full ">
+        < div className="relative flex-1  max-md:w-full " >
           <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -799,84 +894,90 @@ export function DetalleRifa() {
             className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#181c24] border border-[#23283a] text-white focus:outline-none focus:border-[#7c3bed] transition-colors placeholder-gray-500"
             title="Busca por número de ticket, nombre del jugador o email. Usa Ctrl+F para enfocar o Escape para limpiar."
           />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-            >
-              <XMarkIcon className="w-4 h-4" />
-            </button>
-          )}
-        </div>
+          {
+            searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+              >
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            )
+          }
+        </div >
 
         {/* Filtros */}
-        <div className="flex flex-wrap gap-2">
-          {filterOptions.map(opt => (
-            <button
-              key={opt.key}
-              onClick={() => setTicketFilter(opt.key)}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-all duration-200 ${ticketFilter === opt.key
-                ? `${opt.color} ${opt.textColor} border-transparent shadow-md`
-                : "bg-transparent text-gray-400 border-[#23283a] hover:border-[#7c3bed] hover:text-white"
-                }`}
-            >
-              <span>{opt.label}</span>
-              <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${ticketFilter === opt.key
-                ? "bg-black/20"
-                : "bg-[#23283a] text-gray-300"
-                }`}>
-                {searchQuery ? (
-                  // Show filtered count when searching
-                  opt.key === "all"
-                    ? filteredTickets.length
-                    : filteredTickets.filter(t => t.estado_ticket === opt.key).length
-                ) : (
-                  // Show total count when not searching
-                  opt.key === "all"
-                    ? allTickets.length
-                    : opt.key === "disponible"
-                      ? disponibles
-                      : opt.key === "apartado"
-                        ? apartados
-                        : opt.key === "pagado"
-                          ? pagados
-                          : opt.key === "abonado"
-                            ? allTickets.filter(t => t.estado_ticket === "abonado").length
-                            : 0
-                )}
-              </span>
-            </button>
-          ))}
-          <div className="flex gap-2 mt-2 sm:mt-0 sm:ml-auto">
-            {selectedTicketsFromMap.length > 0 ? (
-              <>
-                <button
-                  onClick={handleProceedWithSelection}
-                  className="bg-gradient-to-r from-green-500 to-[#16a249] text-white px-4 py-2 rounded-xl font-bold transition-all duration-200 flex items-center gap-2 shadow-lg hover:scale-105"
-                  style={{ minWidth: '140px' }}
-                >
-                  <TicketIcon className="w-6 h-6 animate-bounce" />
-                  <span>Registrar</span>
-                  <span className="ml-2 text-xs bg-black/20 px-2 py-1 rounded">
-                    {selectedTicketsFromMap.map(n => formatTicketNumber(n, rifa?.total_tickets)).join(", ")}
-                  </span>
-                </button>
-                <button
-                  onClick={() => setSelectedTicketsFromMap([])}
-                  className="bg-gradient-to-r from-gray-600 to-gray-800 text-white px-4 py-2 rounded-xl font-bold transition-all hover:scale-105 shadow"
-                  style={{ minWidth: '100px' }}
-                >
-                  <XMarkIcon className="w-5 h-5 mr-1" />
-                  Limpiar
-                </button>
-              </>
-            ) : null}
-          </div>
-        </div>
-      </div>
+        < div className="flex flex-wrap gap-2" >
+          {
+            filterOptions.map(opt => (
+              <button
+                key={opt.key}
+                onClick={() => setTicketFilter(opt.key)}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-all duration-200 ${ticketFilter === opt.key
+                  ? `${opt.color} ${opt.textColor} border-transparent shadow-md`
+                  : "bg-transparent text-gray-400 border-[#23283a] hover:border-[#7c3bed] hover:text-white"
+                  }`}
+              >
+                <span>{opt.label}</span>
+                <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${ticketFilter === opt.key
+                  ? "bg-black/20"
+                  : "bg-[#23283a] text-gray-300"
+                  }`}>
+                  {searchQuery ? (
+                    // Show filtered count when searching
+                    opt.key === "all"
+                      ? filteredTickets.length
+                      : filteredTickets.filter(t => t.estado_ticket === opt.key).length
+                  ) : (
+                    // Show total count when not searching
+                    opt.key === "all"
+                      ? allTickets.length
+                      : opt.key === "disponible"
+                        ? disponibles
+                        : opt.key === "apartado"
+                          ? apartados
+                          : opt.key === "pagado"
+                            ? pagados
+                            : opt.key === "abonado"
+                              ? allTickets.filter(t => t.estado_ticket === "abonado").length
+                              : 0
+                  )}
+                </span>
+              </button>
+            ))
+          }
+          < div className="flex gap-2 mt-2 sm:mt-0 sm:ml-auto" >
+            {
+              selectedTicketsFromMap.length > 0 ? (
+                <>
+                  <button
+                    onClick={handleProceedWithSelection}
+                    className="bg-gradient-to-r from-green-500 to-[#16a249] text-white px-4 py-2 rounded-xl font-bold transition-all duration-200 flex items-center gap-2 shadow-lg hover:scale-105"
+                    style={{ minWidth: '140px' }}
+                  >
+                    <TicketIcon className="w-6 h-6 animate-bounce" />
+                    <span>Registrar</span>
+                    <span className="ml-2 text-xs bg-black/20 px-2 py-1 rounded">
+                      {selectedTicketsFromMap.map(n => formatTicketNumber(n, rifa?.total_tickets)).join(", ")}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setSelectedTicketsFromMap([])}
+                    className="bg-gradient-to-r from-gray-600 to-gray-800 text-white px-4 py-2 rounded-xl font-bold transition-all hover:scale-105 shadow"
+                    style={{ minWidth: '100px' }}
+                  >
+                    <XMarkIcon className="w-5 h-5 mr-1" />
+                    Limpiar
+                  </button>
+                </>
+              ) : null
+            }
+          </div >
+        </div >
+      </div >
 
       {/* Mapa de tickets */}
-      <div ref={pdfRef} className="bg-[#0f131b] border border-[#23283a] p-4 rounded-lg overflow-auto">
+      < div ref={pdfRef} className="bg-[#0f131b] border border-[#23283a] p-4 rounded-lg overflow-auto" >
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
           <div>
             <h2 className="text-white text-lg font-bold mb-1 sm:mb-0">
@@ -990,7 +1091,7 @@ export function DetalleRifa() {
             </AnimatePresence>
           )}
         </motion.div>
-      </div>
+      </div >
 
       <TicketRegistrationWizard
         isOpen={showRegistrationWizard}
