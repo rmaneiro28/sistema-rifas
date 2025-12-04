@@ -644,10 +644,10 @@ export function DetalleRifa() {
       };
 
       // Generate first part
-      await generateImage(summaryGridRef.current, allTickets.length >= 1000 ? "-Parte1" : "");
+      await generateImage(summaryGridRef.current, availableTickets.length >= 1000 ? "-Parte1" : "");
 
       // Generate second part if needed
-      if (allTickets.length >= 1000 && summaryGridRef2.current) {
+      if (availableTickets.length >= 1000 && summaryGridRef2.current) {
         // Small delay to ensure browser handles multiple downloads
         await new Promise(resolve => setTimeout(resolve, 500));
         await generateImage(summaryGridRef2.current, "-Parte2");
@@ -659,6 +659,8 @@ export function DetalleRifa() {
       toast.error(`Error al generar la imagen: ${error.message}`, { id: toastId });
     }
   };
+
+  const availableTickets = useMemo(() => allTickets.filter(t => t.estado_ticket === 'disponible'), [allTickets]);
 
   const handleGeneratePDF = async () => {
     if (!summaryGridRef.current) return;
@@ -692,7 +694,7 @@ export function DetalleRifa() {
 
       pdf.addImage(canvas1.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
 
-      if (allTickets.length >= 1000 && summaryGridRef2.current) {
+      if (availableTickets.length >= 1000 && summaryGridRef2.current) {
         const canvas2 = await generatePDFPage(summaryGridRef2.current);
         const imgWidth2 = canvas2.width;
         const imgHeight2 = canvas2.height;
@@ -1150,15 +1152,15 @@ export function DetalleRifa() {
         <TicketSummaryGrid
           ref={summaryGridRef}
           rifa={rifa}
-          tickets={allTickets.length >= 1000 ? allTickets.slice(0, 500) : allTickets}
+          tickets={availableTickets.length >= 1000 ? availableTickets.slice(0, 500) : availableTickets}
           empresaLogo={logosBase64.empresa}
           systemLogo={logosBase64.system}
         />
-        {allTickets.length >= 1000 && (
+        {availableTickets.length >= 1000 && (
           <TicketSummaryGrid
             ref={summaryGridRef2}
             rifa={rifa}
-            tickets={allTickets.slice(500)}
+            tickets={availableTickets.slice(500)}
             empresaLogo={logosBase64.empresa}
             systemLogo={logosBase64.system}
           />
