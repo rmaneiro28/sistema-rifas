@@ -838,46 +838,36 @@ export function DetalleRifa() {
                 <ChevronDownIcon className="w-5 h-5 text-white/70 hover:text-white relative z-10" aria-hidden="true" />
               </Menu.Button>
             </div>
-            <Transition
-              as={Fragment}
-              enter="transition ease-out duration-100"
-              enterFrom="transform opacity-0 scale-95"
-              enterTo="transform opacity-100 scale-100"
-              leave="transition ease-in duration-75"
-              leaveFrom="transform opacity-100 scale-100"
-              leaveTo="transform opacity-0 scale-95"
-            >
-              <Menu.Items className="absolute right-0 mt-2 w-56 origin-top-right divide-y divide-gray-100 rounded-md bg-[#181c24] shadow-lg ring-1 ring-black/5 focus:outline-none z-50 border border-[#23283a]">
-                <div className="px-1 py-1 ">
-                  <Menu.Item>
-                    {({ active }) => (
-                      <button
-                        onClick={handleGenerateSummary}
-                        className={`${active ? 'bg-[#7c3bed] text-white' : 'text-gray-300'
-                          } group flex w-full items-center rounded-md px-2 py-2 text-sm`}
-                      >
-                        <PhotoIcon className="mr-2 h-5 w-5" aria-hidden="true" />
-                        Descargar Imagen
-                      </button>
-                    )}
-                  </Menu.Item>
-                  <Menu.Item>
-                    {({ active }) => (
-                      <button
-                        onClick={handleGeneratePDF}
-                        className={`${active ? 'bg-[#7c3bed] text-white' : 'text-gray-300'
-                          } group flex w-full items-center rounded-md px-2 py-2 text-sm`}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="mr-2 h-5 w-5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                        </svg>
-                        Descargar PDF
-                      </button>
-                    )}
-                  </Menu.Item>
-                </div>
-              </Menu.Items>
-            </Transition>
+            <Menu.Items className="absolute left-0 md:right-0 md:left-auto mt-2 w-56 origin-top-left md:origin-top-right divide-y divide-gray-100 rounded-md bg-[#181c24] shadow-lg ring-1 ring-black/5 focus:outline-none z-50 border border-[#23283a]">
+              <div className="px-1 py-1 ">
+                <Menu.Item>
+                  {({ active }) => (
+                    <button
+                      onClick={handleGenerateSummary}
+                      className={`${active ? 'bg-[#7c3bed] text-white' : 'text-gray-300'
+                        } group flex w-full items-center rounded-md px-2 py-2 text-sm`}
+                    >
+                      <PhotoIcon className="mr-2 h-5 w-5" aria-hidden="true" />
+                      Descargar Imagen
+                    </button>
+                  )}
+                </Menu.Item>
+                <Menu.Item>
+                  {({ active }) => (
+                    <button
+                      onClick={handleGeneratePDF}
+                      className={`${active ? 'bg-[#7c3bed] text-white' : 'text-gray-300'
+                        } group flex w-full items-center rounded-md px-2 py-2 text-sm`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="mr-2 h-5 w-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                      </svg>
+                      Descargar PDF
+                    </button>
+                  )}
+                </Menu.Item>
+              </div>
+            </Menu.Items>
           </Menu>
 
         </div >
