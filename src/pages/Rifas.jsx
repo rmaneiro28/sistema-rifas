@@ -27,7 +27,7 @@ export function Rifas() {
 
   const fetchRaffles = async () => {
     setLoading(true);
-    
+
     if (filter === "all") {
       // Obtener todas las rifas, pero ordenar: activas primero, luego finalizadas
       const { data: activeRaffles, error: activeError } = await supabase
@@ -36,14 +36,14 @@ export function Rifas() {
         .eq("empresa_id", empresaId)
         .eq("estado", "activa")
         .order("fecha_inicio", { ascending: false });
-        
+
       const { data: finishedRaffles, error: finishedError } = await supabase
         .from("vw_rifas")
         .select("*")
         .eq("empresa_id", empresaId)
         .eq("estado", "finalizada")
         .order("fecha_inicio", { ascending: false });
-        
+
       if (!activeError && !finishedError) {
         setRaffles([...(activeRaffles || []), ...(finishedRaffles || [])]);
       }
@@ -58,7 +58,7 @@ export function Rifas() {
       const { data, error } = await query;
       if (!error) setRaffles(data);
     }
-    
+
     setLoading(false);
   };
 
@@ -79,7 +79,27 @@ export function Rifas() {
     if (!raffleToDelete) return;
     const { id_rifa } = raffleToDelete;
 
-    // Primero, eliminar los tickets asociados a la rifa
+    // 1. Eliminar pagos asociados a la rifa (o a tickets de la rifa)
+    // Es más seguro borrar por rifa_id si existe esa columna en t_pagos, 
+    // o buscar los tickets y borrar los pagos de esos tickets.
+    // Asumiendo que t_pagos tiene rifa_id o se puede borrar por tickets.
+    // Revisando TicketRegistrationWizard.jsx, t_pagos tiene rifa_id.
+    const { error: deletePagosError } = await supabase.from("t_pagos").delete().eq("rifa_id", id_rifa);
+    if (deletePagosError) {
+      console.error("Error eliminando pagos:", deletePagosError);
+      toast.error("Error al eliminar los pagos asociados");
+      return;
+    }
+
+    // 2. Eliminar ganadores asociados
+    const { error: deleteGanadoresError } = await supabase.from("t_ganadores").delete().eq("rifa_id", id_rifa);
+    if (deleteGanadoresError) {
+      console.error("Error eliminando ganadores:", deleteGanadoresError);
+      toast.error("Error al eliminar los ganadores asociados");
+      return;
+    }
+
+    // 3. Eliminar los tickets asociados a la rifa
     const { error: deleteTicketsError } = await supabase.from("t_tickets").delete().eq("rifa_id", id_rifa);
 
     if (deleteTicketsError) {
@@ -87,7 +107,7 @@ export function Rifas() {
       return;
     }
 
-    // Luego, eliminar la rifa
+    // 4. Finalmente, eliminar la rifa
     const { error: deleteRaffleError } = await supabase.from("t_rifas").delete().eq("id_rifa", id_rifa);
 
     if (!deleteRaffleError) {
