@@ -71,7 +71,7 @@ export const TicketSummaryGrid = forwardRef(({ rifa, tickets, empresaLogo, syste
             </div>
 
             {/* Grid */}
-            <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(25, 1fr)' }}>
+            <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(20, 1fr)' }}>
                 {tickets.map((ticket) => {
                     const isOccupied = ticket.estado_ticket !== 'disponible';
                     const ticketStyle = isOccupied ? styles.grid.occupied : styles.grid.disponible;
@@ -82,8 +82,8 @@ export const TicketSummaryGrid = forwardRef(({ rifa, tickets, empresaLogo, syste
                             className="flex items-center justify-center rounded-sm"
                             style={{
                                 ...ticketStyle,
-                                height: '60px', // Increased height for better visibility
-                                fontSize: '24px', // Larger font size
+                                height: '80px', // Increased height for better visibility
+                                fontSize: '36px', // Larger font size
                                 fontWeight: '900', // Extra bold
                             }}
                         >
