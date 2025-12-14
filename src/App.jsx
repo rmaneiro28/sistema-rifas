@@ -31,7 +31,7 @@ import { useAuth } from "./context/AuthContext";
 function Dashboard() {
   const [raffles, setRaffles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const {empresaId} = useAuth();
+  const { empresaId } = useAuth();
   useEffect(() => {
     const fetchRaffles = async () => {
       const { data, error } = await supabase
@@ -46,11 +46,12 @@ function Dashboard() {
         console.error('Error fetching raffles:', error);
       } else {
         const formattedRaffles = data.map(raffle => ({
+          id: raffle.id_rifa,
           icon: '🎟️', // Placeholder icon
           title: raffle.nombre,
-          ticketsSold: raffle.tickets_vendidos,
+          ticketsSold: raffle.tickets_vendidos.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 }),
           date: new Date(raffle.fecha_inicio).toLocaleDateString(),
-          price: `${raffle.precio_ticket}`,
+          price: `${raffle.precio_ticket.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           status: raffle.estado,
           statusColor: raffle.estado === 'Activa' ? 'bg-green-500' : 'bg-red-500',
         }));
@@ -237,7 +238,7 @@ function App() {
           <PrivateRoute>
             <MainLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
               <NotFound />
-                <Footer />
+              <Footer />
             </MainLayout>
           </PrivateRoute>
         } />

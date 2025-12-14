@@ -1,5 +1,6 @@
 import { MagnifyingGlassIcon, TrophyIcon, TicketIcon, CalendarIcon, ExclamationTriangleIcon, XMarkIcon, UserIcon, StarIcon } from "@heroicons/react/24/outline";
 import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "../api/supabaseClient";
 import JugadorFormModal from "../components/JugadorFormModal";
 import { PlusIcon } from "@heroicons/react/16/solid";
@@ -67,6 +68,7 @@ export function Jugadores() {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(12); // 12 tarjetas por página
+  const [searchParams, setSearchParams] = useSearchParams();
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
 
   const { empresaId } = useAuth();
@@ -295,6 +297,22 @@ export function Jugadores() {
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [isPlayerModalAnimating, setIsPlayerModalAnimating] = useState(false);
 
+  // Effect to handle URL-based modal opening
+  useEffect(() => {
+    const playerId = searchParams.get("player");
+    if (playerId && players.length > 0) {
+      const player = players.find((p) => p.id.toString() === playerId);
+      if (player) {
+        setSelectedPlayer(player);
+        setShowPlayerModal(true);
+        setTimeout(() => setIsPlayerModalAnimating(true), 10);
+      }
+    } else if (!playerId && showPlayerModal) {
+      // If param is removed (e.g. back button), close modal
+      closePlayerModal();
+    }
+  }, [searchParams, players]);
+
   // Crear o actualizar jugador
   const handleSavePlayer = async (data) => {
     if (editPlayer) {
@@ -348,10 +366,7 @@ export function Jugadores() {
 
   // Funciones para manejar el panel de detalles del jugador
   const handlePlayerClick = (player) => {
-    setSelectedPlayer(player);
-    setShowPlayerModal(true);
-    // Pequeño delay para que la animación se vea suave
-    setTimeout(() => setIsPlayerModalAnimating(true), 10);
+    setSearchParams({ player: player.id });
   };
 
   const closePlayerModal = () => {
@@ -360,6 +375,7 @@ export function Jugadores() {
     setTimeout(() => {
       setShowPlayerModal(false);
       setSelectedPlayer(null);
+      setSearchParams({});
     }, 300);
   };
 

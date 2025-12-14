@@ -1,4 +1,5 @@
 import { TrophyIcon, CalendarIcon } from '@heroicons/react/24/outline'
+import { Link } from 'react-router-dom';
 
 export const RecentRaffles = ({ raffles = [] }) => {
 
@@ -14,7 +15,7 @@ export const RecentRaffles = ({ raffles = [] }) => {
       <div className="space-y-4">
         {raffles.length > 0 ? (
           raffles.map((raffle, index) => (
-            <div key={index} className="flex items-center justify-between p-4 bg-gray-700/30 rounded-lg">
+            <Link to={`/detalle-rifa/${raffle.id}`} key={index} className="flex items-center justify-between p-4 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors cursor-pointer block">
               <div className="flex items-center space-x-4">
                 <div className="text-2xl">{raffle.icon}</div>
                 <div>
@@ -31,7 +32,7 @@ export const RecentRaffles = ({ raffles = [] }) => {
               <div className="text-right">
                 <p className="text-green-400 font-semibold text-lg">${raffle.price}</p>
               </div>
-            </div>
+            </Link>
           ))
         ) : (
           <p className="text-gray-400">No hay rifas recientes</p>

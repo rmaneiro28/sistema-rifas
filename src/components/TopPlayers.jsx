@@ -1,5 +1,6 @@
 import { StarIcon } from '@heroicons/react/24/outline'
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../api/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 
@@ -29,11 +30,14 @@ export const TopPlayers = () => {
           name: player.nombre + ' ' + player.apellido,
           nombre: player.nombre,
           apellido: player.apellido,
-          tickets: `${player.total_tickets_comprados} tickets`,
-          earnings: `$ ${player.monto_total_gastado}`,
+          tickets: `${player.total_tickets_comprados.toLocaleString('es-ES')} tickets`,
+          earnings: `$ ${player.monto_total_gastado.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           total_tickets_comprados: player.total_tickets_comprados,
           monto_total_gastado: player.monto_total_gastado,
-          avatar: avatarColors[index] || 'bg-gray-500'
+          total_tickets_comprados: player.total_tickets_comprados,
+          monto_total_gastado: player.monto_total_gastado,
+          avatar: avatarColors[index] || 'bg-gray-500',
+          id: player.id
         }))
 
         setPlayers(formattedPlayers)
@@ -61,7 +65,7 @@ export const TopPlayers = () => {
         <div className="space-y-4">
           {players.length > 0 ?
             players.map((player, index) => (
-              <div key={index} className="flex items-center justify-between">
+              <Link to={`/jugadores?player=${player.id}`} key={index} className="flex items-center justify-between hover:bg-gray-700/30 p-2 rounded-lg transition-colors cursor-pointer block">
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-600 text-white font-semibold text-sm">
                     {player.rank}
@@ -77,7 +81,7 @@ export const TopPlayers = () => {
                 <div className="text-green-400 font-semibold">
                   ${player.monto_total_gastado}
                 </div>
-              </div>
+              </Link>
             )) : (
               <div className="text-gray-400">
                 No se encontraron jugadores.
