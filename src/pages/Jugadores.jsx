@@ -22,7 +22,7 @@ const SortIndicator = ({ direction }) => {
 // Función para calcular el status dinámico del jugador basado en su actividad
 const calculatePlayerStatus = (jugador, isWinner, winnerInfo, ultimaActividad) => {
   const now = new Date();
-  const diasInactividad = new Date(ultimaActividad) ? 
+  const diasInactividad = new Date(ultimaActividad) ?
     Math.floor((now - new Date(ultimaActividad)) / (1000 * 60 * 60 * 24)) : 999;
   // 1. Si es ganador, status es 'winner' (prioridad más alta)
   if (isWinner) {
@@ -35,7 +35,7 @@ const calculatePlayerStatus = (jugador, isWinner, winnerInfo, ultimaActividad) =
       numero_ganador: winnerInfo?.numero_ganador || null
     };
   }
-  
+
   // Si es ganador, siempre tiene prioridad
   if (isWinner) {
     return {
@@ -47,7 +47,7 @@ const calculatePlayerStatus = (jugador, isWinner, winnerInfo, ultimaActividad) =
       numero_ganador: winnerInfo?.numero_ganador || null
     };
   }
-  
+
   // Si no hay información de tickets, mostrar como inactivo
   return {
     status: 'inactive',
@@ -73,7 +73,7 @@ export function Jugadores() {
 
   const fetchPlayers = async () => {
     setLoading(true);
-    
+
     try {
       // Obtener jugadores
       const { data: players, error: playersError } = await supabase
@@ -81,39 +81,39 @@ export function Jugadores() {
         .select("*")
         .eq("empresa_id", empresaId)
         .order("id");
-      
+
       if (playersError) {
         console.error("Error fetching players:", playersError);
         toast.error("Error al cargar los jugadores.");
         setLoading(false);
         return;
       }
-      
+
       // Obtener ganadores para determinar el status de los jugadores
       const { data: winners, error: winnersError } = await supabase
         .from("t_ganadores")
         .select("jugador_id, premio, numero_ganador");
-      
+
       if (winnersError) {
         console.error("Error fetching winners:", winnersError);
         toast.error("Error al cargar información de ganadores.");
         setLoading(false);
         return;
       }
-      
+
       // Obtener tickets de la rifa actual con su estado de pago
       const { data: tickets, error: ticketsError } = await supabase
         .from("t_tickets")
         .select("id, jugador_id, estado, rifa_id")
         .eq("empresa_id", empresaId);
-      
+
       if (ticketsError) {
         console.error("Error fetching tickets:", ticketsError);
         toast.error("Error al cargar información de tickets.");
         setLoading(false);
         return;
       }
-      
+
       // Agrupar tickets por jugador
       const ticketsPorJugador = {};
       tickets?.forEach(ticket => {
@@ -124,36 +124,36 @@ export function Jugadores() {
           ticketsPorJugador[ticket.jugador_id].push(ticket);
         }
       });
-      
+
       // Crear un mapa de ganadores para búsqueda rápida
       const winnersMap = new Map();
       winners.forEach(winner => {
         winnersMap.set(winner.jugador_id, winner);
       });
-      
+
       // Procesar jugadores y asignar status dinámico
       const processedPlayers = players.map(jugador => {
         const isWinner = winnersMap.has(jugador.id);
         const winnerInfo = winnersMap.get(jugador.id);
         const ticketsJugador = ticketsPorJugador[jugador.id] || [];
-        
+
         // Verificar si el jugador tiene tickets
         const tieneTickets = ticketsJugador.length > 0;
-        
+
         // Verificar si todos los tickets están pagados
-        const todosPagados = tieneTickets && 
+        const todosPagados = tieneTickets &&
           ticketsJugador.every(ticket => ticket.estado === 'pagado');
-        
+
         // Verificar si tiene tickets por pagar
-        const tienePorPagar = tieneTickets && 
-          ticketsJugador.some(ticket => ticket.estado !== 'pagado');
-        
+        const tienePorPagar = tieneTickets &&
+          ticketsJugador.some(ticket => ticket.estado === 'apartado' || ticket.estado === 'abonado');
+
         // Determinar el estado del jugador
         let status = 'inactive';
         let badge = 'SIN TICKETS';
         let color = 'bg-gray-600 text-white';
         let description = 'Sin tickets asignados';
-        
+
         if (isWinner) {
           status = 'winner';
           badge = 'GANADOR';
@@ -170,7 +170,7 @@ export function Jugadores() {
           color = 'bg-yellow-600 text-white';
           description = 'Tiene tickets pendientes de pago';
         }
-        
+
         return {
           ...jugador,
           status,
@@ -189,7 +189,7 @@ export function Jugadores() {
           tienePorPagar
         };
       });
-      
+
       setPlayers(processedPlayers);
     } catch (error) {
       console.error("Error in fetchPlayers:", error);
@@ -206,7 +206,7 @@ export function Jugadores() {
   // Filtros (status y búsqueda) y ordenamiento
   useEffect(() => {
     let filtered = [...players];
-    
+
     // Aplicar filtros
     if (isActive === "active") {
       filtered = filtered.filter((p) => p.todosPagados);
@@ -217,9 +217,9 @@ export function Jugadores() {
     }
 
     if (search.trim() !== "") {
-      const normalizeText = (text) => 
+      const normalizeText = (text) =>
         text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      
+
       // Divide el término de búsqueda en palabras individuales y elimina las vacías
       const searchTerms = normalizeText(search).split(' ').filter(term => term);
 
@@ -231,25 +231,25 @@ export function Jugadores() {
         return searchTerms.every(term => searchableString.includes(term));
       });
     }
-    
+
     // Aplicar ordenamiento
     if (sortConfig.key) {
       filtered.sort((a, b) => {
         let aValue = a[sortConfig.key] || '';
         let bValue = b[sortConfig.key] || '';
-        
+
         // Manejar valores numéricos
         if (sortConfig.key === 'total_tickets_comprados' || sortConfig.key === 'monto_total_gastado') {
           aValue = Number(aValue) || 0;
           bValue = Number(bValue) || 0;
         }
-        
+
         // Manejar strings (nombre completo)
         if (sortConfig.key === 'nombre') {
           aValue = `${a.nombre} ${a.apellido || ''}`.toLowerCase();
           bValue = `${b.nombre} ${b.apellido || ''}`.toLowerCase();
         }
-        
+
         if (aValue < bValue) {
           return sortConfig.direction === 'ascending' ? -1 : 1;
         }
@@ -259,7 +259,7 @@ export function Jugadores() {
         return 0;
       });
     }
-    
+
     setFilteredPlayers(filtered);
     setCurrentPage(1); // Reiniciar a la primera página al filtrar u ordenar
   }, [players, isActive, search, sortConfig]);
@@ -396,7 +396,7 @@ export function Jugadores() {
             className="w-full pl-12 pr-4 py-4 rounded-xl bg-[#181c24] border border-[#23283a] text-white placeholder-gray-400 focus:outline-none focus:border-[#7c3bed] focus:ring-2 focus:ring-[#7c3bed]/20 transition-all text-base"
           />
         </div>
-        <div className="flex flex-1 w-full min-md:max-w-xs  gap-2 max-md:overflow-x-auto"> 
+        <div className="flex flex-1 w-full min-md:max-w-xs  gap-2 max-md:overflow-x-auto">
           <button onClick={() => handleFilter("all")} className={`px-4 py-2 rounded-lg border text-xs font-semibold ${isActive === "all" ? "bg-[#7c3bed] text-white border-transparent" : "bg-[#23283a] text-white border-[#d54ff9]"}`}>
             Todos
           </button>

@@ -547,7 +547,7 @@ export function DetalleRifa() {
 
   const handleSendReminders = () => {
     const playersWithReservedTickets = allTickets
-      .filter(ticket => ticket.estado_ticket === 'apartado' && ticket.jugador_id)
+      .filter(ticket => (ticket.estado_ticket === 'apartado' || ticket.estado_ticket === 'abonado') && ticket.jugador_id)
       .reduce((acc, ticket) => {
         if (!acc[ticket.jugador_id]) {
           acc[ticket.jugador_id] = {
@@ -754,7 +754,7 @@ export function DetalleRifa() {
       <div className="grid sm:grid-cols-2   gap-4 mb-4">
         <div className="flex items-center gap-4 bg-[#0f131b] border border-[#23283a] p-4 rounded-lg">
           <div className="flex flex-col">
-            <span className="text-gray-400 text-xs">Ticket Price</span>
+            <span className="text-gray-400 text-xs">Precio del ticket</span>
             <span className="text-[#16a249] text-xl font-bold">$ {rifa?.precio_ticket}</span>
           </div>
         </div>
@@ -763,7 +763,7 @@ export function DetalleRifa() {
             <TicketIcon className="w-6 h-6 text-[#7c3bed]" />
           </div>
           <div className="flex flex-col">
-            <span className="text-gray-400 text-xs">Tickets Sold</span>
+            <span className="text-gray-400 text-xs">Tickets vendidos</span>
             <span className="text-white text-xl font-bold">{tickets.length} / {rifa?.total_tickets}</span>
           </div>
         </div>
