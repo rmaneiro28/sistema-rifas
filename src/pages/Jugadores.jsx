@@ -75,14 +75,13 @@ export function Jugadores() {
 
   const fetchPlayers = async () => {
     setLoading(true);
-
     try {
-      // Obtener jugadores
-      const { data: players, error: playersError } = await supabase
-        .from("vw_jugadores")
+      // Obtener todos los jugadores registrados
+      const { data: registeredPlayers, error: playersError } = await supabase
+        .from("t_jugadores")
         .select("*")
         .eq("empresa_id", empresaId)
-        .order("id");
+        .order("id", { ascending: false });
 
       if (playersError) {
         console.error("Error fetching players:", playersError);
@@ -91,7 +90,7 @@ export function Jugadores() {
         return;
       }
 
-      // Obtener ganadores para determinar el status de los jugadores
+      // Obtener ganadores
       const { data: winners, error: winnersError } = await supabase
         .from("t_ganadores")
         .select("jugador_id, premio, numero_ganador");
@@ -103,11 +102,15 @@ export function Jugadores() {
         return;
       }
 
-      // Obtener tickets de la rifa actual con su estado de pago
+      // Obtener tickets SOLO de rifas ACTIVAS
+      // Usamos ticket_id desc y un rango amplio para asegurar capturar todo.
       const { data: tickets, error: ticketsError } = await supabase
-        .from("t_tickets")
-        .select("id, jugador_id, estado, rifa_id")
-        .eq("empresa_id", empresaId);
+        .from("vw_tickets")
+        .select("ticket_id, jugador_id, estado_ticket, rifa_id, monto_pagado, precio_ticket, nombre_jugador, apellido_jugador, telefono, email_jugador, cedula, estado_rifa")
+        .eq("empresa_id", empresaId)
+        .eq("estado_rifa", "activa")
+        .order('ticket_id', { ascending: false })
+        .range(0, 9999);
 
       if (ticketsError) {
         console.error("Error fetching tickets:", ticketsError);
@@ -116,16 +119,56 @@ export function Jugadores() {
         return;
       }
 
-      // Agrupar tickets por jugador
+      // 1. Identificar jugadores registrados
+      const registeredIds = new Set(registeredPlayers.map(p => p.id));
+      const ghostPlayersMap = new Map();
+
+      // 4. Procesar tickets para agrupar y encontrar fantasmas
       const ticketsPorJugador = {};
+
       tickets?.forEach(ticket => {
-        if (ticket.jugador_id) {
-          if (!ticketsPorJugador[ticket.jugador_id]) {
-            ticketsPorJugador[ticket.jugador_id] = [];
-          }
-          ticketsPorJugador[ticket.jugador_id].push(ticket);
+        const jId = ticket.jugador_id;
+        if (!jId) return;
+
+        // Agrupar tickets
+        if (!ticketsPorJugador[jId]) {
+          ticketsPorJugador[jId] = [];
+        }
+
+        // Normalizar ticket de vista a formato esperado por lógica existente (estado vs estado_ticket)
+        const normalizedTicket = {
+          ...ticket,
+          estado: ticket.estado_ticket // La vista usa estado_ticket, la lógica usa estado
+        };
+
+        ticketsPorJugador[jId].push(normalizedTicket);
+
+        // Si NO está en registrados y NO lo hemos procesado ya como fantasma, agregarlo
+        if (!registeredIds.has(jId) && !ghostPlayersMap.has(jId)) {
+          ghostPlayersMap.set(jId, {
+            id: jId,
+            nombre: ticket.nombre_jugador || 'Sin Nombre',
+            apellido: ticket.apellido_jugador || '',
+            email: ticket.email_jugador || '',
+            telefono: ticket.telefono || '',
+            cedula: ticket.cedula || '',
+            empresa_id: empresaId,
+            created_at: new Date().toISOString(), // Dummy date
+            is_ghost: true // Flag para identificar visualmente si se desea
+          });
         }
       });
+
+      // 3. Unificar listas (Registrados + Fantasmas)
+      const allPlayersBase = [...registeredPlayers, ...Array.from(ghostPlayersMap.values())];
+
+      console.log('--- DEBUG INFO ---');
+      console.log('Registered Players:', registeredPlayers.length);
+      console.log('Total Tickets Fetched:', tickets?.length);
+      console.log('Ghost Players Found:', ghostPlayersMap.size);
+      console.log('Total Players Base:', allPlayersBase.length);
+      console.log('Ghost Players Sample:', Array.from(ghostPlayersMap.values()).slice(0, 3));
+      console.log('------------------');
 
       // Crear un mapa de ganadores para búsqueda rápida
       const winnersMap = new Map();
@@ -133,11 +176,17 @@ export function Jugadores() {
         winnersMap.set(winner.jugador_id, winner);
       });
 
-      // Procesar jugadores y asignar status dinámico
-      const processedPlayers = players.map(jugador => {
+      // Procesar jugadores y asignar status dinámico y calcular estadísticas
+      const processedPlayers = allPlayersBase.map(jugador => {
         const isWinner = winnersMap.has(jugador.id);
         const winnerInfo = winnersMap.get(jugador.id);
         const ticketsJugador = ticketsPorJugador[jugador.id] || [];
+
+        // Calcular estadísticas manualmente
+        const totalTicketsComprados = ticketsJugador.length;
+        const montoTotalGastado = ticketsJugador.reduce((sum, t) => sum + (t.monto_pagado || 0), 0);
+        // Opcional: Calcular deuda si se quisiera mostrar. 
+        // const deuda = ticketsJugador.reduce((sum, t) => (t.estado === 'apartado') ? sum + (t.precio_ticket || 0) : sum, 0);
 
         // Verificar si el jugador tiene tickets
         const tieneTickets = ticketsJugador.length > 0;
@@ -146,9 +195,12 @@ export function Jugadores() {
         const todosPagados = tieneTickets &&
           ticketsJugador.every(ticket => ticket.estado === 'pagado');
 
-        // Verificar si tiene tickets por pagar
-        const tienePorPagar = tieneTickets &&
-          ticketsJugador.some(ticket => ticket.estado === 'apartado' || ticket.estado === 'abonado');
+        // Verificar si tiene tickets por pagar EN RIFAS ACTIVAS (Lógica del usuario)
+        // Query del usuario: COUNT(CASE WHEN estado_ticket = 'apartado' THEN 1 END) > 0
+        const tienePorPagar = ticketsJugador.some(ticket =>
+          (ticket.estado === 'apartado' || ticket.estado === 'abonado') &&
+          ticket.estado_rifa === 'activa'
+        );
 
         // Determinar el estado del jugador
         let status = 'inactive';
@@ -179,6 +231,9 @@ export function Jugadores() {
           badge,
           color,
           description,
+          // Sobrescribir o asignar estadísticas calculadas
+          total_tickets_comprados: totalTicketsComprados,
+          monto_total_gastado: montoTotalGastado,
           premio: isWinner ? (winnerInfo?.premio || null) : null,
           numero_ganador: isWinner ? (winnerInfo?.numero_ganador || null) : null,
           numeros_favoritos: Array.isArray(jugador.numeros_favoritos)
@@ -191,6 +246,9 @@ export function Jugadores() {
           tienePorPagar
         };
       });
+
+      // Filtrar solo aquellos que tienen tickets si son fantasmas? 
+      // No, mostramos todo. Los fantasmas por definición tienen tickets.
 
       setPlayers(processedPlayers);
     } catch (error) {
@@ -716,6 +774,19 @@ export function Jugadores() {
                         <p className="text-2xl font-bold text-white">${selectedPlayer.monto_total_gastado || 0}</p>
                       </div>
                     </div>
+                  </div>
+
+
+                  {/* DEBUG PANEL - TEMPORAL */}
+                  <div className="bg-red-900/50 p-4 rounded-lg mb-6 text-xs text-white font-mono break-all">
+                    <p>DEBUG INFO:</p>
+                    <p>Active Filter: {isActive}</p>
+                    <p>Registered Players (DB): {debugInfo?.registered || 0}</p>
+                    <p>Tickets Fetched (View): {debugInfo?.tickets || 0}</p>
+                    <p>Ghost Players Detected: {debugInfo?.ghosts || 0}</p>
+                    <p>Total Players Processed: {debugInfo?.total || 0}</p>
+                    <p>Filtered Count: {filteredPlayers.length}</p>
+                    <p>Search Query: "{search}"</p>
                   </div>
 
                   {/* Números Favoritos */}
