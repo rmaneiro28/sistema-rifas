@@ -149,7 +149,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                 // Calcular el saldo pendiente basado en los pagos realizados
                 // Usar el monto total del ticket menos lo ya pagado
                 let saldoPendiente = Math.max(0, montoTotal - montoPagado);
-                
+
                 // Si el ticket está marcado como pagado en la base de datos, forzar saldo pendiente a 0
                 if (ticketData?.estado === 'pagado' || (ticketData?.estado_pago === 'completado' && saldoPendiente <= 0.01)) {
                     saldoPendiente = 0;
@@ -214,7 +214,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
 
             // Calcular el saldo pendiente basado en los pagos realizados
             let saldoPendiente = Math.max(0, montoTotal - montoPagado);
-            
+
             // Redondear a 2 decimales para evitar errores de redondeo
             saldoPendiente = Math.round(saldoPendiente * 100) / 100;
 
@@ -293,27 +293,27 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
             console.error('No ticket provided');
             return;
         }
-        
+
         setLoading(true);
-        
+
         try {
             // Initialize variables with only valid columns
-            const updateData = { 
+            const updateData = {
                 estado: newStatus,
                 updated_at: new Date().toISOString()
             };
-            
+
             // Get ticket identifiers
             const id = ticket.id || ticket.ticket_id;
             const numero_ticket = ticket.numero_ticket || ticket.numero_ticket_ticket;
-            
+
             if (!id) {
                 console.error('No se pudo obtener el ID del ticket');
                 toast.error('Error: No se pudo identificar el ticket');
                 setLoading(false);
                 return;
             }
-            
+
             // Registrar el pago en t_pagos si es un abono con monto
             if ((newStatus === 'abonado' || newStatus === 'pagado') && abonoMonto > 0) {
                 try {
@@ -362,7 +362,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     const monto = parseFloat(pago.monto) || 0;
                     return sum + monto;
                 }, 0);
-                
+
                 // Si es un abono, sumar el monto del abono actual al total pagado
                 if (newStatus === 'abonado' && abonoMonto > 0) {
                     totalPagado += parseFloat(abonoMonto) || 0;
@@ -370,7 +370,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     updateData.estado = 'abonado';
                     updateData.estado_pago = 'parcial';
                 }
-                
+
                 // Calcular el saldo pendiente y redondear a 2 decimales
                 let saldoPendiente = Math.max(0, precioTicket - totalPagado);
                 saldoPendiente = Math.round(saldoPendiente * 100) / 100;
@@ -397,7 +397,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                 // Update only valid columns from the t_tickets table
                 updateData.saldo_pendiente = saldoPendiente;
                 updateData.updated_at = new Date().toISOString();
-                
+
                 // Remove any non-existent columns that might have been added
                 const validColumns = ['estado', 'estado_pago', 'saldo_pendiente', 'updated_at', 'jugador_id'];
                 Object.keys(updateData).forEach(key => {
@@ -407,29 +407,29 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                 });
             }
 
-            console.log('Updating ticket:', { 
-                ticketId: ticket.id || ticket.ticket_id, 
-                numeroTicket: ticket.numero_ticket || ticket.numero, 
-                updateData 
+            console.log('Updating ticket:', {
+                ticketId: ticket.id || ticket.ticket_id,
+                numeroTicket: ticket.numero_ticket || ticket.numero,
+                updateData
             });
 
             // Get the correct ID field from the ticket object
             const ticketIdField = ticket.ticket_id ? 'ticket_id' : 'id';
             const ticketIdValue = ticket.ticket_id || ticket.id;
-            
+
             console.log(`Updating ticket with ${ticketIdField} =`, ticketIdValue);
-            
+
             if (!ticketIdValue) {
                 throw new Error('No se pudo determinar el ID del ticket para actualizar');
             }
-            
+
             const { data, error } = await supabase
                 .from("t_tickets")
                 .update(updateData)
                 .eq("empresa_id", empresaId)
                 .eq(ticketIdField, ticketIdValue)
                 .select();
-                
+
             if (error) {
                 console.error('Supabase update error:', error);
                 throw new Error(`Error al actualizar el ticket: ${error.message}`);
@@ -603,7 +603,9 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
 
         let message = `*${empresa}*\n\n`;
         message += `Hola ${jugador}! 👋\n\n`;
-        message += `*Rifa:* ${nombreRifa}\n`;
+        message += `*Recuerda:* Si realizas tu pago antes del miércoles 24 de diciembre a la 1:15 p.m., participarás en un sorteo adicional de $100, pero solo si tienes tu número pagado. 🏆`;
+        message += `\n\n ¡No pierdas la oportunidad de ganar!`;
+        message += `\n\n *Rifa:* ${nombreRifa}\n`;
         message += `*Fecha de Sorteo:* ${rifa?.fecha_fin ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES') : new Date().toLocaleDateString('es-ES')}\n\n`;
         message += `*Tus números (${totalTickets}):*\n• ${ticketNumbers}\n\n`;
 
@@ -635,23 +637,23 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         if (!ticketRef.current) {
             return toast.error("No se encontró la referencia del ticket.");
         }
-        
+
         try {
             const toastId = toast.loading('Copiando imagen al portapapeles...', {
                 position: 'top-center'
             });
-            
-            const blob = await toBlob(ticketRef.current, { 
-                cacheBust: true, 
-                quality: 0.95, 
-                pixelRatio: 2, 
-                backgroundColor: '#FFF' 
+
+            const blob = await toBlob(ticketRef.current, {
+                cacheBust: true,
+                quality: 0.95,
+                pixelRatio: 2,
+                backgroundColor: '#FFF'
             });
 
             if (blob) {
                 const item = new ClipboardItem({ 'image/png': blob });
                 await navigator.clipboard.write([item]);
-                
+
                 toast.success('¡Imagen del ticket copiada al portapapeles!', {
                     id: toastId,
                     duration: 3000,
@@ -662,16 +664,16 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
             }
         } catch (error) {
             console.error('Error al copiar la imagen:', error);
-            
+
             // If clipboard copy fails, try to download the image
             try {
-                const blob = await toBlob(ticketRef.current, { 
-                    cacheBust: true, 
-                    quality: 0.95, 
-                    pixelRatio: 2, 
-                    backgroundColor: '#FFF' 
+                const blob = await toBlob(ticketRef.current, {
+                    cacheBust: true,
+                    quality: 0.95,
+                    pixelRatio: 2,
+                    backgroundColor: '#FFF'
                 });
-                
+
                 if (blob) {
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -681,7 +683,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
-                    
+
                     toast.success('Imagen del ticket descargada', {
                         duration: 3000,
                         position: 'top-center'
@@ -691,7 +693,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
             } catch (downloadError) {
                 console.error('Error al descargar la imagen:', downloadError);
             }
-            
+
             toast.error('No se pudo copiar ni descargar la imagen. Intenta con otro navegador.', {
                 duration: 5000,
                 position: 'top-center'
@@ -807,7 +809,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                         <span className="text-[#23283a] font-medium">Total General:</span>
                                         <span className="text-[#23283a] font-bold">${combinedTotal.toFixed(2)}</span>
                                     </div>
-                                    
+
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-2">
@@ -837,10 +839,10 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                         <div key={index} className="flex flex-col items-center group relative">
                                             <div
                                                 className={`w-9 h-9 rounded-sm flex items-center justify-center text-xs font-bold border border-opacity-30 shadow-sm hover:scale-105 transition-transform
-                                                    ${t.estado_ticket === 'pagado' ? 'bg-green-500 text-white' : 
-                                                      t.estado_ticket === 'abonado' ? 'bg-purple-500 text-white' :
-                                                      t.estado_ticket === 'apartado' ? 'bg-yellow-400 text-yellow-900' :
-                                                      'bg-gray-200 text-gray-700'}`}
+                                                    ${t.estado_ticket === 'pagado' ? 'bg-green-500 text-white' :
+                                                        t.estado_ticket === 'abonado' ? 'bg-purple-500 text-white' :
+                                                            t.estado_ticket === 'apartado' ? 'bg-yellow-400 text-yellow-900' :
+                                                                'bg-gray-200 text-gray-700'}`}
                                             >
                                                 {formatTicketNumber(t.numero_ticket || t.numero_ticket_ticket, rifa?.total_tickets)}
                                             </div>
@@ -1055,7 +1057,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                 El ticket #{ticketToRelease?.numero_ticket} será liberado.
                                 <span className="block text-red-400 mt-1">Esta acción no se puede deshacer.</span>
                             </p>
-                            
+
                             <div className="flex gap-3 w-full">
                                 <button
                                     onClick={() => setShowConfirmDialog(false)}
