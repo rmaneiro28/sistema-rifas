@@ -33,9 +33,9 @@ export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa, 
     const nombreEmpresa = empresa?.nombre_empresa || "nuestro equipo";
     const ticketsList = player.tickets.join(', ');
     const amount = player.tickets.length * rifa.precio_ticket;
-    
-    const message = `Hola! ${greeting} ${player.nombre}, le escribimos de ${nombreEmpresa}. Paso por aquí recordando el pago de sus números (${ticketsList}) para la rifa del ${nombreRifa}, por un monto de $${amount}. El sorteo será este ${fechaSorteo}.\n\n‼De no cancelar a tiempo su número puede pasar a rezagado‼\n\nRifas JoCar 🎟️\n\nRecuerda: Si realizas tu pago antes del miércoles 24 de diciembre a la 1:15 p.m., participarás en un sorteo adicional de $100, pero solo si tienes tu número pagado.`;
-    
+
+    const message = `Hola! ${greeting} ${player.nombre}, le escribimos de ${nombreEmpresa}. Paso por aquí recordando el pago de sus números (${ticketsList}) para la rifa del ${nombreRifa}, por un monto de $${amount}. El sorteo será este ${fechaSorteo}.\n\n‼De no cancelar a tiempo su número puede pasar a rezagado‼\n\nRifas JoCar 🎟️\n\n*Recuerda:* Si realizas tu pago antes del miércoles 24 de diciembre a la 1:15 p.m., participarás en un sorteo adicional de $100, pero solo si tienes tu número pagado.`;
+
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${player.telefono}?text=${encodedMessage}`;
 
@@ -132,34 +132,34 @@ export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa, 
               </button>
             </div>
             <div className="p-6 text-white">
-                <div className="text-center mb-4">
-                    <p className="text-sm text-gray-400">
-                        Recordatorio {currentIndex + 1} de {players.length}
-                    </p>
-                    <div className="w-full bg-gray-700 rounded-full h-1.5 my-2">
-                        <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${((currentIndex + 1) / players.length) * 100}%` }}></div>
-                    </div>
+              <div className="text-center mb-4">
+                <p className="text-sm text-gray-400">
+                  Recordatorio {currentIndex + 1} de {players.length}
+                </p>
+                <div className="w-full bg-gray-700 rounded-full h-1.5 my-2">
+                  <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${((currentIndex + 1) / players.length) * 100}%` }}></div>
                 </div>
+              </div>
 
-                <div className="bg-[#0f131b] p-4 rounded-lg border border-[#23283a] mb-4">
-                    <p className="font-semibold text-lg">{player.nombre}</p>
-                    <p className="text-sm text-gray-300">Teléfono: {player.telefono}</p>
-                    <p className="text-sm text-gray-300">Tickets: <span className="font-mono">{player.tickets.join(', ')}</span></p>
-                    <p className="text-sm text-gray-300">Monto a pagar: <span className="font-semibold">${player.tickets.length * rifa.precio_ticket}</span></p>
-                </div>
+              <div className="bg-[#0f131b] p-4 rounded-lg border border-[#23283a] mb-4">
+                <p className="font-semibold text-lg">{player.nombre}</p>
+                <p className="text-sm text-gray-300">Teléfono: {player.telefono}</p>
+                <p className="text-sm text-gray-300">Tickets: <span className="font-mono">{player.tickets.join(', ')}</span></p>
+                <p className="text-sm text-gray-300">Monto a pagar: <span className="font-semibold">${player.tickets.length * rifa.precio_ticket}</span></p>
+              </div>
 
-                <div className="grid grid-cols-1 gap-2">
-                    {!hasSent ? (
-                        <button onClick={handleSend} className="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-transform transform hover:scale-105">
-                            <span>Enviar Recordatorio</span>
-                        </button>
-                    ) : (
-                        <button onClick={handleNext} className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-transform transform hover:scale-105">
-                            <span>{currentIndex < players.length - 1 ? 'Siguiente' : 'Finalizar'}</span>
-                            <ArrowRightIcon className="w-5 h-5" />
-                        </button>
-                    )}
-                </div>
+              <div className="grid grid-cols-1 gap-2">
+                {!hasSent ? (
+                  <button onClick={handleSend} className="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-transform transform hover:scale-105">
+                    <span>Enviar Recordatorio</span>
+                  </button>
+                ) : (
+                  <button onClick={handleNext} className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-transform transform hover:scale-105">
+                    <span>{currentIndex < players.length - 1 ? 'Siguiente' : 'Finalizar'}</span>
+                    <ArrowRightIcon className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
             </div>
           </motion.div>
         </motion.div>
