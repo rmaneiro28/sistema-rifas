@@ -34,7 +34,7 @@ export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa, 
     const ticketsList = player.tickets.join(', ');
     const amount = player.tickets.length * rifa.precio_ticket;
     
-    const message = `Hola! ${greeting} ${player.nombre}, le escribimos de ${nombreEmpresa}. Paso por aquí recordando el pago de sus números (${ticketsList}) para la rifa del ${nombreRifa}, por un monto de $${amount}. El sorteo será este ${fechaSorteo}.\n\n‼De no cancelar a tiempo su número puede pasar a rezagado‼`;
+    const message = `Hola! ${greeting} ${player.nombre}, le escribimos de ${nombreEmpresa}. Paso por aquí recordando el pago de sus números (${ticketsList}) para la rifa del ${nombreRifa}, por un monto de $${amount}. El sorteo será este ${fechaSorteo}.\n\n‼De no cancelar a tiempo su número puede pasar a rezagado‼\n\nRifas JoCar 🎟️\n\nRecuerda: Si realizas tu pago antes del miércoles 24 de diciembre a la 1:15 p.m., participarás en un sorteo adicional de $100, pero solo si tienes tu número pagado.`;
     
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${player.telefono}?text=${encodedMessage}`;

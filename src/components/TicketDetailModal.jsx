@@ -603,19 +603,21 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
 
         let message = `*${empresa}*\n\n`;
         message += `Hola ${jugador}! 👋\n\n`;
-        message += `*Recuerda:* Si realizas tu pago antes del miércoles 24 de diciembre a la 1:15 p.m., participarás en un sorteo adicional de $100, pero solo si tienes tu número pagado. 🏆`;
-        message += `\n\n ¡No pierdas la oportunidad de ganar!`;
-        message += `\n\n *Rifa:* ${nombreRifa}\n`;
-        message += `*Fecha de Sorteo:* ${rifa?.fecha_fin ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES') : new Date().toLocaleDateString('es-ES')}\n\n`;
-        message += `*Tus números (${totalTickets}):*\n• ${ticketNumbers}\n\n`;
-
         if (isFullyPaid) {
+            message += `\n\n *Rifa:* ${nombreRifa}\n`;
+            message += `*Fecha de Sorteo:* ${rifa?.fecha_fin ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES') : new Date().toLocaleDateString('es-ES')}\n\n`;
+            message += `*Tus números (${totalTickets}):*\n• ${ticketNumbers}\n\n`;
             message += `*Estado del pago:* ✅ *Completo*\n`;
             message += `*Total:* $${totalAmount.toFixed(2)}\n`;
             message += `*Pagado:* $${totalPaid.toFixed(2)}\n`;
             message += `*Pendiente:* $0.00\n\n`;
             message += `¡Muchas gracias por tu pago! Tu participación está confirmada. 🎉\n\n`;
         } else {
+            message += `*Recuerda:* Si realizas tu pago antes del miércoles 24 de diciembre a la 1:15 p.m., participarás en un sorteo adicional de $100, pero solo si tienes tu número pagado. 🏆`;
+            message += `\n\n ¡No pierdas la oportunidad de ganar!`;
+            message += `\n\n *Rifa:* ${nombreRifa}\n`;
+            message += `*Fecha de Sorteo:* ${rifa?.fecha_fin ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES') : new Date().toLocaleDateString('es-ES')}\n\n`;
+            message += `*Tus números (${totalTickets}):*\n• ${ticketNumbers}\n\n`;
             message += `*Estado del pago:* ⚠️ *Pendiente*\n`;
             message += `*Total:* $${totalAmount.toFixed(2)}\n`;
             message += `*Pagado:* $${totalPaid.toFixed(2)}\n`;
