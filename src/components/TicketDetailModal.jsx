@@ -604,7 +604,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         let message = `*${empresa}*\n\n`;
         message += `Hola ${jugador}! 👋\n\n`;
         if (isFullyPaid) {
-            message += `\n\n *Rifa:* ${nombreRifa}\n`;
+            message += `*Rifa:* ${nombreRifa}\n`;
             message += `*Fecha de Sorteo:* ${rifa?.fecha_fin ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES') : new Date().toLocaleDateString('es-ES')}\n\n`;
             message += `*Tus números (${totalTickets}):*\n• ${ticketNumbers}\n\n`;
             message += `*Estado del pago:* ✅ *Completo*\n`;
