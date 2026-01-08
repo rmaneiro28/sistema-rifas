@@ -35,11 +35,10 @@ const getFileHash = async (file) => {
 const Tab = ({ active, onClick, children, icon: Icon }) => (
   <button
     onClick={onClick}
-    className={`flex items-center px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-      active
-        ? 'bg-[#181c24] text-white border-t-2 border-indigo-600'
-        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-    }`}
+    className={`flex items-center px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${active
+      ? 'bg-[#181c24] text-white border-t-2 border-indigo-600'
+      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+      }`}
   >
     {Icon && <Icon className="w-5 h-5 mr-2" />}
     {children}
@@ -171,7 +170,7 @@ const BackupConfig = () => {
 
       // 3. Create downloadable JSON file
       const dataStr = JSON.stringify(backupData, null, 2);
-      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+      const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
 
       const exportFileDefaultName = `backup_${empresaData.nombre_empresa.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
 
@@ -581,15 +580,13 @@ const BackupConfig = () => {
               <Switch
                 checked={autoBackup}
                 onChange={setAutoBackup}
-                className={`${
-                  autoBackup ? 'bg-indigo-600' : 'bg-gray-700'
-                } relative inline-flex h-6 w-11 items-center rounded-full`}
+                className={`${autoBackup ? 'bg-indigo-600' : 'bg-gray-700'
+                  } relative inline-flex h-6 w-11 items-center rounded-full`}
               >
                 <span className="sr-only">Activar copia de seguridad automática</span>
                 <span
-                  className={`${
-                    autoBackup ? 'translate-x-6' : 'translate-x-1'
-                  } inline-block h-4 w-4 transform rounded-full bg-white transition`}
+                  className={`${autoBackup ? 'translate-x-6' : 'translate-x-1'
+                    } inline-block h-4 w-4 transform rounded-full bg-white transition`}
                 />
               </Switch>
             </div>
@@ -614,13 +611,12 @@ const BackupConfig = () => {
           </div>
 
           {backupMessage.text && (
-            <div className={`mt-4 p-3 rounded-md ${
-              backupMessage.type === 'error'
-                ? 'bg-red-900/30 border border-red-800/50'
-                : backupMessage.type === 'success'
+            <div className={`mt-4 p-3 rounded-md ${backupMessage.type === 'error'
+              ? 'bg-red-900/30 border border-red-800/50'
+              : backupMessage.type === 'success'
                 ? 'bg-green-900/30 border border-green-800/50'
                 : 'bg-blue-900/30 border border-blue-800/50'
-            }`}>
+              }`}>
               <div className="flex">
                 <div className="flex-shrink-0">
                   {backupMessage.type === 'error' ? (
@@ -632,13 +628,12 @@ const BackupConfig = () => {
                   )}
                 </div>
                 <div className="ml-3">
-                  <p className={`text-sm font-medium ${
-                    backupMessage.type === 'error'
-                      ? 'text-red-300'
-                      : backupMessage.type === 'success'
+                  <p className={`text-sm font-medium ${backupMessage.type === 'error'
+                    ? 'text-red-300'
+                    : backupMessage.type === 'success'
                       ? 'text-green-300'
                       : 'text-blue-300'
-                  }`}>
+                    }`}>
                     {backupMessage.text}
                   </p>
                 </div>
@@ -776,9 +771,9 @@ const PaymentMethodsConfig = () => {
     setPaymentMethods(paymentMethods.map(pm =>
       pm.id === id
         ? {
-            ...pm,
-            config_data: { ...pm.config_data, [field]: value }
-          }
+          ...pm,
+          config_data: { ...pm.config_data, [field]: value }
+        }
         : pm
     ));
   };
@@ -922,7 +917,7 @@ const PaymentMethodsConfig = () => {
   };
 
   const getPaymentMethodIcon = (id) => {
-    switch(id) {
+    switch (id) {
       case 'efectivo':
         return <BanknotesIcon className="w-4 h-4 text-green-600" />;
       case 'transferencia':
@@ -1331,7 +1326,257 @@ const PaymentMethodsConfig = () => {
   );
 };
 
+// Reminder Configuration Component
+const ReminderConfig = () => {
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState({ type: '', text: '' });
+  const { empresaId } = useAuth();
+
+  const defaultTemplates = [
+    { name: 'Mensaje 1 (General)', content: 'Hola! {{saludo}} {{nombre_jugador}}, le escribimos de {{nombre_empresa}}. Paso por aquí recordando el pago de sus números ({{lista_tickets}}) para la rifa del {{nombre_rifa}}, por un monto de ${{monto_total}}. El sorteo será este {{fecha_sorteo}}.\n\n‼De no cancelar a tiempo su número puede pasar a rezagado‼' },
+    { name: 'Mensaje 2 (Urgente)', content: '⚠️ {{saludo}} {{nombre_jugador}}, recordatorio de pago pendiente para la rifa {{nombre_rifa}}. Sus números: {{lista_tickets}}. Total: ${{monto_total}}. ¡No pierda su oportunidad!' },
+    { name: 'Mensaje 3 (Promoción)', content: '✨ {{saludo}} {{nombre_jugador}}! Recuerda que pagando antes del miércoles participas en sorteos adicionales. Sus números: {{lista_tickets}}.' }
+  ];
+
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      if (!empresaId) return;
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('t_reminder_templates')
+          .select('*')
+          .eq('empresa_id', empresaId)
+          .order('name');
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          setTemplates(data);
+        } else {
+          // Initialize with defaults if empty
+          setTemplates(defaultTemplates.map((t, i) => ({ ...t, id: `new-${i}` })));
+        }
+      } catch (error) {
+        console.error('Error loading templates:', error);
+        setMessage({ type: 'error', text: 'Error al cargar las plantillas' });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTemplates();
+  }, [empresaId]);
+
+  const handleUpdateContent = (id, newContent) => {
+    setTemplates(templates.map(t => t.id === id ? { ...t, content: newContent } : t));
+  };
+
+  const [activeTextarea, setActiveTextarea] = useState(null);
+
+  const insertVariable = (variableTag) => {
+    if (activeTextarea === null) {
+      setMessage({ type: 'error', text: 'Haz clic primero en un mensaje para saber dónde insertar la variable' });
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+      return;
+    }
+
+    const template = templates.find(t => t.id === activeTextarea);
+    if (!template) return;
+
+    const textarea = document.getElementById(`template-textarea-${activeTextarea}`);
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const content = template.content;
+    const newContent = content.substring(0, start) + variableTag + content.substring(end);
+
+    handleUpdateContent(activeTextarea, newContent);
+
+    // Reposition cursor after the inserted variable (using timeout to wait for React render)
+    setTimeout(() => {
+      textarea.focus();
+      const newPos = start + variableTag.length;
+      textarea.setSelectionRange(newPos, newPos);
+    }, 0);
+  };
+
+  const saveTemplates = async () => {
+    if (!empresaId) return;
+    setSaving(true);
+    try {
+      for (const template of templates) {
+        const payload = {
+          name: template.name,
+          content: template.content,
+          empresa_id: empresaId,
+          updated_at: new Date().toISOString()
+        };
+
+        if (template.id.toString().startsWith('new-')) {
+          const { error } = await supabase.from('t_reminder_templates').insert(payload);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('t_reminder_templates')
+            .update(payload)
+            .eq('id', template.id);
+          if (error) throw error;
+        }
+      }
+
+      // Refresh to get real IDs
+      const { data } = await supabase
+        .from('t_reminder_templates')
+        .select('*')
+        .eq('empresa_id', empresaId)
+        .order('name');
+      setTemplates(data);
+
+      setMessage({ type: 'success', text: 'Plantillas guardadas correctamente' });
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+    } catch (error) {
+      console.error('Error saving templates:', error);
+      setMessage({ type: 'error', text: 'Error al guardar: ' + error.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const variables = [
+    { tag: '{{saludo}}', desc: 'Buenos días/tardes/noches' },
+    { tag: '{{nombre_jugador}}', desc: 'Nombre del cliente' },
+    { tag: '{{nombre_empresa}}', desc: 'Nombre de tu negocio' },
+    { tag: '{{lista_tickets}}', desc: 'Números apartados' },
+    { tag: '{{nombre_rifa}}', desc: 'Nombre de la rifa' },
+    { tag: '{{monto_total}}', desc: 'Total a pagar' },
+    { tag: '{{fecha_sorteo}}', desc: 'Fecha del sorteo' },
+  ];
+
+  if (loading) return <div className="p-8 text-center text-gray-400">Cargando plantillas...</div>;
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-[#181c24] shadow rounded-lg p-6 border border-gray-700">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <h3 className="text-lg font-medium text-white flex items-center">
+            <DevicePhoneMobileIcon className="w-6 h-6 mr-2 text-indigo-400" />
+            Plantillas de WhatsApp
+          </h3>
+          {activeTextarea !== null && (
+            <button
+              onClick={() => setActiveTextarea(null)}
+              className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 px-3 py-1.5 rounded-lg border border-indigo-500/20 transition-all"
+            >
+              ← Ver todos los mensajes
+            </button>
+          )}
+        </div>
+
+        {/* Dynamic Variables Grid - Now at the top and wide */}
+        <div className="bg-[#1e2235] p-5 rounded-xl border border-gray-700 mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <InformationCircleIcon className="w-5 h-5 text-indigo-400" />
+            <h4 className="text-sm font-bold text-white tracking-wide uppercase">Variables Dinámicas</h4>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {variables.map(v => (
+              <button
+                key={v.tag}
+                onClick={() => insertVariable(v.tag)}
+                className="flex flex-col items-start p-2.5 bg-[#2d3748] rounded-xl border border-gray-600 hover:border-indigo-500/50 hover:bg-[#323c52] transition-all group active:scale-[0.98] text-left"
+                title={`Insertar ${v.tag}`}
+              >
+                <code className="text-indigo-300 text-[11px] font-bold group-hover:text-white transition-colors mb-0.5">{v.tag}</code>
+                <span className="text-gray-500 text-[10px] group-hover:text-gray-300 transition-colors leading-tight">{v.desc}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 flex items-center gap-3 text-[10px] sm:text-xs">
+            <div className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse"></div>
+            <p className="text-gray-400 italic">
+              Haz clic en un mensaje abajo y luego presiona cualquiera de estas variables para insertarla al instante.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {templates
+            .filter(t => activeTextarea === null || t.id === activeTextarea)
+            .map((template, idx) => (
+              <div
+                key={template.id}
+                className={`bg-[#1e2235] p-5 rounded-2xl border transition-all duration-300 ${activeTextarea === template.id
+                    ? 'border-indigo-500 ring-2 ring-indigo-500/10 shadow-lg shadow-indigo-500/5'
+                    : 'border-gray-700 hover:border-gray-600'
+                  }`}
+              >
+                <div className="flex justify-between items-center mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-[10px] font-black">{idx + 1}</span>
+                    <label className="block text-sm font-bold text-white tracking-wide">
+                      {template.name}
+                    </label>
+                  </div>
+                  {activeTextarea === template.id ? (
+                    <span className="text-[10px] bg-indigo-600 text-white px-3 py-1 rounded-full font-bold tracking-widest uppercase">En Edición</span>
+                  ) : (
+                    <button
+                      onClick={() => setActiveTextarea(template.id)}
+                      className="text-[10px] text-gray-400 hover:text-indigo-400 font-bold uppercase transition-colors"
+                    >
+                      Enfocar mensaje
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  id={`template-textarea-${template.id}`}
+                  value={template.content}
+                  onChange={(e) => handleUpdateContent(template.id, e.target.value)}
+                  onFocus={() => setActiveTextarea(template.id)}
+                  rows={activeTextarea === template.id ? "10" : "4"}
+                  className={`w-full px-4 py-3 bg-[#0f131b]/50 border-none rounded-xl text-white text-sm sm:text-base focus:ring-1 focus:ring-indigo-500/30 transition-all resize-none ${activeTextarea === template.id ? 'font-medium leading-relaxed' : 'text-gray-400'
+                    }`}
+                  placeholder="Redacta el contenido de tu mensaje aquí..."
+                />
+
+                {activeTextarea === template.id && (
+                  <div className="mt-4 flex justify-between items-center text-[10px] text-gray-500 uppercase font-bold tracking-tighter">
+                    <span>{template.content.length} caracteres</span>
+                    <span>Guardado automático al finalizar</span>
+                  </div>
+                )}
+              </div>
+            ))}
+        </div>
+
+        {message.text && (
+          <div className={`mb-4 p-3 rounded-md ${message.type === 'success' ? 'bg-green-900/30 text-green-300' : 'bg-red-900/30 text-red-300'}`}>
+            {message.text}
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <button
+            onClick={saveTemplates}
+            disabled={saving}
+            className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+          >
+            {saving ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : <CheckIcon className="w-5 h-5" />}
+            Guardar Plantillas
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function Configuracion() {
+
   const [activeTab, setActiveTab] = useState('empresa');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1406,9 +1651,9 @@ function Configuracion() {
           .limit(1);
 
         if (hashError) {
-            // If the column logo_hash does not exist, this query will fail.
-            // We can ignore the error and proceed to upload.
-            console.warn("Could not check for existing logo hash. This might be because the 'logo_hash' column does not exist yet.", hashError);
+          // If the column logo_hash does not exist, this query will fail.
+          // We can ignore the error and proceed to upload.
+          console.warn("Could not check for existing logo hash. This might be because the 'logo_hash' column does not exist yet.", hashError);
         }
 
 
@@ -1561,11 +1806,10 @@ function Configuracion() {
                   onDragLeave={handleDrag}
                   onDragOver={handleDrag}
                   onDrop={handleDrop}
-                  className={`mt-2 border-2 border-dashed rounded-xl p-5 text-center transition-all duration-200 ${
-                    dragActive
-                      ? 'border-indigo-500 bg-indigo-500/5'
-                      : 'border-gray-700 hover:border-gray-600 bg-[#23283a]'
-                  }`}
+                  className={`mt-2 border-2 border-dashed rounded-xl p-5 text-center transition-all duration-200 ${dragActive
+                    ? 'border-indigo-500 bg-indigo-500/5'
+                    : 'border-gray-700 hover:border-gray-600 bg-[#23283a]'
+                    }`}
                 >
                   <input
                     type="file"
@@ -1665,6 +1909,7 @@ function Configuracion() {
               {[
                 { key: 'empresa', label: 'Empresa', icon: BuildingOffice2Icon, shortLabel: 'Info' },
                 { key: 'pagos', label: 'Métodos de Pago', icon: CreditCardIcon, shortLabel: 'Pagos' },
+                { key: 'recordatorios', label: 'Recordatorios', icon: DevicePhoneMobileIcon, shortLabel: 'Msjs' },
                 { key: 'backup', label: 'Copias de Seguridad', icon: CloudArrowDownIcon, shortLabel: 'Backup' }
               ].map(tab => {
                 const Icon = tab.icon;
@@ -1672,21 +1917,19 @@ function Configuracion() {
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className={`w-full flex items-center justify-between p-4 rounded-lg border transition-all duration-200 mobile-tab-button ${
-                      activeTab === tab.key
-                        ? 'bg-[#2d3748] border-indigo-500/30 text-white shadow-lg shadow-indigo-500/20'
-                        : 'bg-[#1e2235] border-gray-700 text-gray-400 hover:text-gray-200 hover:bg-[#23283a]'
-                    }`}
+                    className={`w-full flex items-center justify-between p-4 rounded-lg border transition-all duration-200 mobile-tab-button ${activeTab === tab.key
+                      ? 'bg-[#2d3748] border-indigo-500/30 text-white shadow-lg shadow-indigo-500/20'
+                      : 'bg-[#1e2235] border-gray-700 text-gray-400 hover:text-gray-200 hover:bg-[#23283a]'
+                      }`}
                   >
                     <div className="flex items-center space-x-3">
                       <Icon className="w-5 h-5" />
                       <span className="font-medium">{tab.label}</span>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      activeTab === tab.key
-                        ? 'bg-indigo-500/20 text-indigo-300'
-                        : 'bg-gray-700 text-gray-500'
-                    }`}>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${activeTab === tab.key
+                      ? 'bg-indigo-500/20 text-indigo-300'
+                      : 'bg-gray-700 text-gray-500'
+                      }`}>
                       {tab.shortLabel}
                     </span>
                   </button>
@@ -1701,11 +1944,10 @@ function Configuracion() {
               <div className="inline-flex bg-[#1e2235] p-1 rounded-lg min-w-max mx-auto sm:mx-0">
                 <button
                   onClick={() => setActiveTab('empresa')}
-                  className={`flex items-center px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${
-                    activeTab === 'empresa'
-                      ? 'bg-[#2d3748] text-white shadow-lg shadow-indigo-500/20 border border-indigo-500/30'
-                      : 'text-gray-400 hover:text-gray-200 hover:bg-[#2d3748]/50'
-                  }`}
+                  className={`flex items-center px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${activeTab === 'empresa'
+                    ? 'bg-[#2d3748] text-white shadow-lg shadow-indigo-500/20 border border-indigo-500/30'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-[#2d3748]/50'
+                    }`}
                 >
                   <BuildingOffice2Icon className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
                   <span className="hidden sm:inline">Empresa</span>
@@ -1713,23 +1955,32 @@ function Configuracion() {
                 </button>
                 <button
                   onClick={() => setActiveTab('pagos')}
-                  className={`flex items-center px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${
-                    activeTab === 'pagos'
-                      ? 'bg-[#2d3748] text-white shadow-lg shadow-indigo-500/20 border border-indigo-500/30'
-                      : 'text-gray-400 hover:text-gray-200 hover:bg-[#2d3748]/50'
-                  }`}
+                  className={`flex items-center px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${activeTab === 'pagos'
+                    ? 'bg-[#2d3748] text-white shadow-lg shadow-indigo-500/20 border border-indigo-500/30'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-[#2d3748]/50'
+                    }`}
                 >
                   <CreditCardIcon className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
                   <span className="hidden sm:inline">Métodos de Pago</span>
                   <span className="sm:hidden">Pagos</span>
                 </button>
                 <button
+                  onClick={() => setActiveTab('recordatorios')}
+                  className={`flex items-center px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${activeTab === 'recordatorios'
+                    ? 'bg-[#2d3748] text-white shadow-lg shadow-indigo-500/20 border border-indigo-500/30'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-[#2d3748]/50'
+                    }`}
+                >
+                  <DevicePhoneMobileIcon className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
+                  <span className="hidden sm:inline">Recordatorios</span>
+                  <span className="sm:hidden">Msjs</span>
+                </button>
+                <button
                   onClick={() => setActiveTab('backup')}
-                  className={`flex items-center px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${
-                    activeTab === 'backup'
-                      ? 'bg-[#2d3748] text-white shadow-lg shadow-indigo-500/20 border border-indigo-500/30'
-                      : 'text-gray-400 hover:text-gray-200 hover:bg-[#2d3748]/50'
-                  }`}
+                  className={`flex items-center px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${activeTab === 'backup'
+                    ? 'bg-[#2d3748] text-white shadow-lg shadow-indigo-500/20 border border-indigo-500/30'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-[#2d3748]/50'
+                    }`}
                 >
                   <CloudArrowDownIcon className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
                   <span className="hidden sm:inline">Copias de Seguridad</span>
@@ -1742,15 +1993,13 @@ function Configuracion() {
       </div>
 
       {message.text && (
-        <div className={`mb-4 sm:mb-6 p-3 sm:p-4 rounded-xl border backdrop-blur-sm transition-all duration-300 mobile-message ${
-          message.type === 'success'
-            ? 'bg-green-500/10 text-green-300 border-green-500/30 shadow-lg shadow-green-500/10'
-            : 'bg-red-500/10 text-red-300 border-red-500/30 shadow-lg shadow-red-500/10'
-        }`}>
+        <div className={`mb-4 sm:mb-6 p-3 sm:p-4 rounded-xl border backdrop-blur-sm transition-all duration-300 mobile-message ${message.type === 'success'
+          ? 'bg-green-500/10 text-green-300 border-green-500/30 shadow-lg shadow-green-500/10'
+          : 'bg-red-500/10 text-red-300 border-red-500/30 shadow-lg shadow-red-500/10'
+          }`}>
           <div className="flex items-start space-x-3">
-            <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5 ${
-              message.type === 'success' ? 'bg-green-500/20' : 'bg-red-500/20'
-            }`}>
+            <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5 ${message.type === 'success' ? 'bg-green-500/20' : 'bg-red-500/20'
+              }`}>
               {message.type === 'success' ? (
                 <CheckIcon className="w-3 h-3 text-green-400" />
               ) : (
@@ -1800,6 +2049,10 @@ function Configuracion() {
           </div>
         </div>
       )}
+
+      {activeTab === 'pagos' && <PaymentMethodsConfig />}
+      {activeTab === 'recordatorios' && <ReminderConfig />}
+      {activeTab === 'backup' && <BackupConfig />}
 
       {activeTab === 'pagos' && (
         <div className="bg-[#181c24] border border-[#23283a] rounded-2xl overflow-hidden shadow-xl shadow-black/25">

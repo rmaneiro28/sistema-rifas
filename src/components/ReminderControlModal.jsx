@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { XMarkIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, ArrowRightIcon, ChatBubbleLeftRightIcon } from "@heroicons/react/24/outline";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { supabase } from "../api/supabaseClient";
@@ -7,14 +7,37 @@ import { supabase } from "../api/supabaseClient";
 export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa, empresaId }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [hasSent, setHasSent] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplateIndex, setSelectedTemplateIndex] = useState(0);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
 
   useEffect(() => {
     // Reset state when modal opens
     if (isOpen) {
       setCurrentIndex(0);
       setHasSent(false);
+      fetchTemplates();
     }
   }, [isOpen]);
+
+  const fetchTemplates = async () => {
+    if (!empresaId) return;
+    setLoadingTemplates(true);
+    try {
+      const { data, error } = await supabase
+        .from('t_reminder_templates')
+        .select('*')
+        .eq('empresa_id', empresaId)
+        .order('name');
+
+      if (error) throw error;
+      setTemplates(data || []);
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
 
   const getTimeBasedGreeting = () => {
     const hour = new Date().getHours();
@@ -23,10 +46,7 @@ export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa, 
     return 'Buenas noches';
   };
 
-  const handleSend = async () => {
-    if (!players || players.length === 0) return;
-    const player = players[currentIndex];
-
+  const formatMessage = (templateContent, player) => {
     const greeting = getTimeBasedGreeting();
     const nombreRifa = rifa?.nombre || "esta rifa";
     const fechaSorteo = rifa?.fecha_fin ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "próximamente";
@@ -34,7 +54,30 @@ export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa, 
     const ticketsList = player.tickets.join(', ');
     const amount = player.tickets.length * rifa.precio_ticket;
 
-    const message = `Hola! ${greeting} ${player.nombre}, le escribimos de ${nombreEmpresa}. Paso por aquí recordando el pago de sus números (${ticketsList}) para la rifa del ${nombreRifa}, por un monto de $${amount}. El sorteo será este ${fechaSorteo}.\n\n‼De no cancelar a tiempo su número puede pasar a rezagado‼\n\nRifas JoCar 🎟️\n\n*Recuerda:* Si realizas tu pago antes del miércoles 24 de diciembre a la 1:15 p.m., participarás en un sorteo adicional de $100, pero solo si tienes tu número pagado.`;
+    return templateContent
+      .replace(/{{saludo}}/g, greeting)
+      .replace(/{{nombre_jugador}}/g, player.nombre)
+      .replace(/{{nombre_empresa}}/g, nombreEmpresa)
+      .replace(/{{lista_tickets}}/g, ticketsList)
+      .replace(/{{nombre_rifa}}/g, nombreRifa)
+      .replace(/{{monto_total}}/g, amount)
+      .replace(/{{fecha_sorteo}}/g, fechaSorteo);
+  };
+
+  const handleSend = async () => {
+    if (!players || players.length === 0) return;
+    const player = players[currentIndex];
+
+    let message = "";
+    if (templates.length > 0) {
+      message = formatMessage(templates[selectedTemplateIndex].content, player);
+    } else {
+      // Default fallback message if no templates exist
+      const greeting = getTimeBasedGreeting();
+      const ticketsList = player.tickets.join(', ');
+      const amount = player.tickets.length * rifa.precio_ticket;
+      message = `Hola! ${greeting} ${player.nombre}, le escribimos de ${empresa?.nombre_empresa || 'nuestro equipo'}. Paso por aquí recordando el pago de sus números (${ticketsList}) para la rifa del ${rifa?.nombre || 'esta rifa'}, por un monto de $${amount}.`;
+    }
 
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${player.telefono}?text=${encodedMessage}`;
@@ -42,34 +85,7 @@ export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa, 
     window.open(whatsappUrl, '_blank');
 
     try {
-      // Verificar que la rifa existe antes de intentar guardar
-      const { data: rifaCheck, error: rifaError } = await supabase
-        .from('t_rifas')
-        .select('id_rifa')
-        .eq('id_rifa', rifa.id_rifa)
-        .eq('empresa_id', empresaId)
-        .single();
-
-      if (rifaError || !rifaCheck) {
-        console.error('Rifa no encontrada o error:', rifaError);
-        toast.error('Error: La rifa especificada no existe o no tienes permisos');
-        return;
-      }
-
-      // Verificar que el jugador existe
-      const { data: jugadorCheck, error: jugadorError } = await supabase
-        .from('t_jugadores')
-        .select('id')
-        .eq('id', player.id)
-        .eq('empresa_id', empresaId)
-        .single();
-
-      if (jugadorError || !jugadorCheck) {
-        console.error('Jugador no encontrado o error:', jugadorError);
-        toast.error('Error: El jugador especificado no existe o no tienes permisos');
-        return;
-      }
-
+      // Registrar recordatorio
       const { error } = await supabase.from('t_recordatorios_enviados').insert({
         rifa_id: rifa.id_rifa,
         jugador_id: player.id,
@@ -78,15 +94,10 @@ export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa, 
         empresa_id: empresaId
       });
 
-      if (error) {
-        console.error('Error saving reminder:', error);
-        toast.error(`Error al guardar el recordatorio enviado: ${error.message}`);
-      } else {
-        toast.success('Recordatorio enviado y guardado correctamente');
-      }
+      if (error) console.error('Error saving reminder log:', error);
+      toast.success('Recordatorio preparado en WhatsApp');
     } catch (error) {
       console.error('Error saving reminder:', error);
-      toast.error('Error al guardar el recordatorio enviado');
     }
 
     setHasSent(true);
@@ -126,36 +137,70 @@ export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa, 
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-[#23283a]">
-              <h3 className="text-lg font-bold text-white">Enviar Recordatorio Manual</h3>
+              <h3 className="text-lg font-bold text-white">Enviar Recordatorio</h3>
               <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
                 <XMarkIcon className="w-6 h-6" />
               </button>
             </div>
-            <div className="p-6 text-white">
+            <div className="p-6 text-white text-sm sm:text-base">
               <div className="text-center mb-4">
                 <p className="text-sm text-gray-400">
                   Recordatorio {currentIndex + 1} de {players.length}
                 </p>
                 <div className="w-full bg-gray-700 rounded-full h-1.5 my-2">
-                  <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${((currentIndex + 1) / players.length) * 100}%` }}></div>
+                  <div className="bg-indigo-600 h-1.5 rounded-full transition-all duration-300" style={{ width: `${((currentIndex + 1) / players.length) * 100}%` }}></div>
                 </div>
               </div>
 
-              <div className="bg-[#0f131b] p-4 rounded-lg border border-[#23283a] mb-4">
-                <p className="font-semibold text-lg">{player.nombre}</p>
-                <p className="text-sm text-gray-300">Teléfono: {player.telefono}</p>
-                <p className="text-sm text-gray-300">Tickets: <span className="font-mono">{player.tickets.join(', ')}</span></p>
-                <p className="text-sm text-gray-300">Monto a pagar: <span className="font-semibold">${player.tickets.length * rifa.precio_ticket}</span></p>
+              <div className="bg-[#0f131b] p-4 rounded-lg border border-[#23283a] mb-6">
+                <p className="font-semibold text-lg text-indigo-400">{player.nombre}</p>
+                <div className="flex justify-between mt-2 text-xs text-gray-400">
+                  <span>Tickets: {player.tickets.join(', ')}</span>
+                  <span className="font-bold text-white">${player.tickets.length * rifa.precio_ticket}</span>
+                </div>
+              </div>
+
+              {/* Template Selector */}
+              {templates.length > 0 && (
+                <div className="mb-6">
+                  <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Seleccionar Mensaje</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {templates.map((t, idx) => (
+                      <button
+                        key={t.id}
+                        onClick={() => { setSelectedTemplateIndex(idx); setHasSent(false); }}
+                        className={`p-2 text-xs rounded-lg border transition-all ${selectedTemplateIndex === idx
+                            ? 'bg-indigo-600/20 border-indigo-500 text-white'
+                            : 'bg-[#23283a] border-gray-700 text-gray-500 hover:border-gray-600'
+                          }`}
+                      >
+                        Msg {idx + 1}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Preview */}
+              <div className="mb-6">
+                <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Vista Previa</label>
+                <div className="bg-[#0f131b] p-3 rounded-lg border border-[#23283a] italic text-xs text-gray-300 max-h-32 overflow-y-auto">
+                  {templates.length > 0
+                    ? formatMessage(templates[selectedTemplateIndex].content, player)
+                    : "Cargando mensaje..."
+                  }
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-2">
                 {!hasSent ? (
-                  <button onClick={handleSend} className="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-transform transform hover:scale-105">
-                    <span>Enviar Recordatorio</span>
+                  <button onClick={handleSend} className="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-transform transform active:scale-95 shadow-lg shadow-green-500/20">
+                    <ChatBubbleLeftRightIcon className="w-5 h-5" />
+                    <span>Abrir WhatsApp</span>
                   </button>
                 ) : (
-                  <button onClick={handleNext} className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-transform transform hover:scale-105">
-                    <span>{currentIndex < players.length - 1 ? 'Siguiente' : 'Finalizar'}</span>
+                  <button onClick={handleNext} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-transform transform active:scale-95 shadow-lg shadow-indigo-500/20">
+                    <span>{currentIndex < players.length - 1 ? 'Siguiente Jugador' : 'Finalizar'}</span>
                     <ArrowRightIcon className="w-5 h-5" />
                   </button>
                 )}
