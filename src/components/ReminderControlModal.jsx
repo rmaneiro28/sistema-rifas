@@ -28,10 +28,16 @@ export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa, 
         .from('t_reminder_templates')
         .select('*')
         .eq('empresa_id', empresaId)
-        .order('name');
+        .order('is_active', { ascending: false }); // Put active template first
 
       if (error) throw error;
       setTemplates(data || []);
+
+      // Auto-select the active template or the first one as fallback
+      if (data && data.length > 0) {
+        const activeIdx = data.findIndex(t => t.is_active);
+        setSelectedTemplateIndex(activeIdx !== -1 ? activeIdx : 0);
+      }
     } catch (error) {
       console.error('Error fetching templates:', error);
     } finally {
@@ -160,26 +166,7 @@ export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa, 
                 </div>
               </div>
 
-              {/* Template Selector */}
-              {templates.length > 0 && (
-                <div className="mb-6">
-                  <label className="block text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Seleccionar Mensaje</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {templates.map((t, idx) => (
-                      <button
-                        key={t.id}
-                        onClick={() => { setSelectedTemplateIndex(idx); setHasSent(false); }}
-                        className={`p-2 text-xs rounded-lg border transition-all ${selectedTemplateIndex === idx
-                            ? 'bg-indigo-600/20 border-indigo-500 text-white'
-                            : 'bg-[#23283a] border-gray-700 text-gray-500 hover:border-gray-600'
-                          }`}
-                      >
-                        Msg {idx + 1}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Template Selection removed based on user request - Using active template */}
 
               {/* Preview */}
               <div className="mb-6">

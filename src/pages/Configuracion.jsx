@@ -16,7 +16,9 @@ import {
   CloudArrowUpIcon,
   MapPinIcon,
   PlusIcon,
-  XMarkIcon
+  XMarkIcon,
+  ChatBubbleLeftRightIcon,
+  BuildingLibraryIcon
 } from "@heroicons/react/24/outline";
 import { supabase } from "../api/supabaseClient";
 import { InboxIcon } from "@heroicons/react/24/outline";
@@ -48,37 +50,23 @@ const Tab = ({ active, onClick, children, icon: Icon }) => (
 // Backup Configuration Component
 const BackupConfig = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [showAddMethod, setShowAddMethod] = useState(false);
-  const [newMethodName, setNewMethodName] = useState('');
-  const [newMethodDescription, setNewMethodDescription] = useState('');
   const [backupMessage, setBackupMessage] = useState({ type: '', text: '' });
   const [autoBackup, setAutoBackup] = useState(false);
   const [backupFrequency, setBackupFrequency] = useState('daily');
   const [backupHistory, setBackupHistory] = useState([]);
-
   const fileInputRef = useRef(null);
-
   const { empresaId } = useAuth();
 
-  // Load backup history from localStorage
   useEffect(() => {
     const loadBackupHistory = async () => {
       try {
         const history = localStorage.getItem(`backup_history_${empresaId}`);
-        if (history) {
-          setBackupHistory(JSON.parse(history));
-        }
-      } catch (error) {
-        console.error('Error loading backup history:', error);
-      }
+        if (history) setBackupHistory(JSON.parse(history));
+      } catch (error) { console.error(error); }
     };
-
-    if (empresaId) {
-      loadBackupHistory();
-    }
+    if (empresaId) loadBackupHistory();
   }, [empresaId]);
 
-  // Save backup to history
   const saveToHistory = (backupData) => {
     try {
       const historyItem = {
@@ -93,463 +81,144 @@ const BackupConfig = () => {
           pagos: backupData.pagos?.length || 0
         }
       };
-
-      const existingHistory = JSON.parse(localStorage.getItem(`backup_history_${empresaId}`) || '[]');
-      const updatedHistory = [historyItem, ...existingHistory].slice(0, 10); // Keep only last 10
-
-      localStorage.setItem(`backup_history_${empresaId}`, JSON.stringify(updatedHistory));
-      setBackupHistory(updatedHistory);
-    } catch (error) {
-      console.error('Error saving to backup history:', error);
-    }
+      const existing = JSON.parse(localStorage.getItem(`backup_history_${empresaId}`) || '[]');
+      const updated = [historyItem, ...existing].slice(0, 10);
+      localStorage.setItem(`backup_history_${empresaId}`, JSON.stringify(updated));
+      setBackupHistory(updated);
+    } catch (e) { console.error(e); }
   };
 
   const handleBackup = async () => {
-    if (!empresaId) {
-      setBackupMessage({ type: 'error', text: 'No se pudo identificar la empresa' });
-      return;
-    }
-
+    if (!empresaId) return;
     setIsLoading(true);
-    setBackupMessage({ type: 'info', text: 'Creando copia de seguridad...' });
-
+    setBackupMessage({ type: 'info', text: 'Empaquetando datos...' });
     try {
-      // 1. Get all data for the company
-      const { data: empresaData, error: empresaError } = await supabase
-        .from('t_empresas')
-        .select('*')
-        .eq('id_empresa', empresaId)
-        .single();
+      const { data: empresaData } = await supabase.from('t_empresas').select('*').eq('id_empresa', empresaId).single();
+      const { data: jugadores } = await supabase.from('t_jugadores').select('*').eq('empresa_id', empresaId);
+      const { data: rifas } = await supabase.from('vw_rifas').select('*').eq('empresa_id', empresaId);
+      const { data: tickets } = await supabase.from('vw_tickets').select('*').eq('empresa_id', empresaId);
+      const { data: pagos } = await supabase.from('t_pagos').select('*').eq('empresa_id', empresaId);
 
-      if (empresaError) throw empresaError;
-
-      const { data: jugadoresData, error: jugadoresError } = await supabase
-        .from('t_jugadores')
-        .select('*')
-        .eq('empresa_id', empresaId);
-
-      if (jugadoresError) throw jugadoresError;
-
-      const { data: rifasData, error: rifasError } = await supabase
-        .from('vw_rifas')
-        .select('*')
-        .eq('empresa_id', empresaId);
-
-      if (rifasError) throw rifasError;
-
-      const { data: ticketsData, error: ticketsError } = await supabase
-        .from('vw_tickets')
-        .select('*')
-        .eq('empresa_id', empresaId);
-
-      if (ticketsError) throw ticketsError;
-
-      const { data: pagosData, error: pagosError } = await supabase
-        .from('t_pagos')
-        .select('*')
-        .eq('empresa_id', empresaId);
-
-      if (pagosError) throw pagosError;
-
-      // 2. Create backup object
-      const backupData = {
-        empresa: empresaData,
-        jugadores: jugadoresData || [],
-        rifas: rifasData || [],
-        tickets: ticketsData || [],
-        pagos: pagosData || [],
-        metadata: {
-          backupDate: new Date().toISOString(),
-          empresaId: empresaId,
-          version: '1.0'
-        }
-      };
-
-      // Save to history before downloading
+      const backupData = { empresa: empresaData, jugadores, rifas, tickets, pagos, metadata: { backupDate: new Date().toISOString(), empresaId, version: '1.0' } };
       saveToHistory(backupData);
 
-      // 3. Create downloadable JSON file
       const dataStr = JSON.stringify(backupData, null, 2);
       const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+      const link = document.createElement('a');
+      link.setAttribute('href', dataUri);
+      link.setAttribute('download', `backup_${empresaData.nombre_empresa.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`);
+      link.click();
 
-      const exportFileDefaultName = `backup_${empresaData.nombre_empresa.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
-
-      const linkElement = document.createElement('a');
-      linkElement.setAttribute('href', dataUri);
-      linkElement.setAttribute('download', exportFileDefaultName);
-      linkElement.click();
-
-      setBackupMessage({
-        type: 'success',
-        text: 'Copia de seguridad creada y descargada exitosamente'
-      });
-
+      setBackupMessage({ type: 'success', text: 'Copia descargada correctamente' });
     } catch (error) {
-      console.error('Error creating backup:', error);
-      setBackupMessage({
-        type: 'error',
-        text: 'Error al crear la copia de seguridad: ' + error.message
-      });
-    } finally {
-      setIsLoading(false);
-    }
+      setBackupMessage({ type: 'error', text: 'Error: ' + error.message });
+    } finally { setIsLoading(false); }
   };
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
-
-    if (!file.name.endsWith('.json')) {
-      setBackupMessage({ type: 'error', text: 'Solo se permiten archivos JSON' });
-      return;
-    }
-
     setIsLoading(true);
-    setBackupMessage({ type: 'info', text: 'Procesando archivo de respaldo...' });
-
     try {
       const text = await file.text();
       const backupData = JSON.parse(text);
+      if (!backupData.empresa || backupData.metadata.empresaId !== empresaId) throw new Error('Copia no válida para esta empresa');
 
-      // Validate backup file structure
-      if (!backupData.empresa || !backupData.metadata) {
-        throw new Error('Archivo de respaldo inválido');
-      }
+      if (!window.confirm("¿Restaurar copia? Se borrarán los datos actuales.")) return;
 
-      if (backupData.metadata.empresaId !== empresaId) {
-        throw new Error('Este respaldo pertenece a otra empresa');
-      }
+      setBackupMessage({ type: 'info', text: 'Limpiando base de datos...' });
+      await supabase.from('t_tickets').delete().eq('empresa_id', empresaId);
+      await supabase.from('t_pagos').delete().eq('empresa_id', empresaId);
+      await supabase.from('t_jugadores').delete().eq('empresa_id', empresaId);
+      await supabase.from('t_rifas').delete().eq('empresa_id', empresaId);
 
-      // Ask for confirmation before restore
-      const confirmed = window.confirm(
-        `¿Estás seguro de que quieres restaurar los datos de ${backupData.empresa.nombre_empresa}?\n\nEsta acción sobrescribirá todos los datos actuales:\n- ${backupData.jugadores?.length || 0} jugadores\n- ${backupData.rifas?.length || 0} rifas\n- ${backupData.tickets?.length || 0} tickets\n- ${backupData.pagos?.length || 0} pagos\n\nEsta acción no se puede deshacer.`
-      );
-
-      if (!confirmed) {
-        setBackupMessage({ type: 'info', text: 'Restauración cancelada' });
-        setIsLoading(false);
-        return;
-      }
-
-      setBackupMessage({ type: 'info', text: 'Eliminando datos actuales...' });
-
-      // 1. Delete existing data for this company (in reverse order to respect foreign keys)
-      const { error: deleteTicketsError } = await supabase
-        .from('t_tickets')
-        .delete()
-        .eq('empresa_id', empresaId);
-
-      if (deleteTicketsError) {
-        console.warn('Error deleting tickets:', deleteTicketsError);
-      }
-
-      const { error: deletePagosError } = await supabase
-        .from('t_pagos')
-        .delete()
-        .eq('empresa_id', empresaId);
-
-      if (deletePagosError) {
-        console.warn('Error deleting pagos:', deletePagosError);
-      }
-
-      const { error: deleteJugadoresError } = await supabase
-        .from('t_jugadores')
-        .delete()
-        .eq('empresa_id', empresaId);
-
-      if (deleteJugadoresError) {
-        console.warn('Error deleting jugadores:', deleteJugadoresError);
-      }
-
-      // Delete rifas as well since they exist in t_rifas table
-      const { error: deleteRifasError } = await supabase
-        .from('t_rifas')
-        .delete()
-        .eq('empresa_id', empresaId);
-
-      if (deleteRifasError) {
-        console.warn('Error deleting rifas:', deleteRifasError);
-      }
-
-      setBackupMessage({ type: 'info', text: 'Restaurando datos...' });
-
-      // 2. Restore empresa data (if different from current)
-      if (backupData.empresa.id_empresa !== empresaId) {
-        console.warn('Empresa ID mismatch in backup, skipping empresa restore');
-      }
-
-      // Track successful insertions
-      let restoredJugadores = 0;
-      let restoredTickets = 0;
-      let restoredPagos = 0;
-      let restoredRifas = 0;
-
-      // Create mapping for old rifa IDs to new rifa IDs
+      setBackupMessage({ type: 'info', text: 'Inyectando respaldos...' });
       const rifaIdMapping = new Map();
 
-      // 3. Restore rifas first (they are needed for tickets)
-      if (backupData.rifas && backupData.rifas.length > 0) {
-        // Debug: Log first rifa to see field names
-        if (backupData.rifas.length > 0) {
-          console.log('Sample rifa data:', backupData.rifas[0]);
-        }
-
+      if (backupData.rifas?.length > 0) {
         const rifasToInsert = backupData.rifas.map(r => ({
-          // Don't include id - let database auto-generate it
-          nombre: r.nombre,
-          descripcion: r.descripcion,
-          precio_ticket: r.precio_ticket,
-          fecha_inicio: r.fecha_inicio,
-          fecha_fin: r.fecha_fin,
-          total_tickets: r.numero_tickets || r.total_tickets,
-          empresa_id: empresaId, // Ensure correct empresa_id
-          estado: r.estado || 'activa',
-          imagen_url: r.imagen_url,
+          nombre: r.nombre, descripcion: r.descripcion, precio_ticket: r.precio_ticket,
+          fecha_inicio: r.fecha_inicio, fecha_fin: r.fecha_fin,
+          total_tickets: r.numero_tickets || r.total_tickets, empresa_id: empresaId,
+          estado: r.estado || 'activa', imagen_url: r.imagen_url,
           premio_principal: r.premio_descripcion || r.premio_principal,
-          segundo_premio: r.segundo_premio,
-          tercer_premio: r.tercer_premio,
-          cuarto_premio: r.cuarto_premio,
-          categoria: r.categoria,
-          reglas: r.reglas
-        })).filter(r => r.nombre && r.fecha_inicio); // Filter out rifas with missing required fields
+          segundo_premio: r.segundo_premio, tercer_premio: r.tercer_premio,
+          cuarto_premio: r.cuarto_premio, categoria: r.categoria, reglas: r.reglas
+        }));
 
-        if (rifasToInsert.length > 0) {
-          // Insert rifas in batches of 50 to avoid potential limits
-          const batchSize = 50;
-          let insertedCount = 0;
-
-          for (let i = 0; i < rifasToInsert.length; i += batchSize) {
-            const batch = rifasToInsert.slice(i, i + batchSize);
-
-            const { data: insertedRifas, error: batchError } = await supabase
-              .from('t_rifas')
-              .insert(batch)
-              .select('id_rifa, nombre'); // Get back the new IDs and names for mapping
-
-            if (batchError) {
-              console.error(`Error inserting rifas batch ${Math.floor(i / batchSize) + 1}:`, batchError);
-              throw new Error(`Error al restaurar rifas (lote ${Math.floor(i / batchSize) + 1}): ` + batchError.message);
-            } else {
-              insertedCount += batch.length;
-
-              // Create mapping from old rifa data to new IDs
-              if (insertedRifas) {
-                insertedRifas.forEach((newRifa, index) => {
-                  const originalRifa = backupData.rifas[i + index];
-                  if (originalRifa) {
-                    // Try different possible field names for rifa ID
-                    const oldRifaId = originalRifa.id || originalRifa.id_rifa || originalRifa.rifa_id;
-                    if (oldRifaId) {
-                      rifaIdMapping.set(oldRifaId, newRifa.id_rifa);
-                    } else {
-                      console.warn('Could not find rifa ID field in:', originalRifa);
-                    }
-                  }
-                });
-              }
-            }
-          }
-
-          restoredRifas = insertedCount;
-        }
-
-        // Wait a moment to ensure rifas are fully committed
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
-      // 4. Restore jugadores
-      if (backupData.jugadores && backupData.jugadores.length > 0) {
-        const jugadoresToInsert = backupData.jugadores.map(j => ({
-          id: j.id, // Preserve original UUID for relationships
-          nombre: j.nombre,
-          apellido: j.apellido,
-          cedula: j.cedula,
-          telefono: j.telefono,
-          email: j.email,
-          direccion: j.direccion,
-          numeros_favoritos: Array.isArray(j.numeros_favoritos) ? j.numeros_favoritos : [],
-          empresa_id: empresaId // Ensure correct empresa_id
-          // Note: created_at, updated_at, status fields don't exist in t_jugadores table based on JugadorFormModal.jsx
-        })).filter(j => j.nombre && j.apellido); // Filter out jugadores with missing required fields
-
-        if (jugadoresToInsert.length > 0) {
-          // Insert jugadores in batches of 50 to avoid potential limits
-          const batchSize = 50;
-          let insertedCount = 0;
-
-          for (let i = 0; i < jugadoresToInsert.length; i += batchSize) {
-            const batch = jugadoresToInsert.slice(i, i + batchSize);
-
-            const { error: batchError } = await supabase
-              .from('t_jugadores')
-              .insert(batch);
-
-            if (batchError) {
-              console.error(`Error inserting jugadores batch ${Math.floor(i / batchSize) + 1}:`, batchError);
-              throw new Error(`Error al restaurar jugadores (lote ${Math.floor(i / batchSize) + 1}): ` + batchError.message);
-            } else {
-              insertedCount += batch.length;
-            }
-          }
-
-          restoredJugadores = insertedCount;
-        }
-
-        // Wait a moment to ensure jugadores are fully committed
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
-      // 4. Restore pagos
-      if (backupData.pagos && backupData.pagos.length > 0) {
-        const pagosToInsert = backupData.pagos.map(p => ({
-          id: p.id, // Preserve original UUID for relationships
-          jugador_id: p.jugador_id,
-          monto: p.monto,
-          banco: p.banco,
-          telefono: p.telefono,
-          cedula: p.cedula,
-          referencia_bancaria: p.referencia_bancaria,
-          metodo_pago: p.metodo_pago,
-          empresa_id: empresaId, // Ensure correct empresa_id
-          tipo_pago: p.tipo_pago,
-          notas: p.notas,
-          fecha_pago: p.fecha_pago
-          // Note: imagen field doesn't exist in t_pagos table based on the wizard code
-        })).filter(p => p.jugador_id && p.monto != null); // Filter out pagos with missing required fields
-
-        if (pagosToInsert.length > 0) {
-          // Insert pagos in batches of 50 to avoid potential limits
-          const batchSize = 50;
-          let insertedCount = 0;
-
-          for (let i = 0; i < pagosToInsert.length; i += batchSize) {
-            const batch = pagosToInsert.slice(i, i + batchSize);
-
-            const { error: batchError } = await supabase
-              .from('t_pagos')
-              .insert(batch);
-
-            if (batchError) {
-              console.error(`Error inserting pagos batch ${Math.floor(i / batchSize) + 1}:`, batchError);
-              throw new Error(`Error al restaurar pagos (lote ${Math.floor(i / batchSize) + 1}): ` + batchError.message);
-            } else {
-              insertedCount += batch.length;
-            }
-          }
-
-          restoredPagos = insertedCount;
+        const { data: insertedRifas } = await supabase.from('t_rifas').insert(rifasToInsert).select('id_rifa, nombre');
+        if (insertedRifas) {
+          insertedRifas.forEach((newR, i) => {
+            const oldId = backupData.rifas[i].id || backupData.rifas[i].id_rifa;
+            if (oldId) rifaIdMapping.set(oldId, newR.id_rifa);
+          });
         }
       }
 
-      // 5. Restore tickets
-      if (backupData.tickets && backupData.tickets.length > 0) {
-        const ticketsToInsert = backupData.tickets.map(t => {
-          // Extract raw numero from numero_ticket if numero is null
-          let rawNumero = t.numero_ticket;
-          if (!rawNumero && t.numero_ticket) {
-            // Extract the numeric part from formatted numero_ticket
-            const extracted = t.numero_ticket.replace(/\D/g, '');
-            rawNumero = extracted ? parseInt(extracted) : null;
-          }
+      if (backupData.jugadores?.length > 0) {
+        await supabase.from('t_jugadores').insert(backupData.jugadores.map(j => ({
+          id: j.id, nombre: j.nombre, apellido: j.apellido, cedula: j.cedula,
+          telefono: j.telefono, email: j.email, direccion: j.direccion,
+          numeros_favoritos: j.numeros_favoritos || [], empresa_id: empresaId
+        })));
+      }
 
-          // Map old rifa_id to new rifa_id
-          const newRifaId = rifaIdMapping.get(t.rifa_id);
-          if (!newRifaId) {
-            console.warn(`Could not find mapping for rifa_id ${t.rifa_id} in tickets`);
-          }
+      if (backupData.pagos?.length > 0) {
+        await supabase.from('t_pagos').insert(backupData.pagos.map(p => ({
+          id: p.id, jugador_id: p.jugador_id, monto: p.monto, banco: p.banco,
+          telefono: p.telefono, cedula: p.cedula, referencia_bancaria: p.referencia_bancaria,
+          metodo_pago: p.metodo_pago, empresa_id: empresaId, tipo_pago: p.tipo_pago,
+          notas: p.notas, fecha_pago: p.fecha_pago
+        })));
+      }
 
-          return {
-            id: t.ticket_id, // Preserve original UUID for tickets
-            rifa_id: newRifaId || t.rifa_id, // Use new rifa_id if available, fallback to old one
-            jugador_id: t.jugador_id,
-            numero: rawNumero, // Use extracted raw numero
-            estado: t.estado_ticket || t.estado || 'apartado', // Use estado_ticket if available, fallback to estado, then default to 'apartado'
-            empresa_id: empresaId, // Ensure correct empresa_id
-            fecha_apartado: t.fecha_apartado,
-            fecha_pago: t.fecha_pago
-            // Note: fecha_cancelacion might not exist in t_tickets table
-          };
-        }).filter(t => {
-          const isValid = t.numero != null && t.rifa_id && t.jugador_id && t.estado && t.fecha_apartado;
-          return isValid;
-        }); // Filter out tickets with missing required fields
+      if (backupData.tickets?.length > 0) {
+        const tkts = backupData.tickets.map(t => ({
+          id: t.ticket_id || t.id, rifa_id: rifaIdMapping.get(t.rifa_id) || t.rifa_id,
+          jugador_id: t.jugador_id, numero: t.numero || parseInt(t.numero_ticket?.replace(/\D/g, '')),
+          estado: t.estado_ticket || t.estado || 'apartado', empresa_id: empresaId,
+          fecha_apartado: t.fecha_apartado, fecha_pago: t.fecha_pago
+        })).filter(t => t.numero != null && t.rifa_id);
 
-        if (ticketsToInsert.length > 0) {
-          // Insert tickets in batches of 50 to avoid potential limits
-          const batchSize = 50;
-          let insertedCount = 0;
-
-          for (let i = 0; i < ticketsToInsert.length; i += batchSize) {
-            const batch = ticketsToInsert.slice(i, i + batchSize);
-
-            const { error: batchError } = await supabase
-              .from('t_tickets')
-              .insert(batch);
-
-            if (batchError) {
-              console.error(`Error inserting ticket batch ${Math.floor(i / batchSize) + 1}:`, batchError);
-              throw new Error(`Error al restaurar tickets (lote ${Math.floor(i / batchSize) + 1}): ` + batchError.message);
-            } else {
-              insertedCount += batch.length;
-            }
-          }
-
-          restoredTickets = insertedCount;
+        for (let i = 0; i < tkts.length; i += 100) {
+          await supabase.from('t_tickets').insert(tkts.slice(i, i + 100));
         }
       }
 
-      setBackupMessage({
-        type: 'success',
-        text: `Datos restaurados exitosamente:\n- ${restoredRifas} rifas\n- ${restoredJugadores} jugadores\n- ${restoredTickets} tickets\n- ${restoredPagos} pagos\n\nLa página se recargará para reflejar los cambios.`
-      });
-
-      // Reload page after successful restore
-      setTimeout(() => {
-        window.location.reload();
-      }, 3000);
-
+      setBackupMessage({ type: 'success', text: 'Restauración completada. Reiniciando...' });
+      setTimeout(() => window.location.reload(), 2000);
     } catch (error) {
-      console.error('Error restoring backup:', error);
-      setBackupMessage({
-        type: 'error',
-        text: 'Error al procesar el archivo de respaldo: ' + error.message
-      });
-    } finally {
-      setIsLoading(false);
-    }
+      setBackupMessage({ type: 'error', text: error.message });
+    } finally { setIsLoading(false); }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-[#181c24] shadow rounded-lg p-6 border border-gray-700">
-        <h3 className="text-lg font-medium text-white mb-4">
-          <CloudArrowDownIcon className="w-6 h-6 inline-block mr-2 text-indigo-400" />
-          Copias de Seguridad
-        </h3>
+    <div className="space-y-8 animate-fadeInUp">
+      {/* Action Card */}
+      <div className="bg-[#1e2235] rounded-[32px] border border-gray-800 p-6 sm:p-10 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-[100px] rounded-full"></div>
 
-        <div className="bg-[#1e2235] p-6 rounded-lg border border-gray-700">
-          <p className="text-sm text-gray-300 mb-6">
-            Crea una copia de seguridad de todos tus datos en un archivo descargable.
-          </p>
+        <div className="relative">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20">
+              <CloudArrowUpIcon className="h-6 w-6 text-indigo-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-white tracking-tight">Centro de Respaldo</h3>
+              <p className="text-[9px] text-gray-500 font-medium uppercase tracking-[1.5px]">Seguridad de la Información</p>
+            </div>
+          </div>
 
-          <div className="flex flex-wrap gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <button
               onClick={handleBackup}
               disabled={isLoading}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="group relative h-14 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center gap-3 px-6 hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-indigo-600/10 disabled:opacity-50"
             >
-              {isLoading ? (
+              {isLoading ? <ArrowPathIcon className="h-4 w-4 animate-spin text-white" /> : (
                 <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Creando copia...
-                </>
-              ) : (
-                <>
-                  <CloudArrowUpIcon className="-ml-1 mr-2 h-5 w-5" />
-                  Crear Copia de Seguridad
+                  <CloudArrowUpIcon className="h-4 w-4 text-white group-hover:scale-125 transition-transform" />
+                  <span className="text-white text-[10px] font-black uppercase tracking-widest text-center">Crear Nueva Copia</span>
                 </>
               )}
             </button>
@@ -557,141 +226,93 @@ const BackupConfig = () => {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading}
-              className="inline-flex items-center px-4 py-2 border border-gray-600 shadow-sm text-sm font-medium rounded-md text-white bg-[#2d3748] hover:bg-[#374151] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+              className="h-14 bg-[#23283a] rounded-xl flex items-center justify-center gap-3 px-6 border border-gray-700 hover:border-indigo-500/50 hover:bg-[#2d3748] active:scale-95 transition-all"
             >
-              <CloudArrowDownIcon className="-ml-1 mr-2 h-5 w-5 text-gray-300" />
-              Restaurar desde Archivo
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                className="hidden"
-                accept=".json"
-              />
+              <CloudArrowDownIcon className="h-4 w-4 text-indigo-400" />
+              <span className="text-gray-300 text-[10px] font-black uppercase tracking-widest text-center">Restaurar Datos</span>
+              <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".json" />
             </button>
           </div>
 
-          <div className="mt-6 pt-6 border-t border-gray-700">
-            <div className="flex items-center justify-between">
+          {/* Auto Backup Toggle */}
+          <div className="mt-10 pt-8 border-t border-gray-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className={`p-3 rounded-xl ${autoBackup ? 'bg-indigo-500/10' : 'bg-gray-800/50'}`}>
+                <ClockIcon className={`h-5 w-5 ${autoBackup ? 'text-indigo-400' : 'text-gray-600'}`} />
+              </div>
               <div>
-                <h4 className="text-sm font-medium text-white">Copia de seguridad automática</h4>
-                <p className="text-xs text-gray-400">Copia de seguridad automática cada {backupFrequency === 'daily' ? 'día' : backupFrequency === 'weekly' ? 'semana' : 'mes'}</p>
+                <h4 className="text-sm font-bold text-white tracking-tight">Sincronización Automática</h4>
+                <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Copia de seguridad periódica</p>
               </div>
-              <Switch
-                checked={autoBackup}
-                onChange={setAutoBackup}
-                className={`${autoBackup ? 'bg-indigo-600' : 'bg-gray-700'
-                  } relative inline-flex h-6 w-11 items-center rounded-full`}
-              >
-                <span className="sr-only">Activar copia de seguridad automática</span>
-                <span
-                  className={`${autoBackup ? 'translate-x-6' : 'translate-x-1'
-                    } inline-block h-4 w-4 transform rounded-full bg-white transition`}
-                />
-              </Switch>
             </div>
 
-            {autoBackup && (
-              <div className="mt-4">
-                <label htmlFor="backup-frequency" className="block text-sm font-medium text-gray-300 mb-1">
-                  Frecuencia
-                </label>
-                <select
-                  id="backup-frequency"
-                  value={backupFrequency}
-                  onChange={(e) => setBackupFrequency(e.target.value)}
-                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-[#2d3748] border-gray-600 text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                >
-                  <option value="daily">Diariamente</option>
-                  <option value="weekly">Semanalmente</option>
-                  <option value="monthly">Mensualmente</option>
-                </select>
-              </div>
-            )}
+            <Switch
+              checked={autoBackup}
+              onChange={setAutoBackup}
+              className={`${autoBackup ? 'bg-indigo-600' : 'bg-gray-800'} relative inline-flex h-7 w-12 items-center rounded-full border border-gray-700 transition-all`}
+            >
+              <span className={`${autoBackup ? 'translate-x-[26px]' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-md`} />
+            </Switch>
           </div>
-
-          {backupMessage.text && (
-            <div className={`mt-4 p-3 rounded-md ${backupMessage.type === 'error'
-              ? 'bg-red-900/30 border border-red-800/50'
-              : backupMessage.type === 'success'
-                ? 'bg-green-900/30 border border-green-800/50'
-                : 'bg-blue-900/30 border border-blue-800/50'
-              }`}>
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  {backupMessage.type === 'error' ? (
-                    <ExclamationTriangleIcon className="h-5 w-5 text-red-400" aria-hidden="true" />
-                  ) : backupMessage.type === 'success' ? (
-                    <CheckIcon className="h-5 w-5 text-green-400" aria-hidden="true" />
-                  ) : (
-                    <InformationCircleIcon className="h-5 w-5 text-blue-400" aria-hidden="true" />
-                  )}
-                </div>
-                <div className="ml-3">
-                  <p className={`text-sm font-medium ${backupMessage.type === 'error'
-                    ? 'text-red-300'
-                    : backupMessage.type === 'success'
-                      ? 'text-green-300'
-                      : 'text-blue-300'
-                    }`}>
-                    {backupMessage.text}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
-      <div className="bg-[#181c24] shadow rounded-lg p-6 border border-gray-700">
-        <h3 className="text-lg font-medium text-white mb-4">
-          <ClockIcon className="w-6 h-6 inline-block mr-2 text-indigo-400" />
-          Historial de Copias de Seguridad
-        </h3>
-        <div className="bg-[#1e2235] p-6 rounded-lg border border-gray-700">
+      {/* History Card - Mobile Optimized */}
+      <div className="bg-[#181c24] rounded-[32px] border border-gray-800/50 overflow-hidden shadow-xl">
+        <div className="p-6 sm:p-8 bg-[#1e2235]/40 border-b border-gray-800/50 flex items-center gap-3">
+          <ClockIcon className="h-5 w-5 text-indigo-400" />
+          <h3 className="text-sm font-black text-white uppercase tracking-widest">Historial Reciente</h3>
+        </div>
+
+        <div className="p-4 sm:p-8">
           {backupHistory.length > 0 ? (
-            <div className="space-y-3">
-              {backupHistory.map((backup, index) => (
-                <div key={backup.id} className="flex items-center justify-between p-3 bg-[#23283a] rounded-lg border border-gray-600/50 hover:border-gray-500/50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-green-500/20 rounded-full flex items-center justify-center">
-                      <CheckIcon className="w-4 h-4 text-green-400" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-white text-sm font-medium">
-                        {backup.name}
-                      </p>
-                      <div className="flex items-center gap-4 text-xs text-gray-400 mt-1">
-                        <span>{new Date(backup.date).toLocaleDateString('es-ES')}</span>
-                        <span>{backup.size}</span>
-                        <span>{backup.empresa}</span>
+            <div className="space-y-4">
+              {backupHistory.map((backup) => (
+                <div key={backup.id} className="group relative bg-[#1e2235]/50 rounded-2xl border border-gray-800 p-4 sm:p-5 hover:border-indigo-500/30 transition-all">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                        <p className="text-xs font-bold text-white truncate font-mono opacity-80">{backup.name}</p>
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
-                        <span>{backup.records.jugadores} jugadores</span>
-                        <span>{backup.records.tickets} tickets</span>
-                        <span>{backup.records.pagos} pagos</span>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-black text-gray-600 uppercase tracking-tighter">Fecha</span>
+                          <span className="text-[11px] font-medium text-gray-400">{new Date(backup.date).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-black text-gray-600 uppercase tracking-tighter">Peso</span>
+                          <span className="text-[11px] font-medium text-indigo-400">{backup.size}</span>
+                        </div>
+                        <div className="flex flex-col col-span-2">
+                          <span className="text-[9px] font-black text-gray-600 uppercase tracking-tighter">Registros</span>
+                          <span className="text-[11px] font-medium text-gray-400">{backup.records.jugadores}J • {backup.records.tickets}T • {backup.records.pagos}P</span>
+                        </div>
                       </div>
                     </div>
+                    <button className="h-10 px-5 bg-gray-800 hover:bg-indigo-600 text-[10px] font-black uppercase tracking-widest text-white rounded-xl border border-gray-700 transition-all active:scale-95 whitespace-nowrap">
+                      Descargar
+                    </button>
                   </div>
-                  <button className="text-indigo-400 hover:text-indigo-300 text-sm font-medium transition-colors">
-                    Descargar
-                  </button>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8">
-              <CloudArrowDownIcon className="w-12 h-12 text-gray-500 mx-auto mb-3" />
-              <p className="text-sm text-gray-400">
-                No hay copias de seguridad recientes
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Crea tu primera copia de seguridad usando el botón de arriba
-              </p>
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-800">
+                <CloudArrowDownIcon className="h-8 w-8 text-gray-600" />
+              </div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Sin registros locales</p>
             </div>
           )}
         </div>
       </div>
+
+      {backupMessage.text && (
+        <div className={`mt-4 p-4 rounded-2xl text-[11px] font-black uppercase tracking-[1px] text-center animate-fadeIn ${backupMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : backupMessage.type === 'error' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'}`}>
+          {backupMessage.text}
+        </div>
+      )}
     </div>
   );
 };
@@ -709,11 +330,9 @@ const PaymentMethodsConfig = () => {
 
   const { empresaId } = useAuth();
 
-  // Load payment methods from database
   useEffect(() => {
     const loadPaymentMethods = async () => {
       if (!empresaId) return;
-
       try {
         setLoading(true);
         const { data, error } = await supabase
@@ -722,169 +341,50 @@ const PaymentMethodsConfig = () => {
           .eq('empresa_id', empresaId);
 
         if (error) {
-          console.error('Error loading payment methods:', error);
-          // Initialize with default methods if table doesn't exist yet
           setPaymentMethods([
             { id: 'efectivo', method_id: 'efectivo', method_name: 'Efectivo', is_enabled: true, is_default: true, config_data: {} },
             { id: 'transferencia', method_id: 'transferencia', method_name: 'Transferencia', is_enabled: true, is_default: false, config_data: { bankName: '', accountNumber: '', bankLogoUrl: null } },
             { id: 'pago_movil', method_id: 'pago_movil', method_name: 'Pago Móvil', is_enabled: true, is_default: false, config_data: { phone: '', ci: '' } },
             { id: 'zelle', method_id: 'zelle', method_name: 'Zelle', is_enabled: false, is_default: false, config_data: { email: '' } },
-            { id: 'otro', method_id: 'otro', method_name: 'Otro', is_enabled: false, is_default: false, config_data: { description: '' } },
           ]);
         } else {
-          // Transform database data to component format
-          const methods = data.map(pm => ({
+          setPaymentMethods(data.map(pm => ({
             id: pm.method_id,
             method_id: pm.method_id,
             method_name: pm.method_name,
             is_enabled: pm.is_enabled,
             is_default: pm.is_default,
             config_data: pm.config_data || {}
-          }));
-          setPaymentMethods(methods);
+          })));
         }
       } catch (error) {
-        console.error('Error loading payment methods:', error);
-        setSaveMessage({ type: 'error', text: 'Error al cargar métodos de pago' });
+        setSaveMessage({ type: 'error', text: 'Error al cargar métodos' });
       } finally {
         setLoading(false);
       }
     };
-
     loadPaymentMethods();
   }, [empresaId]);
 
   const togglePaymentMethod = (id, enabled) => {
-    setPaymentMethods(paymentMethods.map(pm =>
-      pm.id === id ? { ...pm, is_enabled: enabled } : pm
-    ));
+    setPaymentMethods(paymentMethods.map(pm => pm.id === id ? { ...pm, is_enabled: enabled } : pm));
   };
 
   const setDefaultMethod = (id) => {
-    setPaymentMethods(paymentMethods.map(pm => ({
-      ...pm,
-      is_default: pm.id === id
-    })));
+    setPaymentMethods(paymentMethods.map(pm => ({ ...pm, is_default: pm.id === id })));
   };
 
   const updatePaymentDetails = (id, field, value) => {
-    setPaymentMethods(paymentMethods.map(pm =>
-      pm.id === id
-        ? {
-          ...pm,
-          config_data: { ...pm.config_data, [field]: value }
-        }
-        : pm
-    ));
-  };
-
-  const addNewMethod = () => {
-    if (!newMethodName.trim()) return;
-
-    const newMethod = {
-      id: `custom_${Date.now()}`,
-      method_id: `custom_${Date.now()}`,
-      method_name: newMethodName.trim(),
-      is_enabled: false,
-      is_default: false,
-      config_data: {
-        description: newMethodDescription.trim(),
-        logoUrl: newMethodLogoUrl
-      }
-    };
-
-    setPaymentMethods([...paymentMethods, newMethod]);
-    setNewMethodName('');
-    setNewMethodDescription('');
-    setNewMethodLogoUrl(null);
-    setShowAddMethod(false);
-  };
-
-  const handleBankLogoUpload = async (methodId, event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    try {
-      const hash = await getFileHash(file);
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${hash}.${fileExt}`;
-      const filePath = `banco/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('raffle-images')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true,
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('raffle-images')
-        .getPublicUrl(filePath);
-
-      updatePaymentDetails(methodId, 'bankLogoUrl', urlData.publicUrl);
-    } catch (error) {
-      console.error('Error uploading bank logo:', error);
-      setSaveMessage({
-        type: 'error',
-        text: 'Error al subir el logo del banco: ' + error.message
-      });
-    }
-  };
-
-  const handleMethodLogoUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    try {
-      const hash = await getFileHash(file);
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${hash}.${fileExt}`;
-      const filePath = `metodo/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('raffle-images')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true,
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('raffle-images')
-        .getPublicUrl(filePath);
-
-      setNewMethodLogoUrl(urlData.publicUrl);
-    } catch (error) {
-      console.error('Error uploading method logo:', error);
-      setSaveMessage({
-        type: 'error',
-        text: 'Error al subir el logo del método: ' + error.message
-      });
-    }
+    setPaymentMethods(paymentMethods.map(pm => pm.id === id ? { ...pm, config_data: { ...pm.config_data, [field]: value } } : pm));
   };
 
   const savePaymentMethods = async () => {
     if (!empresaId) return;
-
     setSaving(true);
-    setSaveMessage({ type: 'info', text: 'Guardando configuración...' });
-
+    setSaveMessage({ type: 'info', text: 'Sincronizando...' });
     try {
-      // Delete existing payment methods for this company
-      const { error: deleteError } = await supabase
-        .from('t_payment_methods')
-        .delete()
-        .eq('empresa_id', empresaId);
-
-      if (deleteError) {
-        console.error('Error deleting old payment methods:', deleteError);
-      }
-
-      // Insert new payment methods
-      const paymentMethodsToInsert = paymentMethods.map(pm => ({
+      await supabase.from('t_payment_methods').delete().eq('empresa_id', empresaId);
+      const toInsert = paymentMethods.map(pm => ({
         empresa_id: empresaId,
         method_id: pm.method_id,
         method_name: pm.method_name,
@@ -892,436 +392,198 @@ const PaymentMethodsConfig = () => {
         is_default: pm.is_default,
         config_data: pm.config_data
       }));
-
-      const { error: insertError } = await supabase
-        .from('t_payment_methods')
-        .insert(paymentMethodsToInsert);
-
-      if (insertError) throw insertError;
-
-      setSaveMessage({
-        type: 'success',
-        text: 'Configuración de métodos de pago guardada exitosamente'
-      });
-
+      const { error } = await supabase.from('t_payment_methods').insert(toInsert);
+      if (error) throw error;
+      setSaveMessage({ type: 'success', text: 'Configuración actualizada' });
       setTimeout(() => setSaveMessage({ type: '', text: '' }), 3000);
     } catch (error) {
-      console.error('Error saving payment methods:', error);
-      setSaveMessage({
-        type: 'error',
-        text: 'Error al guardar la configuración: ' + error.message
-      });
+      setSaveMessage({ type: 'error', text: 'Error: ' + error.message });
     } finally {
       setSaving(false);
     }
   };
 
-  const getPaymentMethodIcon = (id) => {
+  const getIcon = (id) => {
+    const props = "h-5 w-5";
     switch (id) {
-      case 'efectivo':
-        return <BanknotesIcon className="w-4 h-4 text-green-600" />;
-      case 'transferencia':
-        return <CreditCardIcon className="w-4 h-4 text-blue-600" />;
-      case 'pago_movil':
-        return <DevicePhoneMobileIcon className="w-4 h-4 text-purple-600" />;
-      case 'zelle':
-        return <CurrencyDollarIcon className="w-4 h-4 text-indigo-600" />;
-      default:
-        return <CreditCardIcon className="w-4 h-4 text-gray-600" />;
+      case 'efectivo': return <BanknotesIcon className={`${props} text-emerald-400`} />;
+      case 'transferencia': return <BuildingLibraryIcon className={`${props} text-blue-400`} />;
+      case 'pago_movil': return <DevicePhoneMobileIcon className={`${props} text-purple-400`} />;
+      case 'zelle': return <CurrencyDollarIcon className={`${props} text-indigo-400`} />;
+      default: return <CreditCardIcon className={`${props} text-gray-400`} />;
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-500"></div>
-        <span className="ml-2 text-gray-300 text-sm">Cargando métodos de pago...</span>
-      </div>
-    );
-  }
+  if (loading) return <div className="p-12 text-center animate-pulse text-indigo-400 font-black uppercase tracking-widest text-xs">Cargando pasarelas...</div>;
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center space-x-2">
-            <CreditCardIcon className="w-5 h-5 text-indigo-400 flex-shrink-0" />
-            <div className="min-w-0 flex-1">
-              <h3 className="text-base font-semibold text-white truncate">Métodos de Pago</h3>
-              <p className="text-xs text-gray-400">Configura los métodos de pago disponibles</p>
+    <div className="space-y-6 sm:space-y-8 animate-fadeInUp">
+      {/* Premium Header Card */}
+      <div className="bg-gradient-to-br from-[#1e2235] to-[#181c24] rounded-[32px] p-6 sm:p-8 border border-gray-800 shadow-2xl relative overflow-hidden group">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 blur-[60px] rounded-full -mr-10 -mt-10 group-hover:bg-indigo-500/20 transition-all duration-700"></div>
+        <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-indigo-600/20 rounded-2xl flex items-center justify-center border border-indigo-500/30">
+              <CreditCardIcon className="h-7 w-7 text-indigo-400" />
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-900/50 text-green-300 border border-green-400/30">
-              {paymentMethods.filter(pm => pm.is_enabled).length} activos
-            </span>
-            <button
-              onClick={() => setShowAddMethod(true)}
-              className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-            >
-              <PlusIcon className="w-3 h-3 mr-1" />
-              Agregar
-            </button>
+            <div>
+              <h3 className="text-xl font-black text-white tracking-tight">Pasarelas de Pago</h3>
+              <p className="text-xs text-gray-500 font-medium uppercase tracking-[2px]">Activa tus canales de cobro</p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Add New Method Form */}
-      {showAddMethod && (
-        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 mb-3">
-              <PlusIcon className="w-5 h-5 text-indigo-400" />
-              <h4 className="text-base font-medium text-white">Agregar Nuevo Método de Pago</h4>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Nombre del Método *
-                </label>
-                <input
-                  type="text"
-                  value={newMethodName}
-                  onChange={(e) => setNewMethodName(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="Ej: Bitcoin, PayPal, Tarjeta de Crédito..."
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Descripción
-                </label>
-                <textarea
-                  value={newMethodDescription}
-                  onChange={(e) => setNewMethodDescription(e.target.value)}
-                  rows="3"
-                  className="w-full px-3 py-2 text-sm bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                  placeholder="Describe cómo funciona este método de pago, instrucciones para los usuarios, etc."
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Logo del Método (opcional)
-                </label>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <input
-                      type="file"
-                      id="method-logo"
-                      accept="image/*"
-                      onChange={(e) => handleMethodLogoUpload(e)}
-                      className="hidden"
-                    />
-                    <label
-                      htmlFor="method-logo"
-                      className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 cursor-pointer transition-colors"
-                    >
-                      <PhotoIcon className="w-4 h-4 mr-2" />
-                      {newMethodLogoUrl ? 'Cambiar Logo' : 'Subir Logo'}
-                    </label>
-                  </div>
-                  {newMethodLogoUrl && (
-                    <button
-                      onClick={() => setNewMethodLogoUrl(null)}
-                      className="text-red-400 hover:text-red-300 p-1"
-                      title="Eliminar logo"
-                    >
-                      <XMarkIcon className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-                {newMethodLogoUrl && (
-                  <div className="mt-2">
-                    <img
-                      src={newMethodLogoUrl}
-                      alt="Logo del método"
-                      className="h-8 w-auto object-contain rounded"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex gap-3 pt-3 border-t border-gray-700">
-              <button
-                onClick={addNewMethod}
-                disabled={!newMethodName.trim()}
-                className="flex-1 bg-indigo-600 text-white text-sm font-medium py-2 px-4 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Agregar Método
-              </button>
-              <button
-                onClick={() => {
-                  setShowAddMethod(false);
-                  setNewMethodName('');
-                  setNewMethodDescription('');
-                  setNewMethodLogoUrl(null);
-                }}
-                className="flex-1 bg-gray-700 text-gray-300 text-sm font-medium py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Payment Methods List */}
-      <div className="space-y-2">
+      {/* Payment Methods Grid - Full Width Mobile Fix */}
+      <div className="grid grid-cols-1 gap-4 sm:gap-6">
         {paymentMethods.map((method) => (
-          <div key={method.id} className="bg-gray-800 rounded-lg border border-gray-700 p-2">
-            {/* Method Header */}
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <div className="flex items-center space-x-2 min-w-0 flex-1">
-                {getPaymentMethodIcon(method.id)}
-                {method.config_data.logoUrl && (
-                  <img
-                    src={method.config_data.logoUrl}
-                    alt="Logo del método"
-                    className="h-4 w-4 object-contain"
-                  />
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h4 className={`text-xs font-medium truncate ${method.is_enabled ? 'text-white' : 'text-gray-400'}`}>
-                      {method.method_name}
-                    </h4>
-                    {method.id.startsWith('custom_') && (
-                      <button
-                        onClick={() => removeCustomMethod(method.id)}
-                        className="text-red-400 hover:text-red-300 p-0.5"
-                        title="Eliminar método personalizado"
+          <div key={method.id} className={`group relative transition-all duration-500 ${method.is_enabled ? 'opacity-100' : 'opacity-60'}`}>
+            <div className={`relative bg-[#1e2235] rounded-[28px] border transition-all duration-300 overflow-hidden ${method.is_enabled ? 'border-gray-800 hover:border-indigo-500/30 shadow-xl' : 'border-gray-900 border-dashed hover:border-gray-800'}`}>
+
+              <div className="p-5 sm:p-6 lg:p-8">
+                {/* Method Row - Stack on Mobile to prevent overflow */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${method.is_enabled ? 'bg-gray-800 border-gray-700 shadow-inner' : 'bg-gray-900 border-gray-800'}`}>
+                      {getIcon(method.id)}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-base font-bold text-white truncate tracking-tight">{method.method_name}</h4>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${method.is_enabled ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-gray-800/50 text-gray-600 border-gray-800'}`}>
+                          {method.is_enabled ? 'Activo' : 'Inactivo'}
+                        </span>
+                        {method.is_default && (
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">Principal</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions - Flex row to stay side by side but with good spacing */}
+                  <div className="flex items-center justify-between sm:justify-end gap-4 border-t border-gray-800/50 pt-4 sm:pt-0 sm:border-none">
+                    <div className="flex flex-col items-center">
+                      <Switch
+                        checked={method.is_enabled}
+                        onChange={() => togglePaymentMethod(method.id, !method.is_enabled)}
+                        className={`${method.is_enabled ? 'bg-indigo-600' : 'bg-gray-800'
+                          } relative inline-flex h-6 w-11 items-center rounded-full transition-colors border border-gray-700`}
                       >
-                        <XMarkIcon className="w-3 h-3" />
+                        <span className={`${method.is_enabled ? 'translate-x-6' : 'translate-x-1'
+                          } inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform`} />
+                      </Switch>
+                      <span className="text-[8px] font-black uppercase text-gray-500 mt-1">{method.is_enabled ? 'ON' : 'OFF'}</span>
+                    </div>
+
+                    {method.is_enabled && !method.is_default && (
+                      <button
+                        onClick={() => setDefaultMethod(method.id)}
+                        className="px-4 h-9 bg-gray-800 hover:bg-gray-700 text-gray-300 text-[10px] font-black uppercase tracking-widest rounded-lg border border-gray-700 transition-all active:scale-95"
+                      >
+                        Hacer Principal
                       </button>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <span className={`text-xs px-1 py-0.5 rounded ${method.is_enabled ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-400'}`}>
-                      {method.is_enabled ? 'Habilitado' : 'Deshabilitado'}
-                    </span>
-                    {method.is_default && (
-                      <span className="text-xs px-1 py-0.5 rounded bg-yellow-900 text-yellow-300">
-                        Predeterminado
-                      </span>
-                    )}
-                  </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {/* Toggle Switch */}
-                <button
-                  onClick={() => togglePaymentMethod(method.id, !method.is_enabled)}
-                  className={`relative inline-flex h-6 w-10 items-center rounded-full transition-colors touch-manipulation ${method.is_enabled ? 'bg-indigo-600' : 'bg-gray-600'}`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${method.is_enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                </button>
-
-                {/* Default Button */}
+                {/* Inline Forms - Compact & Mobile Safe */}
                 {method.is_enabled && (
-                  <button
-                    onClick={() => setDefaultMethod(method.id)}
-                    disabled={method.is_default}
-                    className={`px-2 py-0.5 text-xs rounded transition-colors whitespace-nowrap ${method.is_default ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-                  >
-                    {method.is_default ? 'Predeterminado' : 'Establecer'}
-                  </button>
-                )}
-              </div>
-            </div>
+                  <div className="mt-8 pt-8 border-t border-gray-800/80 animate-fadeIn">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {method.id === 'transferencia' && (
+                        <>
+                          <div>
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Banco Emisor</label>
+                            <input
+                              type="text"
+                              value={method.config_data.bankName || ''}
+                              onChange={(e) => updatePaymentDetails(method.id, 'bankName', e.target.value)}
+                              className="w-full bg-[#0f131b]/50 border border-gray-800 rounded-xl px-4 py-3 text-white text-sm font-bold focus:border-indigo-500/50 focus:ring-0 transition-all transition-all"
+                              placeholder="Ej: Banesco"
+                            />
+                          </div>
+                          <div className="lg:col-span-2">
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Cuenta Clave (20 dígitos)</label>
+                            <input
+                              type="text"
+                              value={method.config_data.accountNumber || ''}
+                              onChange={(e) => updatePaymentDetails(method.id, 'accountNumber', e.target.value)}
+                              className="w-full bg-[#0f131b]/50 border border-gray-800 rounded-xl px-4 py-3 text-white text-sm font-bold focus:border-indigo-500/50 focus:ring-0 transition-all font-mono"
+                              placeholder="0134 0000 0000 0000 0000"
+                            />
+                          </div>
+                        </>
+                      )}
 
-            {/* Configuration Panel */}
-            {method.is_enabled && (
-              <div className="border-t border-gray-700 pt-2 space-y-2">
-                {method.id === 'transferencia' && (
-                  <div>
-                    <h5 className="text-xs font-medium text-gray-300 mb-2">Información Bancaria</h5>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-400 mb-0.5">
-                          Nombre del Banco
-                        </label>
-                        <input
-                          type="text"
-                          value={method.config_data.bankName || ''}
-                          onChange={(e) => updatePaymentDetails(method.id, 'bankName', e.target.value)}
-                          className="w-full px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          placeholder="Banco de Venezuela"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-400 mb-0.5">
-                          Número de Cuenta
-                        </label>
-                        <input
-                          type="text"
-                          value={method.config_data.accountNumber || ''}
-                          onChange={(e) => updatePaymentDetails(method.id, 'accountNumber', e.target.value)}
-                          className="w-full px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          placeholder="Número de cuenta"
-                        />
-                      </div>
-                    </div>
-                    <div className="mt-2">
-                      <label className="block text-xs font-medium text-gray-400 mb-0.5">
-                        Logo del Banco
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1">
+                      {method.id === 'pago_movil' && (
+                        <>
+                          <div>
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Teléfono Vinculado</label>
+                            <input
+                              type="tel"
+                              value={method.config_data.phone || ''}
+                              onChange={(e) => updatePaymentDetails(method.id, 'phone', e.target.value)}
+                              className="w-full bg-[#0f131b]/50 border border-gray-800 rounded-xl px-4 py-3 text-white text-sm font-bold focus:border-indigo-500/50 focus:ring-0 transition-all"
+                              placeholder="0424..."
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Documento (V/J/E)</label>
+                            <input
+                              type="text"
+                              value={method.config_data.ci || ''}
+                              onChange={(e) => updatePaymentDetails(method.id, 'ci', e.target.value)}
+                              className="w-full bg-[#0f131b]/50 border border-gray-800 rounded-xl px-4 py-3 text-white text-sm font-bold focus:border-indigo-500/50 focus:ring-0 transition-all"
+                              placeholder="V-12.345.678"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {method.id === 'zelle' && (
+                        <div className="md:col-span-2">
+                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Correo Electrónico Zelle</label>
                           <input
-                            type="file"
-                            id={`bank-logo-${method.id}`}
-                            accept="image/*"
-                            onChange={(e) => handleBankLogoUpload(method.id, e)}
-                            className="hidden"
-                          />
-                          <label
-                            htmlFor={`bank-logo-${method.id}`}
-                            className="inline-flex items-center px-3 py-1 text-xs font-medium rounded bg-gray-700 text-gray-300 hover:bg-gray-600 cursor-pointer transition-colors"
-                          >
-                            <PhotoIcon className="w-3 h-3 mr-1" />
-                            {method.config_data.bankLogoUrl ? 'Cambiar Logo' : 'Subir Logo'}
-                          </label>
-                        </div>
-                        {method.config_data.bankLogoUrl && (
-                          <button
-                            onClick={() => removeBankLogo(method.id)}
-                            className="text-red-400 hover:text-red-300 p-1"
-                            title="Eliminar logo"
-                          >
-                            <XMarkIcon className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                      {method.config_data.bankLogoUrl && (
-                        <div className="mt-2">
-                          <img
-                            src={method.config_data.bankLogoUrl}
-                            alt="Logo del banco"
-                            className="h-8 w-auto object-contain rounded"
+                            type="email"
+                            value={method.config_data.email || ''}
+                            onChange={(e) => updatePaymentDetails(method.id, 'email', e.target.value)}
+                            className="w-full bg-[#0f131b]/50 border border-gray-800 rounded-xl px-4 py-3 text-white text-sm font-bold focus:border-indigo-500/50 focus:ring-0 transition-all"
+                            placeholder="zelle@negocio.com"
                           />
                         </div>
                       )}
                     </div>
                   </div>
                 )}
-
-                {method.id === 'pago_movil' && (
-                  <div>
-                    <h5 className="text-xs font-medium text-gray-300 mb-1">Información de Pago Móvil</h5>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
-                      <div className="lg:col-span-2">
-                        <label className="block text-xs font-medium text-gray-400 mb-0.5">
-                          Teléfono
-                        </label>
-                        <input
-                          type="tel"
-                          value={method.config_data.phone || ''}
-                          onChange={(e) => updatePaymentDetails(method.id, 'phone', e.target.value)}
-                          className="w-full px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          placeholder="04141234567"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-400 mb-0.5">
-                          Cédula
-                        </label>
-                        <input
-                          type="text"
-                          value={method.config_data.ci || ''}
-                          onChange={(e) => updatePaymentDetails(method.id, 'ci', e.target.value)}
-                          className="w-full px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          placeholder="V12345678"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {method.id === 'zelle' && (
-                  <div>
-                    <h5 className="text-xs font-medium text-gray-300 mb-1">Información de Zelle</h5>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-400 mb-0.5">
-                        Correo Electrónico
-                      </label>
-                      <input
-                        type="email"
-                        value={method.config_data.email || ''}
-                        onChange={(e) => updatePaymentDetails(method.id, 'email', e.target.value)}
-                        className="w-full px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        placeholder="correo@ejemplo.com"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {(method.id === 'otro' || method.id.startsWith('custom_')) && (
-                  <div>
-                    <h5 className="text-xs font-medium text-gray-300 mb-1">Información Adicional</h5>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-400 mb-0.5">
-                        Descripción
-                      </label>
-                      <textarea
-                        value={method.config_data.description || ''}
-                        onChange={(e) => updatePaymentDetails(method.id, 'description', e.target.value)}
-                        rows="2"
-                        className="w-full px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
-                        placeholder="Describe el método de pago..."
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
-            )}
+            </div>
           </div>
         ))}
       </div>
 
-      {/* Save Section */}
-      {saveMessage.text && (
-        <div className={`p-3 rounded-lg border ${saveMessage.type === 'error' ? 'bg-red-900/30 border-red-700 text-red-300' : saveMessage.type === 'success' ? 'bg-green-900/30 border-green-700 text-green-300' : 'bg-blue-900/30 border-blue-700 text-blue-300'}`}>
-          <div className="flex items-start gap-2">
-            {saveMessage.type === 'error' ? (
-              <ExclamationTriangleIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
-            ) : saveMessage.type === 'success' ? (
-              <CheckIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
-            ) : (
-              <ArrowPathIcon className="w-4 h-4 animate-spin flex-shrink-0 mt-0.5" />
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium break-words">{saveMessage.text}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Save Button */}
-      <div className="flex justify-end">
+      {/* Action Footer */}
+      <div className="mt-8">
         <button
           onClick={savePaymentMethods}
           disabled={saving}
-          className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          className="w-full h-14 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-black uppercase tracking-[2px] text-sm rounded-2xl hover:brightness-110 active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center shadow-xl shadow-indigo-600/20 group"
         >
           {saving ? (
-            <>
-              <ArrowPathIcon className="w-4 h-4 animate-spin" />
-              <span>Guardando...</span>
-            </>
+            <ArrowPathIcon className="w-5 h-5 animate-spin" />
           ) : (
             <>
-              <CheckIcon className="w-4 h-4" />
-              <span>Guardar Configuración</span>
+              <CheckIcon className="w-5 h-5 mr-3 group-hover:scale-125 transition-transform" />
+              <span>Sincronizar Pasarelas</span>
             </>
           )}
         </button>
       </div>
+
+      {saveMessage.text && (
+        <div className={`mt-4 p-4 rounded-2xl text-[11px] font-black uppercase tracking-[1px] text-center animate-fadeIn ${saveMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : saveMessage.type === 'error' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'}`}>
+          {saveMessage.text}
+        </div>
+      )}
     </div>
   );
 };
@@ -1335,9 +597,9 @@ const ReminderConfig = () => {
   const { empresaId } = useAuth();
 
   const defaultTemplates = [
-    { name: 'Mensaje 1 (General)', content: 'Hola! {{saludo}} {{nombre_jugador}}, le escribimos de {{nombre_empresa}}. Paso por aquí recordando el pago de sus números ({{lista_tickets}}) para la rifa del {{nombre_rifa}}, por un monto de ${{monto_total}}. El sorteo será este {{fecha_sorteo}}.\n\n‼De no cancelar a tiempo su número puede pasar a rezagado‼' },
-    { name: 'Mensaje 2 (Urgente)', content: '⚠️ {{saludo}} {{nombre_jugador}}, recordatorio de pago pendiente para la rifa {{nombre_rifa}}. Sus números: {{lista_tickets}}. Total: ${{monto_total}}. ¡No pierda su oportunidad!' },
-    { name: 'Mensaje 3 (Promoción)', content: '✨ {{saludo}} {{nombre_jugador}}! Recuerda que pagando antes del miércoles participas en sorteos adicionales. Sus números: {{lista_tickets}}.' }
+    { name: 'Mensaje 1 (Cercano)', content: 'Hola {{saludo}} {{nombre_jugador}}! 🎫 Le escribimos de {{nombre_empresa}} para recordarle que tiene pendiente el pago de sus números: {{lista_tickets}}. El sorteo es el {{fecha_sorteo}}. ¡Mucha suerte!', is_active: true },
+    { name: 'Mensaje 2 (Cobro)', content: '{{saludo}} {{nombre_jugador}}, por aquí le envío el recordatorio de sus números ({{lista_tickets}}) para el sorteo de {{nombre_rifa}}. El total a cancelar es ${{monto_total}}. ¡Gracias!', is_active: false },
+    { name: 'Mensaje 3 (Promoción)', content: '✨ {{saludo}} {{nombre_jugador}}! Recuerda que pagando antes del miércoles participas en sorteos adicionales. Sus números: {{lista_tickets}}.', is_active: false }
   ];
 
   useEffect(() => {
@@ -1373,6 +635,20 @@ const ReminderConfig = () => {
     setTemplates(templates.map(t => t.id === id ? { ...t, content: newContent } : t));
   };
 
+  const setAsDefault = async (id) => {
+    if (!empresaId) return;
+
+    // Update local state first
+    const updatedTemplates = templates.map(t => ({
+      ...t,
+      is_active: t.id === id
+    }));
+    setTemplates(updatedTemplates);
+
+    // Persist immediately using the updated array
+    await saveTemplates(updatedTemplates);
+  };
+
   const [activeTextarea, setActiveTextarea] = useState(null);
 
   const insertVariable = (variableTag) => {
@@ -1403,14 +679,17 @@ const ReminderConfig = () => {
     }, 0);
   };
 
-  const saveTemplates = async () => {
+  const saveTemplates = async (templatesToSave) => {
+    const toSave = Array.isArray(templatesToSave) ? templatesToSave : templates;
     if (!empresaId) return;
     setSaving(true);
     try {
-      for (const template of templates) {
+      // Step 1: Handle all updates/inserts in a single sequence
+      for (const template of toSave) {
         const payload = {
           name: template.name,
           content: template.content,
+          is_active: template.is_active === true, // Explicit boolean
           empresa_id: empresaId,
           updated_at: new Date().toISOString()
         };
@@ -1458,116 +737,144 @@ const ReminderConfig = () => {
   if (loading) return <div className="p-8 text-center text-gray-400">Cargando plantillas...</div>;
 
   return (
-    <div className="space-y-6">
-      <div className="bg-[#181c24] shadow rounded-lg p-6 border border-gray-700">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <h3 className="text-lg font-medium text-white flex items-center">
-            <DevicePhoneMobileIcon className="w-6 h-6 mr-2 text-indigo-400" />
-            Plantillas de WhatsApp
-          </h3>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="bg-[#181c24] shadow-xl rounded-2xl p-4 sm:p-6 border border-gray-700/50">
+        <div className="flex items-center justify-between gap-2 mb-4 sm:mb-6">
+          <div className="flex items-center gap-2">
+            <DevicePhoneMobileIcon className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-400" />
+            <h3 className="text-sm sm:text-base font-bold text-white tracking-tight">
+              Plantillas de WhatsApp
+            </h3>
+          </div>
           {activeTextarea !== null && (
             <button
               onClick={() => setActiveTextarea(null)}
-              className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 px-3 py-1.5 rounded-lg border border-indigo-500/20 transition-all"
+              className="text-[10px] sm:text-xs font-bold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg border border-indigo-500/20 transition-all flex items-center gap-1"
             >
-              ← Ver todos los mensajes
+              <span>← Volver</span>
             </button>
           )}
         </div>
 
-        {/* Dynamic Variables Grid - Now at the top and wide */}
-        <div className="bg-[#1e2235] p-5 rounded-xl border border-gray-700 mb-8">
-          <div className="flex items-center gap-2 mb-4">
-            <InformationCircleIcon className="w-5 h-5 text-indigo-400" />
-            <h4 className="text-sm font-bold text-white tracking-wide uppercase">Variables Dinámicas</h4>
+        {/* Dynamic Variables Grid - Optimized for Mobile */}
+        <div className="bg-[#1e2235]/30 p-4 sm:p-6 rounded-[24px] border border-gray-800/50 mb-6 sm:mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <InformationCircleIcon className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="text-[9px] font-black text-gray-500 uppercase tracking-[1.5px]">Variables Disponibles</span>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="flex flex-wrap gap-2">
             {variables.map(v => (
               <button
                 key={v.tag}
                 onClick={() => insertVariable(v.tag)}
-                className="flex flex-col items-start p-2.5 bg-[#2d3748] rounded-xl border border-gray-600 hover:border-indigo-500/50 hover:bg-[#323c52] transition-all group active:scale-[0.98] text-left"
-                title={`Insertar ${v.tag}`}
+                className="flex items-center gap-2 px-3 py-1.5 bg-[#23283a] rounded-lg border border-gray-700 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all active:scale-95 group shadow-sm"
+                title={v.desc}
               >
-                <code className="text-indigo-300 text-[11px] font-bold group-hover:text-white transition-colors mb-0.5">{v.tag}</code>
-                <span className="text-gray-500 text-[10px] group-hover:text-gray-300 transition-colors leading-tight">{v.desc}</span>
+                <code className="text-indigo-400 text-[9px] font-black tracking-tight">{v.tag}</code>
               </button>
             ))}
           </div>
 
-          <div className="mt-4 flex items-center gap-3 text-[10px] sm:text-xs">
-            <div className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse"></div>
-            <p className="text-gray-400 italic">
-              Haz clic en un mensaje abajo y luego presiona cualquiera de estas variables para insertarla al instante.
-            </p>
-          </div>
+          <p className="mt-4 text-[10px] text-gray-500 font-medium italic border-t border-gray-800/50 pt-3">
+            Toca una variable para insertarla en la posición actual del cursor.
+          </p>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {templates
             .filter(t => activeTextarea === null || t.id === activeTextarea)
-            .map((template, idx) => (
-              <div
-                key={template.id}
-                className={`bg-[#1e2235] p-5 rounded-2xl border transition-all duration-300 ${activeTextarea === template.id
-                    ? 'border-indigo-500 ring-2 ring-indigo-500/10 shadow-lg shadow-indigo-500/5'
+            .map((template, idx) => {
+              const isActive = activeTextarea === template.id;
+              return (
+                <div
+                  key={template.id}
+                  className={`bg-[#1e2235] p-4 sm:p-5 rounded-xl sm:rounded-2xl border transition-all duration-300 ${isActive
+                    ? 'border-indigo-500 ring-2 ring-indigo-500/10 shadow-lg'
                     : 'border-gray-700 hover:border-gray-600'
-                  }`}
-              >
-                <div className="flex justify-between items-center mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-[10px] font-black">{idx + 1}</span>
-                    <label className="block text-sm font-bold text-white tracking-wide">
-                      {template.name}
-                    </label>
+                    }`}
+                >
+                  <div className="flex justify-between items-center mb-2 sm:mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`flex items-center justify-center w-5 h-5 rounded-md text-[9px] font-black ${isActive ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                        {idx + 1}
+                      </span>
+                      <label className={`text-[11px] font-bold tracking-tight ${isActive ? 'text-indigo-300' : 'text-gray-300'}`}>
+                        {template.name}
+                      </label>
+                    </div>
+                    {!isActive ? (
+                      <div className="flex gap-2">
+                        {!template.is_active && (
+                          <button
+                            onClick={() => setAsDefault(template.id)}
+                            className="text-[9px] text-gray-500 hover:text-indigo-400 font-bold uppercase tracking-wider"
+                            title="Marcar como predeterminado"
+                          >
+                            Hacer Predeterminado
+                          </button>
+                        )}
+                        {template.is_active && (
+                          <span className="text-[8px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-black tracking-widest uppercase border border-green-500/20">Predeterminado</span>
+                        )}
+                        <button
+                          onClick={() => setActiveTextarea(template.id)}
+                          className="text-[9px] text-indigo-400 hover:text-indigo-300 font-bold uppercase tracking-wider"
+                        >
+                          Editar
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-[8px] bg-indigo-600 text-white px-2 py-0.5 rounded font-black tracking-widest uppercase">Editando</span>
+                    )}
                   </div>
-                  {activeTextarea === template.id ? (
-                    <span className="text-[10px] bg-indigo-600 text-white px-3 py-1 rounded-full font-bold tracking-widest uppercase">En Edición</span>
-                  ) : (
-                    <button
-                      onClick={() => setActiveTextarea(template.id)}
-                      className="text-[10px] text-gray-400 hover:text-indigo-400 font-bold uppercase transition-colors"
-                    >
-                      Enfocar mensaje
-                    </button>
+                  <textarea
+                    id={`template-textarea-${template.id}`}
+                    value={template.content}
+                    onChange={(e) => handleUpdateContent(template.id, e.target.value)}
+                    onFocus={() => setActiveTextarea(template.id)}
+                    rows={isActive ? (window.innerWidth < 640 ? "8" : "10") : "3"}
+                    className={`w-full px-3 py-2 sm:px-4 sm:py-3 bg-[#0f131b]/30 border-none rounded-lg text-white text-sm focus:ring-1 focus:ring-indigo-500/40 transition-all resize-none ${isActive ? 'font-medium leading-relaxed' : 'text-gray-500 overflow-hidden'
+                      }`}
+                    placeholder="Escribe aquí el mensaje..."
+                  />
+
+                  {isActive && (
+                    <div className="mt-3 flex justify-between items-center">
+                      <span className="text-[9px] text-gray-500 uppercase font-bold tracking-tighter">{template.content.length} caracteres</span>
+                      <button
+                        onClick={() => setActiveTextarea(null)}
+                        className="text-[9px] text-gray-400 underline decoration-gray-700 underline-offset-4 font-bold"
+                      >
+                        Cerrar editor
+                      </button>
+                    </div>
                   )}
                 </div>
-                <textarea
-                  id={`template-textarea-${template.id}`}
-                  value={template.content}
-                  onChange={(e) => handleUpdateContent(template.id, e.target.value)}
-                  onFocus={() => setActiveTextarea(template.id)}
-                  rows={activeTextarea === template.id ? "10" : "4"}
-                  className={`w-full px-4 py-3 bg-[#0f131b]/50 border-none rounded-xl text-white text-sm sm:text-base focus:ring-1 focus:ring-indigo-500/30 transition-all resize-none ${activeTextarea === template.id ? 'font-medium leading-relaxed' : 'text-gray-400'
-                    }`}
-                  placeholder="Redacta el contenido de tu mensaje aquí..."
-                />
-
-                {activeTextarea === template.id && (
-                  <div className="mt-4 flex justify-between items-center text-[10px] text-gray-500 uppercase font-bold tracking-tighter">
-                    <span>{template.content.length} caracteres</span>
-                    <span>Guardado automático al finalizar</span>
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
         </div>
 
         {message.text && (
-          <div className={`mb-4 p-3 rounded-md ${message.type === 'success' ? 'bg-green-900/30 text-green-300' : 'bg-red-900/30 text-red-300'}`}>
+          <div className={`mt-6 p-4 rounded-2xl text-xs font-bold text-center animate-fadeIn ${message.type === 'success' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
             {message.text}
           </div>
         )}
 
-        <div className="flex justify-end">
+        <div className="mt-8">
           <button
             onClick={saveTemplates}
             disabled={saving}
-            className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+            className="w-full h-12 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-black uppercase tracking-[1.5px] text-[12px] rounded-xl hover:brightness-110 active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center shadow-lg shadow-indigo-600/10"
           >
-            {saving ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : <CheckIcon className="w-5 h-5" />}
-            Guardar Plantillas
+            {saving ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : (
+              <>
+                <CheckIcon className="w-4 h-4 mr-2.5" />
+                <span>Guardar Plantillas</span>
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -1735,139 +1042,112 @@ function Configuracion() {
     };
 
     return (
-      <div className="space-y-6">
-        {/* Header Section */}
-        <div className="border-b border-gray-800 pb-4">
-          <h3 className="text-xl font-bold text-white">Información de la Empresa</h3>
-          <p className="mt-1 text-sm text-gray-400">Actualiza los datos básicos de tu negocio</p>
+      <div className="space-y-6 sm:space-y-8 animate-fadeInUp">
+        {/* Header - Native App Style */}
+        <div className="flex items-center gap-4 border-b border-gray-800/50 pb-5">
+          <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+            <BuildingOffice2Icon className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h3 className="text-lg font-black text-white tracking-tight">Identidad Visual</h3>
+            <p className="text-[10px] text-indigo-400 font-medium uppercase tracking-[1px]">Gestión de Perfil</p>
+          </div>
         </div>
 
-        <div className="space-y-6">
-          {/* Company Name */}
-          <div className="bg-[#1e2235] rounded-lg p-4 border border-gray-800 hover:border-gray-700 transition-colors">
-            <div className="flex items-start space-x-3">
-              <div className="bg-indigo-500/10 p-2 rounded-lg">
-                <BuildingOffice2Icon className="h-5 w-5 text-indigo-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Nombre de la Empresa
-                </label>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-8">
+          {/* Form Group */}
+          <div className="space-y-5 sm:space-y-6">
+            {/* Input Card: Name */}
+            <div className="relative group">
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-3xl blur opacity-0 group-focus-within:opacity-100 transition-opacity duration-500"></div>
+              <div className="relative bg-[#1e2235] rounded-[24px] p-5 sm:p-6 border border-gray-800 focus-within:border-indigo-500/50 transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-[1.5px]">Nombre de tu Negocio</label>
+                  <BuildingOffice2Icon className="h-3 w-3 text-indigo-500/50" />
+                </div>
                 <input
                   type="text"
                   value={empresa.nombre_empresa || ''}
                   onChange={(e) => handleEmpresaInputChange('nombre_empresa', e.target.value)}
-                  className="w-full px-4 py-2.5 bg-[#23283a] border border-gray-700 rounded-lg text-white text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                  placeholder="Ej: Mi Tienda, S.A."
+                  className="w-full bg-transparent border-none p-0 text-white text-sm sm:text-base font-bold placeholder:text-gray-700 focus:ring-0"
+                  placeholder="Ej: El Fénix Rápido"
                 />
-                <p className="mt-1 text-xs text-gray-400">
-                  El nombre que aparecerá en facturas y recibos
-                </p>
               </div>
             </div>
-          </div>
 
-          {/* Company Address */}
-          <div className="bg-[#1e2235] rounded-lg p-4 border border-gray-800 hover:border-gray-700 transition-colors">
-            <div className="flex items-start space-x-3">
-              <div className="bg-indigo-500/10 p-2 rounded-lg">
-                <MapPinIcon className="h-5 w-5 text-indigo-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Dirección de la Empresa
-                </label>
+            {/* Input Card: Address */}
+            <div className="relative group">
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-3xl blur opacity-0 group-focus-within:opacity-100 transition-opacity duration-500"></div>
+              <div className="relative bg-[#1e2235] rounded-[24px] p-5 sm:p-6 border border-gray-800 focus-within:border-indigo-500/50 transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-[1.5px]">Ubicación y Sede</label>
+                  <MapPinIcon className="h-3 w-3 text-indigo-500/50" />
+                </div>
                 <textarea
                   value={empresa.direccion_empresa || ''}
                   onChange={(e) => handleEmpresaInputChange('direccion_empresa', e.target.value)}
-                  rows="3"
-                  className="w-full px-4 py-2.5 bg-[#23283a] border border-gray-700 rounded-lg text-white text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none transition-all duration-200"
-                  placeholder="Av. Principal #123, Ciudad, País"
+                  rows="2"
+                  className="w-full bg-transparent border-none p-0 text-white text-[13px] font-medium placeholder:text-gray-700 focus:ring-0 resize-none"
+                  placeholder="Donde te encuentran tus clientes..."
                 />
-                <p className="mt-1 text-xs text-gray-400">
-                  Dirección fiscal de tu negocio
-                </p>
               </div>
             </div>
           </div>
-          {/* Company Logo */}
-          <div className="bg-[#1e2235] rounded-lg p-4 border border-gray-800 hover:border-gray-700 transition-colors">
-            <div className="flex items-start space-x-3">
-              <div className="bg-indigo-500/10 p-2 rounded-lg">
-                <PhotoIcon className="h-5 w-5 text-indigo-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Logo de la Empresa
-                </label>
 
-                <div
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                  className={`mt-2 border-2 border-dashed rounded-xl p-5 text-center transition-all duration-200 ${dragActive
-                    ? 'border-indigo-500 bg-indigo-500/5'
-                    : 'border-gray-700 hover:border-gray-600 bg-[#23283a]'
-                    }`}
-                >
-                  <input
-                    type="file"
-                    id="logo-upload"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleChange}
-                  />
-                  <label
-                    htmlFor="logo-upload"
-                    className="cursor-pointer flex flex-col items-center justify-center space-y-4"
-                  >
-                    <div className="relative">
-                      {logoPreview ? (
-                        <>
-                          <div className="relative group">
-                            <img
-                              src={logoPreview}
-                              alt="Vista previa del logo"
-                              className="mx-auto h-24 w-auto max-w-full object-contain rounded-lg"
-                            />
-                            <div className="absolute inset-0 bg-black/60 rounded-lg flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity p-4">
-                              <PhotoIcon className="h-8 w-8 text-white mb-2" />
-                              <span className="text-sm text-white text-center">
-                                Haz clic para cambiar la imagen
-                              </span>
-                            </div>
-                          </div>
-                          {logoFile && (
-                            <div className="mt-2 text-xs text-gray-400 bg-gray-800/50 px-3 py-1.5 rounded-full inline-flex items-center">
-                              <span className="truncate max-w-[200px]">
-                                {logoFile.name}
-                              </span>
-                              <span className="ml-2 text-gray-500">
-                                {(logoFile.size / 1024).toFixed(1)} KB
-                              </span>
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center p-6">
-                          <div className="p-3 bg-indigo-500/10 rounded-full mb-3">
-                            <PhotoIcon className="h-8 w-8 text-indigo-400" />
-                          </div>
-                          <p className="text-sm text-gray-300 mb-1">
-                            <span className="text-indigo-400 font-medium">Sube tu logo</span> o arrastra una imagen
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            Formatos: PNG, JPG, GIF (máx. 5MB)
-                          </p>
-                        </div>
-                      )}
+          {/* Logo Upload Card */}
+          <div className="relative group lg:h-full">
+            <div className="absolute -inset-0.5 bg-gradient-to-br from-indigo-500/10 to-transparent rounded-[32px] blur-xl"></div>
+            <div className="relative h-full bg-[#1e2235] rounded-[32px] p-6 sm:p-8 border border-gray-800 flex flex-col items-center justify-center transition-all group-hover:border-indigo-500/30">
+              <div className="mb-6 text-center">
+                <h4 className="text-sm font-black text-white uppercase tracking-[2px] mb-1">Tu Logotipo</h4>
+                <p className="text-[10px] text-gray-500">Para recibos y PDF compartidos</p>
+              </div>
+
+              <div
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+                className="w-full"
+              >
+                <input
+                  type="file"
+                  id="logo-upload"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleChange}
+                />
+                <label htmlFor="logo-upload" className="cursor-pointer block">
+                  {logoPreview ? (
+                    <div className="relative mx-auto w-32 h-32 sm:w-40 sm:h-40 group/img">
+                      <div className="absolute -inset-2 bg-indigo-500/20 rounded-[40px] blur-md opacity-0 group-hover/img:opacity-100 transition-opacity"></div>
+                      <img
+                        src={logoPreview}
+                        alt="Logo"
+                        className="relative w-full h-full object-cover rounded-[32px] border-4 border-[#23283a] bg-[#0f131b] shadow-2xl transition-transform group-hover/img:scale-105 duration-500"
+                      />
+                      <div className="absolute top-2 right-2 p-2 bg-indigo-600 rounded-xl shadow-lg opacity-0 group-hover/img:opacity-100 transition-opacity scale-75 group-hover/img:scale-100 duration-300">
+                        <ArrowPathIcon className="h-4 w-4 text-white" />
+                      </div>
                     </div>
-                  </label>
+                  ) : (
+                    <div className="mx-auto w-32 h-32 sm:w-40 sm:h-40 bg-[#0f131b]/50 border-2 border-dashed border-gray-700 rounded-[32px] flex flex-col items-center justify-center group-hover:border-indigo-500/50 transition-colors">
+                      <PhotoIcon className="h-10 w-10 text-gray-700 group-hover:text-indigo-500 transition-colors" />
+                      <span className="mt-2 text-[10px] font-black text-gray-600 uppercase">Subir</span>
+                    </div>
+                  )}
+                </label>
+              </div>
+
+              <div className="mt-8 grid grid-cols-2 gap-3 w-full">
+                <div className="bg-[#23283a] rounded-2xl p-3 text-center">
+                  <p className="text-[10px] font-black text-white mb-0.5">PNG/JPG</p>
+                  <p className="text-[8px] text-gray-500 uppercase tracking-widest">Formatos</p>
                 </div>
-                <p className="mt-2 text-xs text-gray-400">
-                  Recomendado: 500x500px, fondo transparente, formato PNG
-                </p>
+                <div className="bg-[#23283a] rounded-2xl p-3 text-center">
+                  <p className="text-[10px] font-black text-white mb-0.5">2 MB</p>
+                  <p className="text-[8px] text-gray-500 uppercase tracking-widest">Límite</p>
+                </div>
               </div>
             </div>
           </div>
@@ -1875,6 +1155,7 @@ function Configuracion() {
       </div>
     );
   };
+
 
   if (loading) {
     return (
@@ -1890,106 +1171,51 @@ function Configuracion() {
       <div className="mb-6 sm:mb-8">
         <div className="sm:flex sm:items-center sm:justify-between">
           <div className="mb-4 sm:mb-0">
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent">
+            <h1 className="text-xl sm:text-2xl font-black bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent tracking-tight">
               Configuración
             </h1>
-            <p className="text-sm sm:text-base text-gray-400">
-              Gestiona la configuración de tu cuenta y preferencias
+            <p className="text-[10px] sm:text-xs text-gray-500 font-medium uppercase tracking-widest mt-1">
+              Perfil y Preferencias del Sistema
             </p>
           </div>
         </div>
       </div>
 
-      {/* Navigation Tabs - Improved Mobile Design */}
-      <div className="mb-6 sm:mb-8">
-        <div className="relative">
-          {/* Mobile: Vertical tabs, Desktop: Horizontal tabs */}
-          <div className="block sm:hidden">
-            <div className="space-y-2">
-              {[
-                { key: 'empresa', label: 'Empresa', icon: BuildingOffice2Icon, shortLabel: 'Info' },
-                { key: 'pagos', label: 'Métodos de Pago', icon: CreditCardIcon, shortLabel: 'Pagos' },
-                { key: 'recordatorios', label: 'Recordatorios', icon: DevicePhoneMobileIcon, shortLabel: 'Msjs' },
-                { key: 'backup', label: 'Copias de Seguridad', icon: CloudArrowDownIcon, shortLabel: 'Backup' }
-              ].map(tab => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveTab(tab.key)}
-                    className={`w-full flex items-center justify-between p-4 rounded-lg border transition-all duration-200 mobile-tab-button ${activeTab === tab.key
-                      ? 'bg-[#2d3748] border-indigo-500/30 text-white shadow-lg shadow-indigo-500/20'
-                      : 'bg-[#1e2235] border-gray-700 text-gray-400 hover:text-gray-200 hover:bg-[#23283a]'
-                      }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <Icon className="w-5 h-5" />
-                      <span className="font-medium">{tab.label}</span>
-                    </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${activeTab === tab.key
-                      ? 'bg-indigo-500/20 text-indigo-300'
-                      : 'bg-gray-700 text-gray-500'
-                      }`}>
-                      {tab.shortLabel}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Desktop: Horizontal tabs */}
-          <div className="hidden sm:block">
-            <div className="flex space-x-1 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar">
-              <div className="inline-flex bg-[#1e2235] p-1 rounded-lg min-w-max mx-auto sm:mx-0">
-                <button
-                  onClick={() => setActiveTab('empresa')}
-                  className={`flex items-center px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${activeTab === 'empresa'
-                    ? 'bg-[#2d3748] text-white shadow-lg shadow-indigo-500/20 border border-indigo-500/30'
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-[#2d3748]/50'
-                    }`}
-                >
-                  <BuildingOffice2Icon className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
-                  <span className="hidden sm:inline">Empresa</span>
-                  <span className="sm:hidden">Info</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('pagos')}
-                  className={`flex items-center px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${activeTab === 'pagos'
-                    ? 'bg-[#2d3748] text-white shadow-lg shadow-indigo-500/20 border border-indigo-500/30'
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-[#2d3748]/50'
-                    }`}
-                >
-                  <CreditCardIcon className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
-                  <span className="hidden sm:inline">Métodos de Pago</span>
-                  <span className="sm:hidden">Pagos</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('recordatorios')}
-                  className={`flex items-center px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${activeTab === 'recordatorios'
-                    ? 'bg-[#2d3748] text-white shadow-lg shadow-indigo-500/20 border border-indigo-500/30'
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-[#2d3748]/50'
-                    }`}
-                >
-                  <DevicePhoneMobileIcon className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
-                  <span className="hidden sm:inline">Recordatorios</span>
-                  <span className="sm:hidden">Msjs</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('backup')}
-                  className={`flex items-center px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${activeTab === 'backup'
-                    ? 'bg-[#2d3748] text-white shadow-lg shadow-indigo-500/20 border border-indigo-500/30'
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-[#2d3748]/50'
-                    }`}
-                >
-                  <CloudArrowDownIcon className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
-                  <span className="hidden sm:inline">Copias de Seguridad</span>
-                  <span className="sm:hidden">Backup</span>
-                </button>
+      {/* Menú de Navegación - Reducido y Minimalista */}
+      <div className="mb-8 grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+        {[
+          { key: 'empresa', label: 'Empresa', badge: 'Perfil', icon: BuildingOffice2Icon },
+          { key: 'recordatorios', label: 'Recordatorios', badge: 'Mensajes', icon: ChatBubbleLeftRightIcon },
+          { key: 'backup', label: 'Seguridad', badge: 'Respaldos', icon: CloudArrowDownIcon }
+        ].map(tab => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-300 group active:scale-[0.98] ${isActive
+                ? 'bg-[#1e2235] border-indigo-500/40 shadow-lg shadow-indigo-500/5'
+                : 'bg-[#131722]/40 border-gray-800/30 hover:border-gray-700'
+                }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${isActive ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-600 group-hover:text-gray-500'}`}>
+                  <Icon className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <p className={`text-[8px] font-black uppercase tracking-[1px] leading-tight ${isActive ? 'text-indigo-400' : 'text-gray-700'}`}>
+                    {tab.badge}
+                  </p>
+                  <p className={`text-[11px] font-bold leading-tight ${isActive ? 'text-white' : 'text-gray-400'}`}>
+                    {tab.label}
+                  </p>
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
+              <div className={`w-1 h-1 rounded-full transition-all duration-500 ${isActive ? 'bg-indigo-500 shadow-[0_0_6px_rgba(99,102,241,0.6)] scale-110' : 'bg-transparent'}`}></div>
+            </button>
+          );
+        })}
       </div>
 
       {message.text && (
@@ -2019,29 +1245,25 @@ function Configuracion() {
       )}
 
       {activeTab === 'empresa' && (
-        <div className="bg-[#181c24] border border-[#23283a] rounded-2xl overflow-hidden shadow-xl shadow-black/25">
-          <div className="p-4 sm:p-6 lg:p-8">
-            <SeccionEmpresa />
-          </div>
+        <div className="mt-4 sm:mt-6 animate-fadeIn">
+          <div className="bg-[#181c24] border border-gray-800/50 rounded-[40px] shadow-2xl overflow-hidden">
+            <div className="p-6 sm:p-10">
+              <SeccionEmpresa />
+            </div>
 
-          <div className="bg-gradient-to-r from-[#1e2235] to-[#23283a] px-4 py-4 sm:px-6 lg:px-8 border-t border-[#23283a] sm:rounded-b-2xl">
-            <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
+            {/* Bottom Actions Bar */}
+            <div className="bg-[#0f131b]/50 px-6 py-6 sm:px-10 border-t border-gray-800/50">
               <button
                 onClick={guardarEmpresa}
                 disabled={saving}
-                className="w-full sm:w-auto px-4 sm:px-6 lg:px-8 py-3 bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] text-white text-sm font-semibold rounded-xl hover:from-[#6b2dcc] hover:to-[#c23ff0] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transform hover:scale-[1.02] active:scale-[0.98]"
+                className="w-full h-14 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-black uppercase tracking-[2px] text-sm rounded-2xl hover:brightness-110 active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center shadow-xl shadow-indigo-600/20 group"
               >
                 {saving ? (
-                  <>
-                    <ArrowPathIcon className="w-4 h-4 mr-2 animate-spin" />
-                    <span className="hidden sm:inline">Guardando cambios...</span>
-                    <span className="sm:hidden">Guardando...</span>
-                  </>
+                  <ArrowPathIcon className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    <CheckIcon className="w-4 h-4 mr-2" />
-                    <span className="hidden sm:inline">Guardar Cambios</span>
-                    <span className="sm:hidden">Guardar</span>
+                    <CheckIcon className="w-5 h-5 mr-3 group-hover:scale-125 transition-transform" />
+                    <span>Confirmar Cambios</span>
                   </>
                 )}
               </button>
@@ -2050,37 +1272,11 @@ function Configuracion() {
         </div>
       )}
 
-      {activeTab === 'pagos' && <PaymentMethodsConfig />}
       {activeTab === 'recordatorios' && <ReminderConfig />}
-      {activeTab === 'backup' && <BackupConfig />}
-
-      {activeTab === 'pagos' && (
-        <div className="bg-[#181c24] border border-[#23283a] rounded-2xl overflow-hidden shadow-xl shadow-black/25">
-          <div className="p-4 sm:p-6 lg:p-8">
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-indigo-500/10 mb-4 sm:mb-6">
-                <CreditCardIcon className="h-8 w-8 sm:h-10 sm:w-10 text-indigo-400" />
-              </div>
-              <h3 className="text-xl sm:text-2xl font-bold text-white mb-3 sm:mb-4">
-                Métodos de Pago
-              </h3>
-              <p className="text-gray-400 text-base sm:text-lg mb-4 sm:mb-6">
-                Próximamente
-              </p>
-              <p className="text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
-                Estamos trabajando en la configuración avanzada de métodos de pago.
-                Pronto podrás gestionar múltiples opciones de pago directamente desde aquí.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {activeTab === 'backup' && (
-        <div className="bg-[#181c24] border border-[#23283a] rounded-2xl overflow-hidden shadow-xl shadow-black/25">
-          <div className="p-4 sm:p-6 lg:p-8">
-            <BackupConfig />
-          </div>
+        <div className="mt-4 sm:mt-6 animate-fadeIn">
+          <BackupConfig />
         </div>
       )}
 
@@ -2166,7 +1362,7 @@ function Configuracion() {
           animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
 
-        {/* Fade in up animation for payment methods */}
+        /* Fade in up animation for payment methods */
         @keyframes fadeInUp {
           from {
             opacity: 0;
