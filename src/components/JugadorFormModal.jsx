@@ -13,20 +13,21 @@ const countryOptions = [
   { name: 'Chile', code: '+56', flag: '🇨🇱', placeholder: '9 1234 5678' },
   { name: 'Peru', code: '+51', flag: '🇵🇪', placeholder: '912 345 678' },
   { name: 'Brazil', code: '+55', flag: '🇧🇷', placeholder: '(11) 91234-5678' },
-  { name: 'Uruguay', code: '+598', flag: '🇺🇾', placeholder: '91 234 567' }
+  { name: 'Uruguay', code: '+598', flag: '🇺🇾', placeholder: '91 234 567' },
+  { name: 'Alemania', code: '+49', flag: '🇩🇪', placeholder: '151 12345678' }
 ];
 
 // Función para formatear cédula venezolana
 const formatCedula = (value) => {
   // Eliminar caracteres no numéricos excepto la V inicial
   const cleanValue = value.replace(/[^0-9Vv]/g, '');
-  
+
   // Si comienza con V o v, mantenerla y procesar los números
   if (cleanValue.match(/^[Vv]/)) {
     let numbers = cleanValue.substring(1).replace(/\D/g, '');
     // Limitar a 8 dígitos
     numbers = numbers.substring(0, 8);
-    
+
     // Formatear según la longitud
     let formattedNumbers = '';
     if (numbers.length > 0) {
@@ -37,21 +38,21 @@ const formatCedula = (value) => {
       } else {
         // Para 7-8 dígitos: primer grupo (1-2 dígitos), segundo grupo (3 dígitos), tercer grupo (resto)
         const firstGroupLength = numbers.length === 7 ? 1 : 2;
-        formattedNumbers = 
+        formattedNumbers =
           numbers.slice(0, firstGroupLength) + '.' +
           numbers.slice(firstGroupLength, firstGroupLength + 3) + '.' +
           numbers.slice(firstGroupLength + 3);
       }
     }
-    
+
     return `V-${formattedNumbers}`;
   }
-  
+
   // Si no tiene V, agregarla y formatear
   let numbers = cleanValue.replace(/\D/g, '');
   // Limitar a 8 dígitos
   numbers = numbers.substring(0, 8);
-  
+
   // Formatear según la longitud
   let formattedNumbers = '';
   if (numbers.length > 0) {
@@ -62,13 +63,13 @@ const formatCedula = (value) => {
     } else {
       // Para 7-8 dígitos: primer grupo (1-2 dígitos), segundo grupo (3 dígitos), tercer grupo (resto)
       const firstGroupLength = numbers.length === 7 ? 1 : 2;
-      formattedNumbers = 
+      formattedNumbers =
         numbers.slice(0, firstGroupLength) + '.' +
         numbers.slice(firstGroupLength, firstGroupLength + 3) + '.' +
         numbers.slice(firstGroupLength + 3);
     }
   }
-  
+
   return numbers ? `V-${formattedNumbers}` : '';
 };
 
@@ -81,7 +82,7 @@ const cleanCedula = (formattedValue) => {
 const validateCedula = (cedula) => {
   // Limpiar la cédula para obtener solo números
   const cleanCedulaValue = cleanCedula(cedula);
-  
+
   // Validar que tenga entre 7 y 8 dígitos
   if (cleanCedulaValue.length === 0) {
     return {
@@ -89,21 +90,21 @@ const validateCedula = (cedula) => {
       message: '' // No mostrar error si está vacío
     };
   }
-  
+
   if (cleanCedulaValue.length < 7) {
     return {
       isValid: false,
       message: 'La cédula debe tener entre 7 y 8 dígitos'
     };
   }
-  
+
   if (cleanCedulaValue.length > 8) {
     return {
       isValid: false,
       message: 'La cédula no puede tener más de 8 dígitos'
     };
   }
-  
+
   return {
     isValid: true,
     message: ''
@@ -122,19 +123,19 @@ const validateVenezuelanPhone = (phone, countryCode) => {
     }
 
     const cleanPhone = phone.replace(/\D/g, '');
-    
+
     // Prefijos válidos para Venezuela
     const validPrefixes = ['412', '414', '416', '422', '424', '426'];
-    
+
     // Verificar si el número comienza con uno de los prefijos válidos
     const isValid = validPrefixes.some(prefix => cleanPhone.startsWith(prefix));
-    
+
     return {
       isValid,
       message: isValid ? '' : 'El número debe comenzar con 412, 414, 416, 422 o 424'
     };
   }
-  
+
   // Para otros países, simplemente verificar que no esté vacío
   if (phone.trim().length === 0) {
     return { isValid: true, message: '' };
@@ -155,11 +156,11 @@ const validateEmail = (email) => {
       message: ''
     };
   }
-  
+
   // Expresión regular para validar formato de correo electrónico
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isValid = emailRegex.test(email.trim());
-  
+
   return {
     isValid,
     message: isValid ? '' : 'El formato del correo electrónico no es válido'
@@ -191,6 +192,8 @@ const applyPhoneMask = (value, countryCode) => {
       return digits.slice(0, 11).replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
     case '+598': // Uruguay: 91 234 567 (8 digits)
       return digits.slice(0, 8).replace(/(\d{2})(\d{3})(\d{3})/, '$1 $2 $3');
+    case '+49': // Germany: 151 12345678 (up to 11 digits)
+      return digits.slice(0, 11).replace(/(\d{3})(\d+)/, '$1 $2');
     default:
       return digits;
   }
@@ -222,6 +225,8 @@ const formatPhoneForDatabase = (phoneDigits, countryCode) => {
       return digits.length >= 11 ? `${countryCode} (${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}` : `${countryCode}${digits}`;
     case '+598': // Uruguay: +598 91 234 567
       return digits.length >= 8 ? `${countryCode} ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)}` : `${countryCode}${digits}`;
+    case '+49': // Germany: +49 151 12345678
+      return digits.length >= 10 ? `${countryCode} ${digits.slice(0, 3)} ${digits.slice(3)}` : `${countryCode}${digits}`;
     default:
       return `${countryCode}${digits}`;
   }
@@ -296,14 +301,14 @@ export default function JugadorFormModal({ isOpen, onClose, onSave, initialData 
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
+
     if (name === 'cedula') {
       // Permitir solo números y la letra V (para cédula venezolana)
       const cleanValue = value.replace(/[^0-9Vv]/g, '');
       // Formatear la cédula
       const formattedValue = formatCedula(cleanValue);
       setForm({ ...form, [name]: formattedValue });
-      
+
       // Validar la cédula
       const validation = validateCedula(formattedValue);
       setCedulaError(validation.message);
@@ -313,14 +318,14 @@ export default function JugadorFormModal({ isOpen, onClose, onSave, initialData 
       // Formatear el teléfono
       const formattedValue = applyPhoneMask(cleanValue, selectedCountry.code);
       setForm({ ...form, [name]: formattedValue });
-      
+
       // Validar el teléfono
       const validation = validateVenezuelanPhone(formattedValue, selectedCountry.code);
       setPhoneError(validation.message);
     } else if (name === 'email') {
       // Actualizar el valor del email
       setForm({ ...form, [name]: value });
-      
+
       // Validar el correo electrónico
       const validation = validateEmail(value);
       setEmailError(validation.message);
@@ -331,22 +336,22 @@ export default function JugadorFormModal({ isOpen, onClose, onSave, initialData 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Validar todos los campos antes de enviar
     const emailValidation = validateEmail(form.email);
     const cedulaValidation = validateCedula(form.cedula);
     const phoneValidation = validateVenezuelanPhone(form.telefono, selectedCountry.code);
-    
+
     // Actualizar los estados de error
     setEmailError(emailValidation.message);
     setCedulaError(cedulaValidation.message);
     setPhoneError(phoneValidation.message);
-    
+
     // Si hay algún error, no enviar el formulario
     if (!emailValidation.isValid || !cedulaValidation.isValid || !phoneValidation.isValid) {
       return;
     }
-    
+
     setLoading(true);
     const data = {
       ...form,

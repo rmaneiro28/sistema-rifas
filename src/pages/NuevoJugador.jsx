@@ -16,33 +16,34 @@ const countryOptions = [
   { name: 'Chile', code: '+56', flag: '🇨🇱' },
   { name: 'Peru', code: '+51', flag: '🇵🇪' },
   { name: 'Brazil', code: '+55', flag: '🇧🇷' },
-  { name: 'Uruguay', code: '+598', flag: '🇺🇾' }
+  { name: 'Uruguay', code: '+598', flag: '🇺🇾' },
+  { name: 'Alemania', code: '+49', flag: '🇩🇪' }
 ];
 
 // Función para formatear cédula venezolana
 const formatCedula = (value) => {
   // Eliminar caracteres no numéricos excepto la V inicial
   const cleanValue = value.replace(/[^0-9Vv]/g, '');
-  
+
   // Si comienza con V o v, mantenerla y procesar los números
   if (cleanValue.match(/^[Vv]/)) {
     let numbers = cleanValue.substring(1).replace(/\D/g, '');
     // Limitar a 8 dígitos
     numbers = numbers.substring(0, 8);
-    
+
     // Formatear los números con separadores de miles
     const formattedNumbers = numbers.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    
+
     return `V-${formattedNumbers}`;
   }
-  
+
   // Si no tiene V, agregarla y formatear
   let numbers = cleanValue.replace(/\D/g, '');
   // Limitar a 8 dígitos
   numbers = numbers.substring(0, 8);
-  
+
   const formattedNumbers = numbers.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  
+
   return numbers ? `V-${formattedNumbers}` : '';
 };
 
@@ -55,7 +56,7 @@ const cleanCedula = (formattedValue) => {
 const validateCedula = (cedula) => {
   // Limpiar la cédula para obtener solo números
   const cleanCedulaValue = cleanCedula(cedula);
-  
+
   // Validar que tenga exactamente 8 dígitos
   if (cleanCedulaValue.length === 0) {
     return {
@@ -63,21 +64,21 @@ const validateCedula = (cedula) => {
       message: '' // No mostrar error si está vacío
     };
   }
-  
+
   if (cleanCedulaValue.length < 8) {
     return {
       isValid: false,
       message: 'La cédula debe tener 8 dígitos'
     };
   }
-  
+
   if (cleanCedulaValue.length > 8) {
     return {
       isValid: false,
       message: 'La cédula no puede tener más de 8 dígitos'
     };
   }
-  
+
   return {
     isValid: true,
     message: ''
@@ -89,19 +90,19 @@ const validateVenezuelanPhone = (phone, countryCode) => {
   if (countryCode === '+58') {
     // Limpiar el número de caracteres no numéricos
     const cleanPhone = phone.replace(/\D/g, '');
-    
+
     // Prefijos válidos para Venezuela
     const validPrefixes = ['412', '414', '416', '422', '424', '426'];
-    
+
     // Verificar si el número comienza con uno de los prefijos válidos
     const isValid = validPrefixes.some(prefix => cleanPhone.startsWith(prefix));
-    
+
     return {
       isValid,
       message: isValid ? '' : 'El número debe comenzar con 412, 414, 416, 422 o 424'
     };
   }
-  
+
   // Para otros países, simplemente verificar que no esté vacío
   return {
     isValid: phone.trim().length > 0,
@@ -111,21 +112,30 @@ const validateVenezuelanPhone = (phone, countryCode) => {
 
 export function NuevoJugador() {
   const [cedulaError, setCedulaError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [loading, setLoading] = useState(false);
   const { empresaId } = useAuth();
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
+    cedula: "",
+    email: "",
+    phone: "",
+    street: "",
+    favoriteNumbers: [],
+    favInput: ""
+  });
   const navigate = useNavigate();
   const [selectedCountry, setSelectedCountry] = useState(countryOptions[0]);
 
   const handleChange = e => {
     const { name, value } = e.target;
-    
+
     if (name === 'cedula') {
       // Formatear la cédula automáticamente
       const formattedCedula = formatCedula(value);
       setForm({ ...form, [name]: formattedCedula });
-      
+
       // Validar la cédula después de un pequeño delay
       setTimeout(() => {
         const validation = validateCedula(formattedCedula);
@@ -135,7 +145,7 @@ export function NuevoJugador() {
       // Filtrar solo números para el teléfono
       const phoneValue = value.replace(/\D/g, '');
       setForm({ ...form, [name]: phoneValue });
-      
+
       // Validar después de un pequeño delay para no afectar el rendimiento
       setTimeout(() => {
         const validation = validateVenezuelanPhone(phoneValue, selectedCountry.code);
@@ -149,7 +159,7 @@ export function NuevoJugador() {
   const handleCountryChange = (countryCode) => {
     const country = countryOptions.find(c => c.code === countryCode);
     setSelectedCountry(country);
-    
+
     // Revalidar el teléfono cuando cambia el país
     const validation = validateVenezuelanPhone(form.phone, countryCode);
     setPhoneError(validation.message);
@@ -251,13 +261,13 @@ export function NuevoJugador() {
               <label className="block text-xs text-gray-400 mb-1">Cédula de Identidad</label>
               <div className={`flex items-center bg-[#11141a] border rounded-lg focus-within:border-[#7c3bed] transition-colors ${cedulaError ? 'border-red-500' : 'border-[#23283a]'}`}>
                 <UserIcon className="w-5 h-5 text-gray-400 ml-2" />
-                <input 
-                  name="cedula" 
-                  value={form.cedula} 
-                  onChange={handleChange} 
-                  className="bg-transparent flex-1 p-2 text-white outline-none" 
-                  placeholder="V-12.345.678" 
-                  maxlength="12" 
+                <input
+                  name="cedula"
+                  value={form.cedula}
+                  onChange={handleChange}
+                  className="bg-transparent flex-1 p-2 text-white outline-none"
+                  placeholder="V-12.345.678"
+                  maxlength="12"
                 />
               </div>
               {cedulaError && (
@@ -288,13 +298,13 @@ export function NuevoJugador() {
                     </option>
                   ))}
                 </select>
-                <input 
-                  name="phone" 
-                  value={form.phone} 
-                  onChange={handleChange} 
-                  className={`bg-transparent flex-1 p-2 text-white outline-none ${phoneError ? 'border-red-500' : ''}`} 
-                  placeholder="412-123-4567" 
-                  required 
+                <input
+                  name="phone"
+                  value={form.phone}
+                  onChange={handleChange}
+                  className={`bg-transparent flex-1 p-2 text-white outline-none ${phoneError ? 'border-red-500' : ''}`}
+                  placeholder="412-123-4567"
+                  required
                 />
               </div>
               {phoneError && (
