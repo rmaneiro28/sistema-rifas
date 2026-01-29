@@ -82,7 +82,7 @@ export function ReminderControlModal({ isOpen, onClose, players, rifa, empresa, 
       const greeting = getTimeBasedGreeting();
       const ticketsList = player.tickets.join(', ');
       const amount = player.tickets.length * rifa.precio_ticket;
-      message = `Hola! ${greeting} ${player.nombre}, le escribimos de ${empresa?.nombre_empresa || 'nuestro equipo'}. Paso por aquí recordando el pago de sus números (${ticketsList}) para la rifa del ${rifa?.nombre || 'esta rifa'}, por un monto de $${amount}.`;
+      message = `Hola! ${greeting} ${player.nombre}, le escribimos de ${empresa?.nombre_empresa || 'nuestro equipo'}. Paso por aquí recordando el pago de sus números (${ticketsList}) para la rifa del *${rifa?.nombre || 'esta rifa'}*, por un monto de $${amount}.`;
     }
 
     const encodedMessage = encodeURIComponent(message);
