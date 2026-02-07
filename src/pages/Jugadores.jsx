@@ -777,17 +777,6 @@ export function Jugadores() {
                   </div>
 
 
-                  {/* DEBUG PANEL - TEMPORAL */}
-                  <div className="bg-red-900/50 p-4 rounded-lg mb-6 text-xs text-white font-mono break-all">
-                    <p>DEBUG INFO:</p>
-                    <p>Active Filter: {isActive}</p>
-                    <p>Registered Players (DB): {debugInfo?.registered || 0}</p>
-                    <p>Tickets Fetched (View): {debugInfo?.tickets || 0}</p>
-                    <p>Ghost Players Detected: {debugInfo?.ghosts || 0}</p>
-                    <p>Total Players Processed: {debugInfo?.total || 0}</p>
-                    <p>Filtered Count: {filteredPlayers.length}</p>
-                    <p>Search Query: "{search}"</p>
-                  </div>
 
                   {/* Números Favoritos */}
                   {selectedPlayer.numeros_favoritos && selectedPlayer.numeros_favoritos.length > 0 && (
