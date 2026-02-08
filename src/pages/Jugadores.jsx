@@ -104,11 +104,13 @@ export function Jugadores() {
       const registeredPlayers = allRegisteredPlayers;
 
       // Obtener ganadores
-      const { data: winners, error: winnersError } = await supabase
+      const { data: allWinners, error: winnersError } = await supabase
         .from("t_ganadores")
         .select("jugador_id, premio, numero_ganador");
 
       if (winnersError) throw winnersError;
+
+      const winners = allWinners || [];
 
       // 2. Obtener tickets SOLO de rifas ACTIVAS (en bloques de 1000)
       let allTickets = [];
@@ -119,7 +121,7 @@ export function Jugadores() {
       while (hasMoreTickets) {
         const { data: chunk, error: ticketsError } = await supabase
           .from("vw_tickets")
-          .select("ticket_id, jugador_id, estado_ticket, rifa_id, monto_pagado, precio_ticket, nombre_jugador, apellido_jugador, telefono, email_jugador, cedula, estado_rifa")
+          .select("ticket_id, jugador_id, estado_ticket, rifa_id, monto_pagado, precio_ticket, nombre_jugador, apellido_jugador, telefono, email_jugador, cedula, estado_rifa, empresa_id")
           .eq("empresa_id", empresaId)
           .order('ticket_id', { ascending: false })
           .range(from, to);
@@ -143,6 +145,7 @@ export function Jugadores() {
         .select("*", { count: 'exact', head: true })
         .eq("empresa_id", empresaId);
 
+      console.log('--- DB SUMMARY ---');
       const registeredIds = new Set(registeredPlayers.map(p => String(p.id)));
       const ghostPlayersMap = new Map();
 
@@ -211,7 +214,6 @@ export function Jugadores() {
       window.debugDbCount = dbCount;
 
       console.log('--- FINAL COUNT DEBUG ---');
-      console.log('Total players in table (ALL):', globalCount);
       console.log('Total players in table (THIS CO):', dbCount);
       console.log('Registered fetched (THIS CO):', registeredPlayers.length);
       // Solo mostrar tickets si se han cargado correctamente
