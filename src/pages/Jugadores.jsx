@@ -69,7 +69,7 @@ export function Jugadores() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(12); // 12 tarjetas por página
   const [searchParams, setSearchParams] = useSearchParams();
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
+  const [sortConfig, setSortConfig] = useState({ key: 'nombre', direction: 'ascending' });
 
   const { empresaId } = useAuth();
 
