@@ -76,99 +76,155 @@ export function Jugadores() {
   const fetchPlayers = async () => {
     setLoading(true);
     try {
-      // Obtener todos los jugadores registrados
-      const { data: registeredPlayers, error: playersError } = await supabase
-        .from("t_jugadores")
-        .select("*")
-        .eq("empresa_id", empresaId)
-        .order("id", { ascending: false });
+      // 1. Obtener todos los jugadores registrados (en bloques de 1000)
+      let allRegisteredPlayers = [];
+      let from = 0;
+      let to = 999;
+      let hasMorePlayers = true;
 
-      if (playersError) {
-        console.error("Error fetching players:", playersError);
-        toast.error("Error al cargar los jugadores.");
-        setLoading(false);
-        return;
+      while (hasMorePlayers) {
+        const { data: chunk, error: playersError } = await supabase
+          .from("t_jugadores")
+          .select("*")
+          .eq("empresa_id", empresaId)
+          .order("id", { ascending: false })
+          .range(from, to);
+
+        if (playersError) throw playersError;
+
+        allRegisteredPlayers = [...allRegisteredPlayers, ...chunk];
+        if (chunk.length < 1000) {
+          hasMorePlayers = false;
+        } else {
+          from += 1000;
+          to += 1000;
+        }
       }
+
+      const registeredPlayers = allRegisteredPlayers;
 
       // Obtener ganadores
       const { data: winners, error: winnersError } = await supabase
         .from("t_ganadores")
         .select("jugador_id, premio, numero_ganador");
 
-      if (winnersError) {
-        console.error("Error fetching winners:", winnersError);
-        toast.error("Error al cargar información de ganadores.");
-        setLoading(false);
-        return;
+      if (winnersError) throw winnersError;
+
+      // 2. Obtener tickets SOLO de rifas ACTIVAS (en bloques de 1000)
+      let allTickets = [];
+      from = 0;
+      to = 999;
+      let hasMoreTickets = true;
+
+      while (hasMoreTickets) {
+        const { data: chunk, error: ticketsError } = await supabase
+          .from("vw_tickets")
+          .select("ticket_id, jugador_id, estado_ticket, rifa_id, monto_pagado, precio_ticket, nombre_jugador, apellido_jugador, telefono, email_jugador, cedula, estado_rifa")
+          .eq("empresa_id", empresaId)
+          .order('ticket_id', { ascending: false })
+          .range(from, to);
+
+        if (ticketsError) throw ticketsError;
+
+        allTickets = [...allTickets, ...chunk];
+        if (chunk.length < 1000) {
+          hasMoreTickets = false;
+        } else {
+          from += 1000;
+          to += 1000;
+        }
       }
 
-      // Obtener tickets SOLO de rifas ACTIVAS
-      // Usamos ticket_id desc y un rango amplio para asegurar capturar todo.
-      const { data: tickets, error: ticketsError } = await supabase
-        .from("vw_tickets")
-        .select("ticket_id, jugador_id, estado_ticket, rifa_id, monto_pagado, precio_ticket, nombre_jugador, apellido_jugador, telefono, email_jugador, cedula, estado_rifa")
-        .eq("empresa_id", empresaId)
-        .eq("estado_rifa", "activa")
-        .order('ticket_id', { ascending: false })
-        .range(0, 9999);
+      const tickets = allTickets;
 
-      if (ticketsError) {
-        console.error("Error fetching tickets:", ticketsError);
-        toast.error("Error al cargar información de tickets.");
-        setLoading(false);
-        return;
-      }
+      // 3. Verificar conteo exacto en DB (para depuración)
+      const { count: dbCount } = await supabase
+        .from("t_jugadores")
+        .select("*", { count: 'exact', head: true })
+        .eq("empresa_id", empresaId);
 
-      // 1. Identificar jugadores registrados
-      const registeredIds = new Set(registeredPlayers.map(p => p.id));
+      const registeredIds = new Set(registeredPlayers.map(p => String(p.id)));
       const ghostPlayersMap = new Map();
 
       // 4. Procesar tickets para agrupar y encontrar fantasmas
       const ticketsPorJugador = {};
+      let orphanTicketsCount = 0;
+      let firstOrphanTickets = [];
 
-      tickets?.forEach(ticket => {
-        const jId = ticket.jugador_id;
-        if (!jId) return;
+      allTickets.forEach(ticket => {
+        // PRIORIDAD: Usar ID si existe
+        let key = ticket.jugador_id ? String(ticket.jugador_id) : null;
 
-        // Agrupar tickets
-        if (!ticketsPorJugador[jId]) {
-          ticketsPorJugador[jId] = [];
+        // Segundo: Usar teléfono si existe
+        if (!key && ticket.telefono) {
+          key = `phone_${ticket.telefono}`;
         }
 
-        // Normalizar ticket de vista a formato esperado por lógica existente (estado vs estado_ticket)
+        // Tercero: Usar Nombre Completo si no hay nada más (último recurso)
+        if (!key && (ticket.nombre_jugador || ticket.apellido_jugador)) {
+          key = `name_${(ticket.nombre_jugador || '').trim()}_${(ticket.apellido_jugador || '').trim()}`;
+        }
+
+        if (!key) return;
+
+        // Agrupar tickets
+        if (!ticketsPorJugador[key]) {
+          ticketsPorJugador[key] = [];
+        }
+
         const normalizedTicket = {
           ...ticket,
-          estado: ticket.estado_ticket // La vista usa estado_ticket, la lógica usa estado
+          estado: ticket.estado_ticket
         };
 
-        ticketsPorJugador[jId].push(normalizedTicket);
+        ticketsPorJugador[key].push(normalizedTicket);
 
-        // Si NO está en registrados y NO lo hemos procesado ya como fantasma, agregarlo
-        if (!registeredIds.has(jId) && !ghostPlayersMap.has(jId)) {
-          ghostPlayersMap.set(jId, {
-            id: jId,
-            nombre: ticket.nombre_jugador || 'Sin Nombre',
-            apellido: ticket.apellido_jugador || '',
-            email: ticket.email_jugador || '',
-            telefono: ticket.telefono || '',
-            cedula: ticket.cedula || '',
-            empresa_id: empresaId,
-            created_at: new Date().toISOString(), // Dummy date
-            is_ghost: true // Flag para identificar visualmente si se desea
-          });
+        // Lógica de detección de Fantasma
+        const isRegistered = ticket.jugador_id && registeredIds.has(String(ticket.jugador_id));
+
+        if (!isRegistered) {
+          orphanTicketsCount++;
+          if (firstOrphanTickets.length < 5) firstOrphanTickets.push(ticket);
+
+          if (!ghostPlayersMap.has(key)) {
+            ghostPlayersMap.set(key, {
+              id: isNaN(key) && !key.startsWith('phone_') ? key : (ticket.jugador_id || key),
+              nombre: ticket.nombre_jugador || 'Sin Nombre',
+              apellido: ticket.apellido_jugador || '',
+              email: ticket.email_jugador || '',
+              telefono: ticket.telefono || '',
+              cedula: ticket.cedula || '',
+              empresa_id: empresaId,
+              created_at: new Date().toISOString(),
+              is_ghost: true
+            });
+          }
         }
       });
 
       // 3. Unificar listas (Registrados + Fantasmas)
       const allPlayersBase = [...registeredPlayers, ...Array.from(ghostPlayersMap.values())];
 
-      console.log('--- DEBUG INFO ---');
-      console.log('Registered Players:', registeredPlayers.length);
-      console.log('Total Tickets Fetched:', tickets?.length);
-      console.log('Ghost Players Found:', ghostPlayersMap.size);
-      console.log('Total Players Base:', allPlayersBase.length);
-      console.log('Ghost Players Sample:', Array.from(ghostPlayersMap.values()).slice(0, 3));
-      console.log('------------------');
+      // Usar variable global temporal para depuración visual
+      window.debugTicketsCount = tickets.length;
+      window.debugGhostsCount = ghostPlayersMap.size;
+      window.debugDbCount = dbCount;
+
+      console.log('--- FINAL COUNT DEBUG ---');
+      console.log('Total players in table (ALL):', globalCount);
+      console.log('Total players in table (THIS CO):', dbCount);
+      console.log('Registered fetched (THIS CO):', registeredPlayers.length);
+      // Solo mostrar tickets si se han cargado correctamente
+      if (allTickets && allTickets.length > 0) {
+        console.log('Tickets fetched:', allTickets.length);
+        console.log('Orphan tickets (no registered player):', orphanTicketsCount);
+        if (firstOrphanTickets.length > 0) {
+          console.log('First orphan tickets sample:', firstOrphanTickets);
+        }
+      }
+      console.log('Ghosts identified and added:', ghostPlayersMap.size);
+      console.log('Total players in UI:', allPlayersBase.length);
+      console.log('-------------------------');
 
       // Crear un mapa de ganadores para búsqueda rápida
       const winnersMap = new Map();
@@ -246,9 +302,6 @@ export function Jugadores() {
           tienePorPagar
         };
       });
-
-      // Filtrar solo aquellos que tienen tickets si son fantasmas? 
-      // No, mostramos todo. Los fantasmas por definición tienen tickets.
 
       setPlayers(processedPlayers);
     } catch (error) {
@@ -373,35 +426,34 @@ export function Jugadores() {
 
   // Crear o actualizar jugador
   const handleSavePlayer = async (data) => {
-    if (editPlayer) {
-      // Editar
-      const { error } = await supabase
-        .from("t_jugadores")
-        .update(data)
-        .eq("empresa_id", empresaId)
-        .eq("id", editPlayer.id);
-      if (!error) {
+    try {
+      if (editPlayer) {
+        // Editar
+        const { error } = await supabase
+          .from("t_jugadores")
+          .update(data)
+          .eq("empresa_id", empresaId)
+          .eq("id", editPlayer.id);
+
+        if (error) throw error;
         toast.success("Jugador actualizado con éxito");
-        fetchPlayers();
       } else {
-        toast.error(`Error al actualizar el jugador: ${error.message}`);
-      }
-    } else {
-      // Crear
-      const { data: newJugador, error } = await supabase
-        .from("t_jugadores")
-        .insert([data])
-        .select()
-        .single();
-      if (!error && newJugador) {
+        // Crear
+        const { error } = await supabase
+          .from("t_jugadores")
+          .insert([{ ...data, empresa_id: empresaId }]);
+
+        if (error) throw error;
         toast.success("Jugador creado con éxito");
-        fetchPlayers();
-      } else {
-        toast.error(`Error al crear el jugador: ${error.message}`);
       }
+
+      fetchPlayers();
+      setShowAddModal(false);
+      setEditPlayer(null);
+    } catch (error) {
+      console.error("Error saving player:", error);
+      toast.error(`Error al guardar el jugador: ${error.message}`);
     }
-    setModalOpen(false);
-    setEditPlayer(null);
   };
   // Eliminar jugador
   const handleDeletePlayer = async () => {
@@ -773,6 +825,30 @@ export function Jugadores() {
                         <p className="text-sm text-gray-400">Total Gastado</p>
                         <p className="text-2xl font-bold text-white">${selectedPlayer.monto_total_gastado || 0}</p>
                       </div>
+                    </div>
+
+                    {/* Panel de Verificación de Conteo (Visible en el panel de detalles) */}
+                    <div className="bg-[#23283a]/50 p-4 rounded-lg border border-[#7c3bed]/30 mt-6">
+                      <h4 className="text-[#7c3bed] font-semibold mb-2 flex items-center">
+                        <ExclamationTriangleIcon className="w-4 h-4 mr-2" />
+                        Verificación de Datos
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="text-gray-400">Total en Pantalla:</div>
+                        <div className="text-white font-mono text-right font-bold text-[#7c3bed]">{players.length}</div>
+
+                        <div className="text-gray-400 border-t border-[#23283a] mt-1 pt-1">Registrados (En DB):</div>
+                        <div className="text-white font-mono text-right border-t border-[#23283a] mt-1 pt-1">{window.debugDbCount || 0}</div>
+
+                        <div className="text-gray-400">Fantasmas Detectados:</div>
+                        <div className="text-white font-mono text-right text-orange-400">{window.debugGhostsCount || 0}</div>
+
+                        <div className="text-gray-400 border-t border-[#23283a] mt-1 pt-1">Tickets Analizados:</div>
+                        <div className="text-white font-mono text-right border-t border-[#23283a] mt-1 pt-1 font-bold">{window.debugTicketsCount || 0}</div>
+                      </div>
+                      <p className="text-[10px] text-gray-500 mt-2 italic">
+                        Nota: Se han cargado hasta 10,000 registros para evitar el límite de Supabase.
+                      </p>
                     </div>
                   </div>
 
