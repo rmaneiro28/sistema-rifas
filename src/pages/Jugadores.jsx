@@ -225,7 +225,13 @@ export function Jugadores() {
         }
       }
       console.log('Ghosts identified and added:', ghostPlayersMap.size);
-      console.log('Total players in UI:', allPlayersBase.length);
+      console.log('Total in UI (Registered + Ghosts):', allPlayersBase.length);
+      const totalFavoritos = registeredPlayers.reduce((acc, p) => {
+        const favs = Array.isArray(p.numeros_favoritos) ? p.numeros_favoritos : [];
+        return acc + favs.length;
+      }, 0);
+      window.debugTotalFavoritos = totalFavoritos;
+      console.log('Total Recurring Numbers (Favorites):', totalFavoritos);
       console.log('-------------------------');
 
       // Crear un mapa de ganadores para búsqueda rápida
@@ -450,7 +456,7 @@ export function Jugadores() {
       }
 
       fetchPlayers();
-      setShowAddModal(false);
+      setModalOpen(false);
       setEditPlayer(null);
     } catch (error) {
       console.error("Error saving player:", error);
@@ -839,11 +845,14 @@ export function Jugadores() {
                         <div className="text-gray-400">Total en Pantalla:</div>
                         <div className="text-white font-mono text-right font-bold text-[#7c3bed]">{players.length}</div>
 
-                        <div className="text-gray-400 border-t border-[#23283a] mt-1 pt-1">Registrados (En DB):</div>
-                        <div className="text-white font-mono text-right border-t border-[#23283a] mt-1 pt-1">{window.debugDbCount || 0}</div>
+                        <div className="text-gray-400">Registrados Cargados:</div>
+                        <div className="text-white font-mono text-right">{players.filter(p => !p.is_ghost).length}</div>
 
                         <div className="text-gray-400">Fantasmas Detectados:</div>
-                        <div className="text-white font-mono text-right text-orange-400">{window.debugGhostsCount || 0}</div>
+                        <div className="text-white font-mono text-right">{players.filter(p => p.is_ghost).length}</div>
+
+                        <div className="text-[#7c3bed] font-semibold mt-1">Números Recurrentes:</div>
+                        <div className="text-[#7c3bed] font-mono text-right font-bold">{window.debugTotalFavoritos || 0}</div>
 
                         <div className="text-gray-400 border-t border-[#23283a] mt-1 pt-1">Tickets Analizados:</div>
                         <div className="text-white font-mono text-right border-t border-[#23283a] mt-1 pt-1 font-bold">{window.debugTicketsCount || 0}</div>
