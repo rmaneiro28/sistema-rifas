@@ -158,14 +158,40 @@ export function DetalleRifa() {
   const fetchTickets = async () => {
     if (!empresaId) return;
     setLoading(true);
-    const { data, error } = await supabase.from("vw_tickets").select("*").eq("rifa_id", id).eq("empresa_id", empresaId);
-    if (!error) {
-      console.log('Tickets loaded:', data);
-      setTickets(data || []);
-    } else {
-      console.error('Error loading tickets:', error);
+    try {
+      let allTickets = [];
+      let from = 0;
+      let to = 999;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("vw_tickets")
+          .select("*")
+          .eq("rifa_id", id)
+          .eq("empresa_id", empresaId)
+          .range(from, to);
+
+        if (error) {
+          console.error('Error loading tickets:', error);
+          hasMore = false;
+        } else {
+          allTickets = [...allTickets, ...data];
+          if (data.length < 1000) {
+            hasMore = false;
+          } else {
+            from += 1000;
+            to += 1000;
+          }
+        }
+      }
+      console.log('Tickets loaded:', allTickets.length);
+      setTickets(allTickets);
+    } catch (error) {
+      console.error('Unexpected error loading tickets:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleRegistrationSuccess = (softRefresh = false) => {
@@ -448,13 +474,32 @@ export function DetalleRifa() {
 
     try {
       // 1. Fetch all players with favorite numbers for the company
-      const { data: jugadores, error: jugadoresError } = await supabase
-        .from('t_jugadores')
-        .select('id, nombre, apellido, numeros_favoritos')
-        .eq('empresa_id', empresaId)
-        .not('numeros_favoritos', 'is', null);
+      let allJugadores = [];
+      let from = 0;
+      let to = 999;
+      let hasMore = true;
 
-      if (jugadoresError) throw jugadoresError;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('t_jugadores')
+          .select('id, nombre, apellido, numeros_favoritos')
+          .eq('empresa_id', empresaId)
+          .not('numeros_favoritos', 'is', null)
+          .order('id', { ascending: true })
+          .range(from, to);
+
+        if (error) throw error;
+
+        allJugadores = [...allJugadores, ...data];
+        if (data.length < 1000) {
+          hasMore = false;
+        } else {
+          from += 1000;
+          to += 1000;
+        }
+      }
+
+      const jugadores = allJugadores;
 
       const playersWithFavorites = jugadores.filter(j => j.numeros_favoritos && j.numeros_favoritos.length > 0);
 

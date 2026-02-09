@@ -45,7 +45,6 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
     const [ticketToRelease, setTicketToRelease] = useState(null);
     const [showPaymentForm, setShowPaymentForm] = useState(false);
     const [showAbonoModal, setShowAbonoModal] = useState(false);
-    const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [ticketPaymentInfo, setTicketPaymentInfo] = useState({ payments: [] });
     const ticketRef = useRef();
     const { empresaId } = useAuth();

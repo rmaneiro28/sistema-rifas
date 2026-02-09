@@ -664,8 +664,8 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
                                         type="button"
                                         onClick={() => setEsAbono(false)}
                                         className={`p-3 rounded-lg border-2 transition-all ${!esAbono
-                                                ? 'border-green-500 bg-green-500/10 text-green-400'
-                                                : 'border-[#2d3748] bg-[#181c24] text-gray-400 hover:border-gray-600'
+                                            ? 'border-green-500 bg-green-500/10 text-green-400'
+                                            : 'border-[#2d3748] bg-[#181c24] text-gray-400 hover:border-gray-600'
                                             }`}
                                     >
                                         <div className="text-center space-y-1">
@@ -709,8 +709,8 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
                                                 type="button"
                                                 onClick={() => setMetodoPago(metodo.name)}
                                                 className={`group p-3 rounded-lg border-2 transition-all ${isSelected
-                                                        ? `border-${metodo.color}-500 bg-${metodo.color}-500/10`
-                                                        : 'border-[#2d3748] bg-[#181c24] hover:border-gray-600'
+                                                    ? `border-${metodo.color}-500 bg-${metodo.color}-500/10`
+                                                    : 'border-[#2d3748] bg-[#181c24] hover:border-gray-600'
                                                     }`}
                                             >
                                                 <div className="text-center space-y-1">
