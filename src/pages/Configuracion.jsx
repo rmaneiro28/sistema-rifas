@@ -585,8 +585,9 @@ const PaymentMethodsConfig = () => {
                   >
                     <PlusIcon className="w-3 h-3" /> Campo
                   </button>
-                  {['titular', 'cedula', 'telefono', 'numero_cuenta', 'banco'].map(sug => (
-                    !method.config_data.hasOwnProperty(sug) && (
+                  {['titular', 'cedula', 'telefono', 'numero_cuenta', 'banco', 'correo'].map(sug => {
+                    if (sug === 'correo' && !method.method_name.toLowerCase().includes('zelle')) return null;
+                    return !method.config_data.hasOwnProperty(sug) && (
                       <button
                         key={sug}
                         onClick={() => updatePaymentDetails(method.id, sug, '')}
@@ -594,8 +595,8 @@ const PaymentMethodsConfig = () => {
                       >
                         + {sug.replace(/_/g, ' ')}
                       </button>
-                    )
-                  ))}
+                    );
+                  })}
                   <div className="flex-1"></div>
                   {!method.is_default && (
                     <button

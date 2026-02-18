@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import Confetti from "react-confetti";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
-import { MagnifyingGlassIcon, GiftIcon, CalendarDaysIcon, CurrencyDollarIcon, TrophyIcon, TicketIcon, ClipboardIcon, BanknotesIcon, PhoneIcon, XMarkIcon, IdentificationIcon, UserCircleIcon, BuildingLibraryIcon, CreditCardIcon } from "@heroicons/react/24/outline";
+import { MagnifyingGlassIcon, GiftIcon, CalendarDaysIcon, CurrencyDollarIcon, TrophyIcon, TicketIcon, ClipboardIcon, BanknotesIcon, PhoneIcon, XMarkIcon, IdentificationIcon, UserCircleIcon, BuildingLibraryIcon, CreditCardIcon, InboxIcon } from "@heroicons/react/24/outline";
 import { LoadingScreen } from '../components/LoadingScreen.jsx';
 import { useWindowSize } from '../hooks/useWindowSize.js';
 import { TicketVerifierModal } from '../components/TicketVerifierModal.jsx';
@@ -202,8 +202,8 @@ export function PublicRifa() {
                         phone: { label: 'Teléfono', icon: PhoneIcon, priority: 5 },
                         telefono: { label: 'Teléfono', icon: PhoneIcon, priority: 5 },
                         celular: { label: 'Teléfono', icon: PhoneIcon, priority: 5 },
-                        email: { label: 'Correo', icon: ClipboardIcon, priority: 6 },
-                        correo: { label: 'Correo', icon: ClipboardIcon, priority: 6 }
+                        email: { label: 'Correo', icon: InboxIcon, priority: 6 },
+                        correo: { label: 'Correo', icon: InboxIcon, priority: 6 }
                     };
 
                     // Iterar por todas las llaves del JSON de forma dinámica
