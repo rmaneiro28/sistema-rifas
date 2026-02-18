@@ -167,7 +167,7 @@ export function DetalleRifa() {
       while (hasMore) {
         const { data, error } = await supabase
           .from("vw_tickets")
-          .select("id, ticket_id, rifa_id, numero_ticket, estado_ticket, jugador_id, nombre_jugador, apellido_jugador, email_jugador, telefono, cedula, fecha_pago, monto_total, saldo_pendiente, metodo_pago, referencia_pago, referencia")
+          .select("*")
           .eq("rifa_id", id)
           .eq("empresa_id", empresaId)
           .range(from, to);
