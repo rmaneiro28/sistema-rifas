@@ -718,7 +718,7 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
                                             else if (lowerName.includes('pago movil') || lowerName.includes('móvil')) { Icon = DevicePhoneMobileIcon; color = 'purple'; }
                                             else if (lowerName.includes('zelle')) { Icon = CurrencyDollarIcon; color = 'yellow'; }
                                             else if (lowerName.includes('transferencia') || lowerName.includes('banco')) { Icon = BuildingOffice2Icon; color = 'blue'; }
-
+                                            
                                             return (
                                                 <button
                                                     key={method.method_id}

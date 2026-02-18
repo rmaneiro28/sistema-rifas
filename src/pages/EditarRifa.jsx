@@ -10,9 +10,10 @@ export function EditarRifa() {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [uploading, setUploading] = useState(false);
     const [errors, setErrors] = useState({});
     const [dragActive, setDragActive] = useState(false);
-    
+
     const [formData, setFormData] = useState({
         nombre: "",
         descripcion: "",
@@ -65,7 +66,7 @@ export function EditarRifa() {
 
     const validateForm = () => {
         const newErrors = {};
-        
+
         if (!formData.nombre.trim()) {
             newErrors.nombre = "El nombre de la rifa es obligatorio";
         } else if (formData.nombre.length < 3) {
@@ -73,53 +74,53 @@ export function EditarRifa() {
         } else if (formData.nombre.length > 100) {
             newErrors.nombre = "El nombre no puede exceder 100 caracteres";
         }
-        
+
         if (formData.descripcion && formData.descripcion.length > 500) {
             newErrors.descripcion = "La descripción no puede exceder 500 caracteres";
         }
-        
+
         if (!formData.total_tickets || formData.total_tickets < 1) {
             newErrors.total_tickets = "El total de tickets debe ser al menos 1";
         } else if (formData.total_tickets > 10000) {
             newErrors.total_tickets = "El total de tickets no puede exceder 10,000";
         }
-        
+
         if (!formData.precio_ticket || formData.precio_ticket <= 0) {
             newErrors.precio_ticket = "El precio por ticket debe ser mayor a 0";
         } else if (formData.precio_ticket > 10000) {
             newErrors.precio_ticket = "El precio por ticket no puede exceder $10,000";
         }
-        
+
         if (formData.valor_premio < 0) {
             newErrors.valor_premio = "El valor del premio no puede ser negativo";
         }
-        
+
         if (formData.categoria && formData.categoria.length > 50) {
             newErrors.categoria = "La categoría no puede exceder 50 caracteres";
         }
-        
+
         if (formData.premio_principal && formData.premio_principal.length > 100) {
             newErrors.premio_principal = "El premio principal no puede exceder 100 caracteres";
         }
-        
+
         if (formData.segundo_premio && formData.segundo_premio.length > 100) {
             newErrors.segundo_premio = "El segundo premio no puede exceder 100 caracteres";
         }
-        
+
         if (formData.tercer_premio && formData.tercer_premio.length > 100) {
             newErrors.tercer_premio = "El tercer premio no puede exceder 100 caracteres";
         }
-        
+
         if (!formData.fecha_inicio) {
             newErrors.fecha_inicio = "La fecha de inicio es obligatoria";
         }
-        
+
         if (!formData.fecha_fin) {
             newErrors.fecha_fin = "La fecha de fin es obligatoria";
         } else if (formData.fecha_inicio && new Date(formData.fecha_fin) <= new Date(formData.fecha_inicio)) {
             newErrors.fecha_fin = "La fecha de fin debe ser posterior a la fecha de inicio";
         }
-        
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -130,7 +131,7 @@ export function EditarRifa() {
             ...prev,
             [name]: type === "checkbox" ? checked : value,
         }));
-        
+
         // Clear error when user starts typing
         if (errors[name]) {
             setErrors(prev => ({
@@ -154,34 +155,51 @@ export function EditarRifa() {
         e.preventDefault();
         e.stopPropagation();
         setDragActive(false);
-        
+
         const files = e.dataTransfer.files;
         if (files && files[0]) {
             handleImageUpload(files[0]);
         }
     };
 
-    const handleImageUpload = (file) => {
+    const handleImageUpload = async (file) => {
         if (!file.type.startsWith('image/')) {
             toast.error('Por favor selecciona un archivo de imagen válido');
             return;
         }
-        
+
         if (file.size > 5 * 1024 * 1024) { // 5MB limit
             toast.error('La imagen no puede exceder 5MB');
             return;
         }
-        
-        // Create preview URL
-        const reader = new FileReader();
-        reader.onload = (e) => {
+
+        setUploading(true);
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Math.random()}.${fileExt}`;
+            const filePath = `rifas/${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('raffle-images')
+                .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('raffle-images')
+                .getPublicUrl(filePath);
+
             setFormData(prev => ({
                 ...prev,
-                imagen_url: e.target.result
+                imagen_url: publicUrl
             }));
             toast.success('Imagen cargada correctamente');
-        };
-        reader.readAsDataURL(file);
+        } catch (error) {
+            console.error("Error al subir la imagen:", error);
+            toast.error("Error al subir la imagen");
+        } finally {
+            setUploading(false);
+        }
     };
 
     const handleFileInput = (e) => {
@@ -193,18 +211,18 @@ export function EditarRifa() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+
         if (!validateForm()) {
             toast.error('Por favor corrige los errores en el formulario');
             return;
         }
-        
+
         setSubmitting(true);
 
         try {
             // Exclude id_rifa from the update payload as it's the primary key
             const { id_rifa, ...updateData } = formData;
-            
+
             const { error } = await supabase
                 .from("t_rifas")
                 .update(updateData)
@@ -231,7 +249,7 @@ export function EditarRifa() {
     }
 
     // Calculate total revenue
-    const totalRevenue = formData.total_tickets && formData.precio_ticket 
+    const totalRevenue = formData.total_tickets && formData.precio_ticket
         ? (formData.total_tickets * formData.precio_ticket).toFixed(2)
         : '0.00';
 
@@ -243,7 +261,7 @@ export function EditarRifa() {
                     Volver a los detalles
                 </NavLink>
             </div>
-            
+
             <div className="mb-8">
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] bg-clip-text text-transparent mb-2">
                     Editar Rifa
@@ -260,23 +278,23 @@ export function EditarRifa() {
                         </div>
                         <h2 className="text-xl font-semibold text-white">Información Básica</h2>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div>
                             <label htmlFor="nombre" className="block text-sm font-medium text-gray-300 mb-2">
                                 Nombre de la Rifa *
                             </label>
                             <div className="relative">
-                                <input 
-                                    type="text" 
-                                    name="nombre" 
-                                    id="nombre" 
-                                    value={formData.nombre} 
-                                    onChange={handleChange} 
+                                <input
+                                    type="text"
+                                    name="nombre"
+                                    id="nombre"
+                                    value={formData.nombre}
+                                    onChange={handleChange}
                                     className={`w-full bg-[#23283a] text-white rounded-lg px-4 py-3 border ${errors.nombre ? 'border-red-500' : 'border-[#2d3748]'} focus:border-[#7c3bed] focus:outline-none transition-colors`}
                                     placeholder="Ej: Rifa de Navidad 2024"
                                     maxLength={100}
-                                    required 
+                                    required
                                 />
                                 <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
                                     {formData.nombre.length}/100
@@ -289,17 +307,17 @@ export function EditarRifa() {
                                 </div>
                             )}
                         </div>
-                        
+
                         <div>
                             <label htmlFor="descripcion" className="block text-sm font-medium text-gray-300 mb-2">
                                 Descripción
                             </label>
                             <div className="relative">
-                                <textarea 
-                                    name="descripcion" 
-                                    id="descripcion" 
-                                    value={formData.descripcion} 
-                                    onChange={handleChange} 
+                                <textarea
+                                    name="descripcion"
+                                    id="descripcion"
+                                    value={formData.descripcion}
+                                    onChange={handleChange}
                                     rows={4}
                                     className={`w-full bg-[#23283a] text-white rounded-lg px-4 py-3 border ${errors.descripcion ? 'border-red-500' : 'border-[#2d3748]'} focus:border-[#7c3bed] focus:outline-none transition-colors resize-none`}
                                     placeholder="Describe los detalles de tu rifa..."
@@ -327,22 +345,22 @@ export function EditarRifa() {
                         </div>
                         <h2 className="text-xl font-semibold text-white">Configuración de Tickets</h2>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
                             <label htmlFor="total_tickets" className="block text-sm font-medium text-gray-300 mb-2">
                                 Total de Tickets *
                             </label>
-                            <input 
-                                type="number" 
-                                name="total_tickets" 
-                                id="total_tickets" 
-                                value={formData.total_tickets} 
-                                onChange={handleChange} 
+                            <input
+                                type="number"
+                                name="total_tickets"
+                                id="total_tickets"
+                                value={formData.total_tickets}
+                                onChange={handleChange}
                                 className={`w-full bg-[#23283a] text-white rounded-lg px-4 py-3 border ${errors.total_tickets ? 'border-red-500' : 'border-[#2d3748]'} focus:border-[#7c3bed] focus:outline-none transition-colors`}
                                 min="1"
                                 max="10000"
-                                required 
+                                required
                             />
                             {errors.total_tickets && (
                                 <div className="flex items-center gap-1 mt-1 text-red-400 text-sm">
@@ -351,22 +369,22 @@ export function EditarRifa() {
                                 </div>
                             )}
                         </div>
-                        
+
                         <div>
                             <label htmlFor="precio_ticket" className="block text-sm font-medium text-gray-300 mb-2">
                                 Precio por Ticket ($) *
                             </label>
-                            <input 
-                                type="number" 
-                                step="0.01" 
-                                name="precio_ticket" 
-                                id="precio_ticket" 
-                                value={formData.precio_ticket} 
-                                onChange={handleChange} 
+                            <input
+                                type="number"
+                                step="0.01"
+                                name="precio_ticket"
+                                id="precio_ticket"
+                                value={formData.precio_ticket}
+                                onChange={handleChange}
                                 className={`w-full bg-[#23283a] text-white rounded-lg px-4 py-3 border ${errors.precio_ticket ? 'border-red-500' : 'border-[#2d3748]'} focus:border-[#7c3bed] focus:outline-none transition-colors`}
                                 min="0.01"
                                 max="10000"
-                                required 
+                                required
                             />
                             {errors.precio_ticket && (
                                 <div className="flex items-center gap-1 mt-1 text-red-400 text-sm">
@@ -375,18 +393,18 @@ export function EditarRifa() {
                                 </div>
                             )}
                         </div>
-                        
+
                         <div>
                             <label htmlFor="valor_premio" className="block text-sm font-medium text-gray-300 mb-2">
                                 Valor del Premio ($)
                             </label>
-                            <input 
-                                type="number" 
-                                step="0.01" 
-                                name="valor_premio" 
-                                id="valor_premio" 
-                                value={formData.valor_premio} 
-                                onChange={handleChange} 
+                            <input
+                                type="number"
+                                step="0.01"
+                                name="valor_premio"
+                                id="valor_premio"
+                                value={formData.valor_premio}
+                                onChange={handleChange}
                                 className={`w-full bg-[#23283a] text-white rounded-lg px-4 py-3 border ${errors.valor_premio ? 'border-red-500' : 'border-[#2d3748]'} focus:border-[#7c3bed] focus:outline-none transition-colors`}
                                 min="0"
                             />
@@ -398,7 +416,7 @@ export function EditarRifa() {
                             )}
                         </div>
                     </div>
-                    
+
                     {/* Revenue Calculator */}
                     <div className="mt-6 p-4 bg-[#0f131b] rounded-lg border border-[#23283a]">
                         <div className="flex items-center justify-between">
@@ -419,20 +437,20 @@ export function EditarRifa() {
                         </div>
                         <h2 className="text-xl font-semibold text-white">Fechas y Estado</h2>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div>
                             <label htmlFor="fecha_inicio" className="block text-sm font-medium text-gray-300 mb-2">
                                 Fecha de Inicio *
                             </label>
-                            <input 
-                                type="date" 
-                                name="fecha_inicio" 
-                                id="fecha_inicio" 
-                                value={formData.fecha_inicio} 
-                                onChange={handleChange} 
+                            <input
+                                type="date"
+                                name="fecha_inicio"
+                                id="fecha_inicio"
+                                value={formData.fecha_inicio}
+                                onChange={handleChange}
                                 className={`w-full bg-[#23283a] text-white rounded-lg px-4 py-3 border ${errors.fecha_inicio ? 'border-red-500' : 'border-[#2d3748]'} focus:border-[#7c3bed] focus:outline-none transition-colors`}
-                                required 
+                                required
                             />
                             {errors.fecha_inicio && (
                                 <div className="flex items-center gap-1 mt-1 text-red-400 text-sm">
@@ -441,19 +459,19 @@ export function EditarRifa() {
                                 </div>
                             )}
                         </div>
-                        
+
                         <div>
                             <label htmlFor="fecha_fin" className="block text-sm font-medium text-gray-300 mb-2">
                                 Fecha de Fin (y Sorteo) *
                             </label>
-                            <input 
-                                type="date" 
-                                name="fecha_fin" 
-                                id="fecha_fin" 
-                                value={formData.fecha_fin} 
-                                onChange={handleChange} 
+                            <input
+                                type="date"
+                                name="fecha_fin"
+                                id="fecha_fin"
+                                value={formData.fecha_fin}
+                                onChange={handleChange}
                                 className={`w-full bg-[#23283a] text-white rounded-lg px-4 py-3 border ${errors.fecha_fin ? 'border-red-500' : 'border-[#2d3748]'} focus:border-[#7c3bed] focus:outline-none transition-colors`}
-                                required 
+                                required
                             />
                             {errors.fecha_fin && (
                                 <div className="flex items-center gap-1 mt-1 text-red-400 text-sm">
@@ -466,31 +484,31 @@ export function EditarRifa() {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div className="flex flex-col sm:flex-row gap-6">
                         <div className="flex items-center">
-                            <input 
-                                type="checkbox" 
-                                name="destacada" 
-                                id="destacada" 
-                                checked={formData.destacada} 
-                                onChange={handleChange} 
-                                className="h-4 w-4 rounded border-gray-300 text-[#7c3bed] focus:ring-[#7c3bed]" 
+                            <input
+                                type="checkbox"
+                                name="destacada"
+                                id="destacada"
+                                checked={formData.destacada}
+                                onChange={handleChange}
+                                className="h-4 w-4 rounded border-gray-300 text-[#7c3bed] focus:ring-[#7c3bed]"
                             />
                             <label htmlFor="destacada" className="ml-2 block text-sm text-gray-300">
                                 Marcar como destacada
                             </label>
                         </div>
-                        
+
                         <div>
                             <label htmlFor="estado" className="block text-sm font-medium text-gray-300 mb-2">
                                 Estado
                             </label>
-                            <select 
-                                name="estado" 
-                                id="estado" 
-                                value={formData.estado} 
-                                onChange={handleChange} 
+                            <select
+                                name="estado"
+                                id="estado"
+                                value={formData.estado}
+                                onChange={handleChange}
                                 className="bg-[#23283a] text-white rounded-lg px-4 py-3 border border-[#2d3748] focus:border-[#7c3bed] focus:outline-none transition-colors"
                             >
                                 <option value="activa">Activa</option>
@@ -509,27 +527,27 @@ export function EditarRifa() {
                         </div>
                         <h2 className="text-xl font-semibold text-white">Imagen de la Rifa</h2>
                     </div>
-                    
+
                     <div className="space-y-4">
                         <div className="relative">
                             <PhotoIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input 
-                                type="text" 
-                                name="imagen_url" 
-                                id="imagen_url" 
-                                value={formData.imagen_url} 
-                                onChange={handleChange} 
-                                className="w-full pl-10 bg-[#23283a] text-white rounded-lg px-4 py-3 border border-[#2d3748] focus:border-[#7c3bed] focus:outline-none transition-colors" 
-                                placeholder="https://ejemplo.com/imagen.png" 
+                            <input
+                                type="text"
+                                name="imagen_url"
+                                id="imagen_url"
+                                value={formData.imagen_url}
+                                onChange={handleChange}
+                                className="w-full pl-10 bg-[#23283a] text-white rounded-lg px-4 py-3 border border-[#2d3748] focus:border-[#7c3bed] focus:outline-none transition-colors"
+                                placeholder="https://ejemplo.com/imagen.png"
                             />
                         </div>
-                        
+
                         <div className="text-center">
                             <span className="text-gray-400 text-sm">o</span>
                         </div>
-                        
+
                         {/* Drag and Drop Area */}
-                        <div 
+                        <div
                             className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive ? 'border-[#7c3bed] bg-[#7c3bed]/10' : 'border-[#2d3748] hover:border-[#7c3bed]'}`}
                             onDragEnter={handleDrag}
                             onDragLeave={handleDrag}
@@ -544,23 +562,24 @@ export function EditarRifa() {
                                 PNG, JPG, GIF hasta 5MB
                             </p>
                             <label className="inline-block bg-[#7c3bed] text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-[#6b2bd1] transition-colors">
-                                Seleccionar Archivo
-                                <input 
-                                    type="file" 
-                                    className="hidden" 
-                                    accept="image/*" 
+                                {uploading ? "Subiendo..." : "Seleccionar Archivo"}
+                                <input
+                                    type="file"
+                                    className="hidden"
+                                    accept="image/*"
                                     onChange={handleFileInput}
+                                    disabled={uploading}
                                 />
                             </label>
                         </div>
-                        
+
                         {formData.imagen_url && (
                             <div className="mt-6">
                                 <p className="text-sm text-gray-400 mb-3">Vista previa:</p>
                                 <div className="border border-[#2d3748] rounded-lg overflow-hidden bg-[#1a1d24] max-w-md mx-auto">
-                                    <img 
-                                        src={formData.imagen_url} 
-                                        alt="Vista previa de la imagen" 
+                                    <img
+                                        src={formData.imagen_url}
+                                        alt="Vista previa de la imagen"
                                         className="w-full h-64 object-cover"
                                         onError={(e) => {
                                             e.target.onerror = null;
@@ -581,7 +600,7 @@ export function EditarRifa() {
                         </div>
                         <h2 className="text-xl font-semibold text-white">🏆 Premios</h2>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label htmlFor="categoria" className="block text-sm font-medium text-gray-300 mb-2">
@@ -609,7 +628,7 @@ export function EditarRifa() {
                                 </div>
                             )}
                         </div>
-                        
+
                         <div>
                             <label htmlFor="valor_premio" className="block text-sm font-medium text-gray-300 mb-2">
                                 Valor Total de Premios
@@ -637,7 +656,7 @@ export function EditarRifa() {
                                 </div>
                             )}
                         </div>
-                        
+
                         <div className="md:col-span-2">
                             <label htmlFor="premio_principal" className="block text-sm font-medium text-gray-300 mb-2">
                                 Premio Principal <span className="text-yellow-500 text-xs">★</span>
@@ -667,7 +686,7 @@ export function EditarRifa() {
                                 </div>
                             )}
                         </div>
-                        
+
                         <div className="md:col-span-2">
                             <label htmlFor="segundo_premio" className="block text-sm font-medium text-gray-300 mb-2">
                                 Segundo Premio <span className="text-gray-400 text-xs">(opcional)</span>
@@ -697,7 +716,7 @@ export function EditarRifa() {
                                 </div>
                             )}
                         </div>
-                        
+
                         <div className="md:col-span-2">
                             <label htmlFor="tercer_premio" className="block text-sm font-medium text-gray-300 mb-2">
                                 Tercer Premio <span className="text-gray-400 text-xs">(opcional)</span>
@@ -732,9 +751,9 @@ export function EditarRifa() {
 
                 {/* Submit Button */}
                 <div className="flex justify-end pt-6">
-                    <button 
-                        type="submit" 
-                        disabled={submitting} 
+                    <button
+                        type="submit"
+                        disabled={submitting}
                         className="bg-gradient-to-r from-[#7c3bed] to-[#d54ff9] hover:from-[#6b2bd1] hover:to-[#b03be2] text-white font-semibold py-3 px-8 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                         {submitting ? (
