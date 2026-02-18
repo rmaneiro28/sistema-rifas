@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
 import { toPng, toBlob } from "html-to-image";
-import { UserIcon, TicketIcon, CreditCardIcon, MagnifyingGlassIcon, XMarkIcon, PaperAirplaneIcon, ArrowDownTrayIcon, ClipboardIcon, CheckCircleIcon, ClockIcon, DocumentTextIcon, ArrowLeftIcon, BanknotesIcon, DevicePhoneMobileIcon, CurrencyDollarIcon } from "@heroicons/react/24/outline";
+import { UserIcon, TicketIcon, CreditCardIcon, MagnifyingGlassIcon, XMarkIcon, PaperAirplaneIcon, ArrowDownTrayIcon, ClipboardIcon, CheckCircleIcon, ClockIcon, DocumentTextIcon, ArrowLeftIcon, BanknotesIcon, DevicePhoneMobileIcon, CurrencyDollarIcon, BuildingOffice2Icon } from "@heroicons/react/24/outline";
 import JugadorFormModal from "./JugadorFormModal";
 import { useAuth } from "../context/AuthContext";
 
