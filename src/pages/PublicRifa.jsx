@@ -3,10 +3,7 @@ import { useParams } from "react-router-dom";
 import Confetti from "react-confetti";
 import { supabase } from "../api/supabaseClient";
 import { toast } from "sonner";
-import { MagnifyingGlassIcon, GiftIcon, CalendarDaysIcon, CurrencyDollarIcon, TrophyIcon, TicketIcon, ClipboardIcon, BanknotesIcon, PhoneIcon, XMarkIcon } from "@heroicons/react/24/outline";
-import bancolombiaLogo from '../assets/Bancolombia.png';
-import zelleLogo from '../assets/Zelle.png';
-import venezuelaLogo from "../assets/Bdv.jpg";
+import { MagnifyingGlassIcon, GiftIcon, CalendarDaysIcon, CurrencyDollarIcon, TrophyIcon, TicketIcon, ClipboardIcon, BanknotesIcon, PhoneIcon, XMarkIcon, IdentificationIcon, UserCircleIcon, BuildingLibraryIcon, CreditCardIcon } from "@heroicons/react/24/outline";
 import { LoadingScreen } from '../components/LoadingScreen.jsx';
 import { useWindowSize } from '../hooks/useWindowSize.js';
 import { TicketVerifierModal } from '../components/TicketVerifierModal.jsx';
@@ -51,38 +48,6 @@ const BankDataCard = ({ logo, icon: Icon, label, value }) => {
     );
 };
 
-const PAYMENT_METHODS = [
-    {
-        id: 'bdv',
-        logo: venezuelaLogo,
-        label: 'Banco de Venezuela',
-        details: [
-            { id: 'bdv_titular', label: 'Titular', value: 'Johana Márquez', icon: ClipboardIcon },
-            { id: 'bdv_ci', label: 'C.I.', value: 'V-21.551.764', icon: ClipboardIcon },
-            { id: 'bdv_telefono', label: 'Teléfono', value: '0416-475-1243', icon: PhoneIcon },
-            { id: 'bdv_nro_cuenta', label: 'Número de Cuenta', value: '0102-0156-0201-0981-3662', icon: BanknotesIcon },
-        ]
-    },
-    {
-        id: 'bancolombia',
-        logo: bancolombiaLogo,
-        label: 'Bancolombia',
-        details: [
-            { id: 'bancolombia_titular', label: 'Titular', value: 'Yerson Arismendy', icon: ClipboardIcon },
-            { id: 'bancolombia_ci', label: 'C.I.', value: '1049661169', icon: ClipboardIcon },
-            { id: 'bancolombia_nro_cuenta', label: 'Número de Cuenta', value: '91228187653', icon: BanknotesIcon },
-        ]
-    },
-    {
-        id: 'zelle',
-        logo: zelleLogo,
-        label: 'Zelle',
-        details: [
-            { id: 'zelle_titular', label: 'Titular', value: 'Theo Araque', icon: ClipboardIcon },
-            { id: 'zelle_ci', label: 'Teléfono', value: '+1 (631) 624-6073', icon: ClipboardIcon }
-        ]
-    }
-];
 
 
 const RaffleWinnerBanner = ({ ganador, premio }) => (
@@ -131,7 +96,7 @@ const RaffleHeader = ({ rifa, vendidos, total, progreso, setIsVerifierOpen }) =>
                         <p className="text-xl font-bold">{rifa.fecha_fin && !isNaN(new Date(rifa.fecha_fin)) ? new Date(rifa.fecha_fin).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No definida'}</p>
                     </div>
                 </div>
-               
+
                 <RaffleProgressBar
                     vendidos={vendidos}
                     total={total}
@@ -139,7 +104,7 @@ const RaffleHeader = ({ rifa, vendidos, total, progreso, setIsVerifierOpen }) =>
                 />
                 <button onClick={() => setIsVerifierOpen(true)} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 shadow-lg hover:shadow-purple-500/50 flex items-center justify-center gap-2">
                     <MagnifyingGlassIcon className="w-5 h-5" />
-                        Verificar mi Ticket
+                    Verificar mi Ticket
                 </button>
             </div>
         </div>
@@ -168,11 +133,13 @@ export function PublicRifa() {
     const [rifa, setRifa] = useState(null);
     const [allTickets, setAllTickets] = useState([]);
     const [ganador, setGanador] = useState(null);
+    const [empresaContactos, setEmpresaContactos] = useState([]);
     const [loading, setLoading] = useState(true);
     const { width, height } = useWindowSize();
     const [isVerifierOpen, setIsVerifierOpen] = useState(false);
     const [ticketFilter, setTicketFilter] = useState('all');
-    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(PAYMENT_METHODS[0]);
+    const [paymentMethods, setPaymentMethods] = useState([]);
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedTicketsFromMap, setSelectedTicketsFromMap] = useState([]);
     const pdfRef = useRef();
@@ -189,6 +156,104 @@ export function PublicRifa() {
             const { data: rifaData, error: rifaError } = raffleResult;
             if (rifaError) throw rifaError;
             setRifa(rifaData);
+
+            // Cargar datos de la empresa (incluyendo contactos)
+            if (rifaData.empresa_id) {
+                const { data: empresaData, error: empresaError } = await supabase
+                    .from('t_empresas')
+                    .select('contactos')
+                    .eq('id_empresa', rifaData.empresa_id)
+                    .single();
+
+                if (!empresaError && empresaData) {
+                    setEmpresaContactos(empresaData.contactos || []);
+                }
+            }
+
+            // Cargar métodos de pago de la empresa
+            const { data: paymentData, error: paymentError } = await supabase
+                .from('t_payment_methods')
+                .select('*')
+                .eq('empresa_id', rifaData.empresa_id)
+                .eq('is_enabled', true);
+
+            if (paymentError) console.error("Error loading payment methods:", paymentError);
+            else {
+                const mappedMethods = paymentData.map(pm => {
+                    const details = [];
+                    const config = pm.config_data || {};
+
+                    // Diccionario de mapeo de nombres comunes a Etiquetas e Iconos con Pesos de Prioridad
+                    const fieldDefinitions = {
+                        bank: { label: 'Banco', icon: BuildingLibraryIcon, priority: 1 },
+                        banco: { label: 'Banco', icon: BuildingLibraryIcon, priority: 1 },
+                        ci: { label: 'C.I.', icon: IdentificationIcon, priority: 2 },
+                        cedula: { label: 'C.I.', icon: IdentificationIcon, priority: 2 },
+                        id: { label: 'C.I.', icon: IdentificationIcon, priority: 2 },
+                        rif: { label: 'RIF', icon: IdentificationIcon, priority: 2 },
+                        holder: { label: 'Titular', icon: UserCircleIcon, priority: 3 },
+                        titular: { label: 'Titular', icon: UserCircleIcon, priority: 3 },
+                        name: { label: 'Titular', icon: UserCircleIcon, priority: 3 },
+                        nombre: { label: 'Titular', icon: UserCircleIcon, priority: 3 },
+                        account: { label: 'Número de Cuenta', icon: CreditCardIcon, priority: 4 },
+                        cuenta: { label: 'Número de Cuenta', icon: CreditCardIcon, priority: 4 },
+                        number: { label: 'Número de Cuenta', icon: CreditCardIcon, priority: 4 },
+                        numero: { label: 'Número de Cuenta', icon: CreditCardIcon, priority: 4 },
+                        phone: { label: 'Teléfono', icon: PhoneIcon, priority: 5 },
+                        telefono: { label: 'Teléfono', icon: PhoneIcon, priority: 5 },
+                        celular: { label: 'Teléfono', icon: PhoneIcon, priority: 5 },
+                        email: { label: 'Correo', icon: ClipboardIcon, priority: 6 },
+                        correo: { label: 'Correo', icon: ClipboardIcon, priority: 6 }
+                    };
+
+                    // Iterar por todas las llaves del JSON de forma dinámica
+                    Object.entries(config).forEach(([key, value]) => {
+                        if (!value || key === 'logoUrl') return;
+
+                        const lowerKey = key.toLowerCase();
+                        let definition = null;
+
+                        // Buscar coincidencia exacta primero, luego por inclusión
+                        // La prioridad de búsqueda ahora favorece lo específico (banco, cuenta) antes que lo genérico (nombre)
+                        const keysInOrder = Object.keys(fieldDefinitions);
+                        const match = keysInOrder.find(k => lowerKey === k) || keysInOrder.find(k => lowerKey.includes(k));
+
+                        if (match) {
+                            definition = fieldDefinitions[match];
+                        } else {
+                            definition = {
+                                label: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '),
+                                icon: ClipboardIcon,
+                                priority: 99
+                            };
+                        }
+
+                        details.push({
+                            id: `${pm.method_id}_${key}`,
+                            label: definition.label,
+                            value: value,
+                            icon: definition.icon,
+                            priority: definition.priority
+                        });
+                    });
+
+                    // Ordenar detalles por peso de prioridad
+                    details.sort((a, b) => a.priority - b.priority);
+
+                    // Usar ÚNICAMENTE el logo de la base de datos
+                    const methodLogo = config.logoUrl || null;
+
+                    return {
+                        id: pm.method_id,
+                        label: pm.method_name,
+                        logo: methodLogo,
+                        icon: BanknotesIcon,
+                        details
+                    };
+                });
+                setPaymentMethods(mappedMethods);
+                if (mappedMethods.length > 0) setSelectedPaymentMethod(mappedMethods[0]);
+            }
 
             if (rifaData.estado === 'finalizada') {
                 const { data: winnerData, error: winnerError } = await supabase
@@ -210,17 +275,17 @@ export function PublicRifa() {
                 const formattedTicketNumber = formatTicketNumber(ticket.numero_ticket, rifaData.total_tickets);
                 ticketsMap.set(formattedTicketNumber, ticket);
             });
-            
+
             const generatedTickets = Array.from({ length: rifaData.total_tickets }, (_, i) => {
                 const ticketNumberFormatted = formatTicketNumber(i, rifaData.total_tickets);
                 const existingTicket = ticketsMap.get(ticketNumberFormatted);
-                
+
                 const ticket = existingTicket ?
-                    { 
-                        ...existingTicket, 
-                        estado: existingTicket.estado_ticket, 
-                        numero_ticket: ticketNumberFormatted, 
-                        estado_ticket: existingTicket.estado_ticket, 
+                    {
+                        ...existingTicket,
+                        estado: existingTicket.estado_ticket,
+                        numero_ticket: ticketNumberFormatted,
+                        estado_ticket: existingTicket.estado_ticket,
                         nombre_jugador: existingTicket.nombre_jugador,
                         telefono_jugador: existingTicket.telefono,
                         cedula_jugador: existingTicket.cedula,
@@ -228,9 +293,9 @@ export function PublicRifa() {
                         fecha_compra: existingTicket.fecha_compra || existingTicket.fecha_pago,
                         fecha_pago: existingTicket.fecha_pago || existingTicket.fecha_compra
                     } :
-                    { 
-                        estado: "disponible", 
-                        numero_ticket: ticketNumberFormatted, 
+                    {
+                        estado: "disponible",
+                        numero_ticket: ticketNumberFormatted,
                         estado_ticket: "disponible",
                         nombre_jugador: null,
                         telefono_jugador: null,
@@ -239,9 +304,9 @@ export function PublicRifa() {
                         fecha_compra: null,
                         fecha_pago: null
                     };
-                
-                
-                
+
+
+
                 return ticket;
             });
             setAllTickets(generatedTickets);
@@ -288,9 +353,9 @@ export function PublicRifa() {
         // En la vista pública, los tickets no son seleccionables, solo informativos
         const ticketNumber = ticket.numero_ticket || ticket.numero;
         const ticketStatus = ticket.estado_ticket || ticket.estado;
-        const statusText = ticketStatus === "disponible" ? "Disponible" : 
-                          (ticketStatus === "apartado" || ticketStatus === "pagado") ? "Ocupado" : 
-                          ticketStatus === "familiares" ? "Familiares" : "";
+        const statusText = ticketStatus === "disponible" ? "Disponible" :
+            (ticketStatus === "apartado" || ticketStatus === "pagado") ? "Ocupado" :
+                ticketStatus === "familiares" ? "Familiares" : "";
         toast.info(`Ticket #${formatTicketNumber(ticketNumber, rifa?.total_tickets)} - ${statusText}`);
     };
 
@@ -300,9 +365,9 @@ export function PublicRifa() {
         if (!allTickets || allTickets.length === 0) {
             return [];
         }
-        
+
         let filtered = [...allTickets];
-        
+
         // Aplicar filtro por estado
         if (ticketFilter === 'disponible') {
             filtered = filtered.filter(t => t.estado === 'disponible');
@@ -311,23 +376,23 @@ export function PublicRifa() {
         } else if (ticketFilter === 'familiares') {
             filtered = filtered.filter(t => t.estado === 'familiares');
         }
-        
+
         // Aplicar búsqueda
         if (searchQuery && searchQuery.trim() !== '') {
             filtered = filtered.filter(ticket => {
                 const ticketNumber = ticket.numero_ticket || '';
-                
+
                 // Convertir el searchQuery a número y formatearlo a 4 dígitos
                 const searchNumber = parseInt(searchQuery.trim(), 10);
-                
+
                 if (!isNaN(searchNumber)) {
                     // Si es un número válido, formatearlo según la rifa
                     const paddedSearch = formatTicketNumber(searchNumber, rifa?.total_tickets);
-                    
+
                     // Comparar directamente con el numero_ticket que está en formato padded
                     return ticketNumber === paddedSearch;
                 }
-                
+
                 // Si no es un número, buscar coincidencia parcial
                 return ticketNumber.includes(searchQuery.trim());
             });
@@ -356,12 +421,12 @@ export function PublicRifa() {
                         <div className="bg-[#181c24] border border-[#23283a] p-4 rounded-xl mt-4">
                             <h3 className="font-bold text-white mb-5 text-center text-lg">Datos Bancarios</h3>
                             <div className="flex flex-wrap justify-center gap-4 mb-6">
-                                {PAYMENT_METHODS.map((method) => (
+                                {paymentMethods.map((method) => (
                                     <button
                                         key={method.id}
                                         onClick={() => setSelectedPaymentMethod(method)}
                                         className={`p-3 rounded-lg flex flex-col items-center gap-2 transition-all duration-200
-                                                    ${selectedPaymentMethod.id === method.id ? 'bg-blue-600 ring-2 ring-blue-400' : 'bg-[#2d3748] hover:bg-[#353a4d]'}`}
+                                                    ${selectedPaymentMethod?.id === method.id ? 'bg-blue-600 ring-2 ring-blue-400' : 'bg-[#2d3748] hover:bg-[#353a4d]'}`}
                                         title={method.label}
                                     >
                                         {method.logo ? (
@@ -386,19 +451,23 @@ export function PublicRifa() {
                                 </div>
                             )}
                         </div>
-                        
-                        <div className='bg-[#181c24]  p-4 rounded-xl mt-4'>
+
+                        <div className='bg-[#181c24] p-4 rounded-xl mt-4'>
                             <h3 className="font-bold text-white mb-5 text-center text-lg">Números de Contacto</h3>
-                            <BankDataCard
-                                icon={PhoneIcon}
-                                label="Johana Márquez"
-                                value="0412-5044272"
-                            />
-                            <BankDataCard
-                                icon={PhoneIcon}
-                                label="Carlos Perez"
-                                value="0412-4362660"
-                            />
+                            <div className="space-y-3">
+                                {empresaContactos.length > 0 ? (
+                                    empresaContactos.map((contacto, idx) => (
+                                        <BankDataCard
+                                            key={idx}
+                                            icon={PhoneIcon}
+                                            label={contacto.nombre}
+                                            value={contacto.telefono}
+                                        />
+                                    ))
+                                ) : (
+                                    <p className="text-xs text-center text-gray-500 italic">No hay números de contacto disponibles</p>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -434,8 +503,8 @@ export function PublicRifa() {
                                     className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#181c24] border border-[#23283a] text-white focus:outline-none focus:border-[#7c3bed] transition"
                                 />
                             </div>
-                            
-                            
+
+
                             <div className="pb-2 -mx-4 px-4">
                                 <div className="flex flex-wrap gap-2">
                                     <button
@@ -504,7 +573,7 @@ export function PublicRifa() {
                             {filteredTickets.length === 0 && (
                                 <div className="col-span-full w-full text-center py-12">
                                     <div className="bg-[#23283a] rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                                        <MagnifyingGlassIcon className="w-8 h-8 text-gray-400" /> 
+                                        <MagnifyingGlassIcon className="w-8 h-8 text-gray-400" />
                                     </div>
                                     <h3 className="text-white text-lg font-semibold mb-2">
                                         No se encontraron tickets
@@ -539,7 +608,7 @@ export function PublicRifa() {
                 allTickets={allTickets}
                 rifa={rifa}
             />
-            <Footer/>
+            <Footer />
         </div>
     );
 }

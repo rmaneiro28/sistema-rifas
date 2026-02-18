@@ -57,7 +57,7 @@ export function DetalleRifa() {
       if (empresaId) {
         const { data: empresaData, error } = await supabase
           .from('t_empresas')
-          .select('nombre_empresa, logo_url')
+          .select('nombre_empresa, logo_url, contactos')
           .eq('id_empresa', empresaId)
           .single();
 

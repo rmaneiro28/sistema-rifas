@@ -16,6 +16,8 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
     const [favoritos, setFavoritos] = useState([]);
     const [customNumero, setCustomNumero] = useState("");
     const [singleCustomNumberInput, setSingleCustomNumberInput] = useState("");
+    const [paymentMethods, setPaymentMethods] = useState([]);
+    const [empresa, setEmpresa] = useState("");
     const [generatedTicketInfo, setGeneratedTicketInfo] = useState(null);
     const [esAbono, setEsAbono] = useState(false);
     const [metodoPago, setMetodoPago] = useState("efectivo");
@@ -25,25 +27,34 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
     const ticketRef = useRef();
     const { empresaId } = useAuth();
 
-    const [empresa, setEmpresa] = useState("");
     useEffect(() => {
-        const fetchEmpresa = async () => {
+        const fetchEmpresaAndMethods = async () => {
             if (empresaId) {
-                const { data: empresa, error } = await supabase
+                // Fetch empresa
+                const { data: empresaData } = await supabase
                     .from('t_empresas')
                     .select('nombre_empresa')
                     .eq('id_empresa', empresaId)
                     .single();
 
-                if (error) {
-                    console.error('Error fetching empresa:', error);
-                } else if (empresa) {
-                    setEmpresa(empresa.nombre_empresa);
+                if (empresaData) setEmpresa(empresaData.nombre_empresa);
+
+                // Fetch payment methods
+                const { data: methodsData } = await supabase
+                    .from('t_payment_methods')
+                    .select('*')
+                    .eq('empresa_id', empresaId)
+                    .eq('is_enabled', true);
+
+                if (methodsData) {
+                    setPaymentMethods(methodsData);
+                    const defaultMethod = methodsData.find(m => m.is_default) || methodsData[0];
+                    if (defaultMethod) setMetodoPago(defaultMethod.method_name);
                 }
             }
         };
 
-        fetchEmpresa();
+        fetchEmpresaAndMethods();
     }, [empresaId]);
 
     useEffect(() => {
@@ -694,40 +705,50 @@ export function TicketRegistrationWizard({ isOpen, onClose, rifa, ticketStatusMa
                                     Método de Pago
                                 </label>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                    {[
-                                        { id: 'efectivo', name: 'Efectivo', icon: BanknotesIcon, color: 'green', description: 'Pago en efectivo' },
-                                        { id: 'transferencia', name: 'Transferencia', icon: ArrowDownTrayIcon, color: 'blue', description: 'Transferencia bancaria' },
-                                        { id: 'pago_movil', name: 'Pago Móvil', icon: DevicePhoneMobileIcon, color: 'purple', description: 'Pago móvil' },
-                                        { id: 'zelle', name: 'Zelle', icon: CurrencyDollarIcon, color: 'yellow', description: 'Zelle' },
-                                        { id: 'otro', name: 'Otro', icon: DocumentTextIcon, color: 'gray', description: 'Otro método' }
-                                    ].map((metodo) => {
-                                        const Icon = metodo.icon;
-                                        const isSelected = metodoPago === metodo.name;
-                                        return (
-                                            <button
-                                                key={metodo.name}
-                                                type="button"
-                                                onClick={() => setMetodoPago(metodo.name)}
-                                                className={`group p-3 rounded-lg border-2 transition-all ${isSelected
-                                                    ? `border-${metodo.color}-500 bg-${metodo.color}-500/10`
-                                                    : 'border-[#2d3748] bg-[#181c24] hover:border-gray-600'
-                                                    }`}
-                                            >
-                                                <div className="text-center space-y-1">
-                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center mx-auto ${isSelected ? `bg-${metodo.color}-500 text-white` : 'bg-gray-600 text-gray-400'
-                                                        }`}>
-                                                        <Icon className="w-3 h-3" />
+                                    {paymentMethods.length > 0 ? (
+                                        paymentMethods.map((method) => {
+                                            const isSelected = metodoPago === method.method_name;
+                                            const lowerName = method.method_name.toLowerCase();
+
+                                            // Asignación de iconos basada en el nombre
+                                            let Icon = CreditCardIcon;
+                                            let color = 'blue';
+
+                                            if (lowerName.includes('efectivo')) { Icon = BanknotesIcon; color = 'green'; }
+                                            else if (lowerName.includes('pago movil') || lowerName.includes('móvil')) { Icon = DevicePhoneMobileIcon; color = 'purple'; }
+                                            else if (lowerName.includes('zelle')) { Icon = CurrencyDollarIcon; color = 'yellow'; }
+                                            else if (lowerName.includes('transferencia') || lowerName.includes('banco')) { Icon = BuildingOffice2Icon; color = 'blue'; }
+
+                                            return (
+                                                <button
+                                                    key={method.method_id}
+                                                    type="button"
+                                                    onClick={() => setMetodoPago(method.method_name)}
+                                                    className={`group p-3 rounded-lg border-2 transition-all relative ${isSelected
+                                                        ? `border-${color}-500 bg-${color}-500/10`
+                                                        : 'border-[#2d3748] bg-[#181c24] hover:border-gray-600'
+                                                        }`}
+                                                >
+                                                    <div className="text-center space-y-1">
+                                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center mx-auto ${isSelected ? `bg-${color}-500 text-white` : 'bg-gray-600 text-gray-400'
+                                                            }`}>
+                                                            <Icon className="w-3 h-3" />
+                                                        </div>
+                                                        <div className="text-[10px] font-bold text-white truncate px-1 uppercase tracking-tighter">{method.method_name}</div>
                                                     </div>
-                                                    <div className="text-xs font-medium text-white">{metodo.name}</div>
-                                                </div>
-                                                {isSelected && (
-                                                    <div className={`absolute -top-1 -right-1 w-3 h-3 bg-${metodo.color}-500 rounded-full flex items-center justify-center`}>
-                                                        <CheckCircleIcon className="w-1.5 h-1.5 text-white" />
-                                                    </div>
-                                                )}
-                                            </button>
-                                        );
-                                    })}
+                                                    {isSelected && (
+                                                        <div className={`absolute -top-1 -right-1 w-3 h-3 bg-${color}-500 rounded-full flex items-center justify-center`}>
+                                                            <CheckCircleIcon className="w-1.5 h-1.5 text-white" />
+                                                        </div>
+                                                    )}
+                                                </button>
+                                            );
+                                        })
+                                    ) : (
+                                        <div className="col-span-full py-4 text-center text-xs text-gray-500 italic">
+                                            No hay métodos de pago configurados
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

@@ -18,10 +18,14 @@ import {
   PlusIcon,
   XMarkIcon,
   ChatBubbleLeftRightIcon,
-  BuildingLibraryIcon
+  BuildingLibraryIcon,
+  IdentificationIcon,
+  UserCircleIcon,
+  EnvelopeIcon,
+  InboxStackIcon,
+  InboxIcon
 } from "@heroicons/react/24/outline";
 import { supabase } from "../api/supabaseClient";
-import { InboxIcon } from "@heroicons/react/24/outline";
 import { useAuth } from "../context/AuthContext";
 
 // Helper function to calculate file hash
@@ -323,11 +327,6 @@ const PaymentMethodsConfig = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState({ type: '', text: '' });
-  const [showAddMethod, setShowAddMethod] = useState(false);
-  const [newMethodName, setNewMethodName] = useState('');
-  const [newMethodDescription, setNewMethodDescription] = useState('');
-  const [newMethodLogoUrl, setNewMethodLogoUrl] = useState(null);
-
   const { empresaId } = useAuth();
 
   useEffect(() => {
@@ -341,12 +340,7 @@ const PaymentMethodsConfig = () => {
           .eq('empresa_id', empresaId);
 
         if (error) {
-          setPaymentMethods([
-            { id: 'efectivo', method_id: 'efectivo', method_name: 'Efectivo', is_enabled: true, is_default: true, config_data: {} },
-            { id: 'transferencia', method_id: 'transferencia', method_name: 'Transferencia', is_enabled: true, is_default: false, config_data: { bankName: '', accountNumber: '', bankLogoUrl: null } },
-            { id: 'pago_movil', method_id: 'pago_movil', method_name: 'Pago Móvil', is_enabled: true, is_default: false, config_data: { phone: '', ci: '' } },
-            { id: 'zelle', method_id: 'zelle', method_name: 'Zelle', is_enabled: false, is_default: false, config_data: { email: '' } },
-          ]);
+          setPaymentMethods([]);
         } else {
           setPaymentMethods(data.map(pm => ({
             id: pm.method_id,
@@ -403,184 +397,231 @@ const PaymentMethodsConfig = () => {
     }
   };
 
-  const getIcon = (id) => {
-    const props = "h-5 w-5";
-    switch (id) {
-      case 'efectivo': return <BanknotesIcon className={`${props} text-emerald-400`} />;
-      case 'transferencia': return <BuildingLibraryIcon className={`${props} text-blue-400`} />;
-      case 'pago_movil': return <DevicePhoneMobileIcon className={`${props} text-purple-400`} />;
-      case 'zelle': return <CurrencyDollarIcon className={`${props} text-indigo-400`} />;
-      default: return <CreditCardIcon className={`${props} text-gray-400`} />;
+  const addField = (methodId) => {
+    const key = prompt("Nombre del nuevo campo (ej: titular, banco, referencia):");
+    if (key) {
+      const slug = key.toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove accents
+        .replace(/\s+/g, '_') // replace spaces with _
+        .replace(/[^\w]/g, ''); // remove non-word chars
+
+      updatePaymentDetails(methodId, slug, '');
     }
   };
 
-  if (loading) return <div className="p-12 text-center animate-pulse text-indigo-400 font-black uppercase tracking-widest text-xs">Cargando pasarelas...</div>;
+  const removeField = (methodId, fieldKey) => {
+    if (window.confirm(`¿Eliminar el campo "${fieldKey}"?`)) {
+      setPaymentMethods(paymentMethods.map(pm => {
+        if (pm.id === methodId) {
+          const newConfig = { ...pm.config_data };
+          delete newConfig[fieldKey];
+          return { ...pm, config_data: newConfig };
+        }
+        return pm;
+      }));
+    }
+  };
+
+  const addNewMethod = () => {
+    const name = prompt("Nombre del nuevo método de pago (ej: Efectivo, PayPal, Binance):");
+    if (name) {
+      const methodId = name.toLowerCase().replace(/\s+/g, '_').replace(/[^\w]/g, '');
+      const newMethod = {
+        id: methodId,
+        method_id: methodId,
+        method_name: name,
+        is_enabled: true,
+        is_default: false,
+        config_data: { titular: '', logoUrl: '' }
+      };
+      setPaymentMethods([...paymentMethods, newMethod]);
+    }
+  };
+
+  const deleteMethod = (id) => {
+    if (window.confirm("¿Seguro que deseas eliminar definitivamente este método de pago?")) {
+      setPaymentMethods(paymentMethods.filter(pm => pm.id !== id));
+    }
+  };
+
+  const getIcon = (id) => {
+    const props = "h-4 w-4";
+    const lowerId = id.toLowerCase();
+    if (lowerId.includes('efectivo')) return <BanknotesIcon className={`${props} text-emerald-400`} />;
+    if (lowerId.includes('transferencia') || lowerId.includes('bnco') || lowerId.includes('bod')) return <BuildingLibraryIcon className={`${props} text-blue-400`} />;
+    if (lowerId.includes('movil') || lowerId.includes('phone') || lowerId.includes('tel')) return <DevicePhoneMobileIcon className={`${props} text-purple-400`} />;
+    if (lowerId.includes('zelle') || lowerId.includes('dolar') || lowerId.includes('pay')) return <CurrencyDollarIcon className={`${props} text-indigo-400`} />;
+    return <CreditCardIcon className={`${props} text-gray-500`} />;
+  };
+
+  if (loading) return <div className="p-8 text-center animate-pulse text-indigo-400 font-bold uppercase tracking-widest text-[10px]">Cargando...</div>;
 
   return (
-    <div className="space-y-6 sm:space-y-8 animate-fadeInUp">
-      {/* Premium Header Card */}
-      <div className="bg-gradient-to-br from-[#1e2235] to-[#181c24] rounded-[32px] p-6 sm:p-8 border border-gray-800 shadow-2xl relative overflow-hidden group">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 blur-[60px] rounded-full -mr-10 -mt-10 group-hover:bg-indigo-500/20 transition-all duration-700"></div>
-        <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-indigo-600/20 rounded-2xl flex items-center justify-center border border-indigo-500/30">
-              <CreditCardIcon className="h-7 w-7 text-indigo-400" />
-            </div>
-            <div>
-              <h3 className="text-xl font-black text-white tracking-tight">Pasarelas de Pago</h3>
-              <p className="text-xs text-gray-500 font-medium uppercase tracking-[2px]">Activa tus canales de cobro</p>
-            </div>
+    <div className="space-y-4 animate-fadeIn">
+      {/* Mini Header */}
+      <div className="flex items-center justify-between bg-[#1e2235]/40 p-4 rounded-2xl border border-gray-800/50">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-indigo-600/10 rounded-xl flex items-center justify-center border border-indigo-500/20">
+            <CreditCardIcon className="h-5 w-5 text-indigo-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-white tracking-tight">Métodos de Pago</h3>
+            <p className="text-[9px] text-gray-500 uppercase tracking-widest">Configurables</p>
           </div>
         </div>
+        <button
+          onClick={addNewMethod}
+          className="bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-indigo-500/20 transition-all flex items-center gap-2"
+        >
+          <PlusIcon className="w-3 h-3" />
+          Añadir
+        </button>
       </div>
 
-      {/* Payment Methods Grid - Full Width Mobile Fix */}
-      <div className="grid grid-cols-1 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 gap-3">
         {paymentMethods.map((method) => (
-          <div key={method.id} className={`group relative transition-all duration-500 ${method.is_enabled ? 'opacity-100' : 'opacity-60'}`}>
-            <div className={`relative bg-[#1e2235] rounded-[28px] border transition-all duration-300 overflow-hidden ${method.is_enabled ? 'border-gray-800 hover:border-indigo-500/30 shadow-xl' : 'border-gray-900 border-dashed hover:border-gray-800'}`}>
-
-              <div className="p-5 sm:p-6 lg:p-8">
-                {/* Method Row - Stack on Mobile to prevent overflow */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${method.is_enabled ? 'bg-gray-800 border-gray-700 shadow-inner' : 'bg-gray-900 border-gray-800'}`}>
-                      {getIcon(method.id)}
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="text-base font-bold text-white truncate tracking-tight">{method.method_name}</h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${method.is_enabled ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-gray-800/50 text-gray-600 border-gray-800'}`}>
-                          {method.is_enabled ? 'Activo' : 'Inactivo'}
-                        </span>
-                        {method.is_default && (
-                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">Principal</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Actions - Flex row to stay side by side but with good spacing */}
-                  <div className="flex items-center justify-between sm:justify-end gap-4 border-t border-gray-800/50 pt-4 sm:pt-0 sm:border-none">
-                    <div className="flex flex-col items-center">
-                      <Switch
-                        checked={method.is_enabled}
-                        onChange={() => togglePaymentMethod(method.id, !method.is_enabled)}
-                        className={`${method.is_enabled ? 'bg-indigo-600' : 'bg-gray-800'
-                          } relative inline-flex h-6 w-11 items-center rounded-full transition-colors border border-gray-700`}
-                      >
-                        <span className={`${method.is_enabled ? 'translate-x-6' : 'translate-x-1'
-                          } inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform`} />
-                      </Switch>
-                      <span className="text-[8px] font-black uppercase text-gray-500 mt-1">{method.is_enabled ? 'ON' : 'OFF'}</span>
-                    </div>
-
-                    {method.is_enabled && !method.is_default && (
-                      <button
-                        onClick={() => setDefaultMethod(method.id)}
-                        className="px-4 h-9 bg-gray-800 hover:bg-gray-700 text-gray-300 text-[10px] font-black uppercase tracking-widest rounded-lg border border-gray-700 transition-all active:scale-95"
-                      >
-                        Hacer Principal
-                      </button>
-                    )}
-                  </div>
+          <div key={method.id} className={`group bg-[#1e2235]/20 rounded-xl border border-gray-800/40 p-4 transition-all ${!method.is_enabled && 'opacity-50'}`}>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-gray-900/50 flex items-center justify-center border border-gray-800">
+                  {getIcon(method.id)}
                 </div>
+                <div className="min-w-0">
+                  <input
+                    type="text"
+                    value={method.method_name}
+                    onChange={(e) => setPaymentMethods(paymentMethods.map(pm => pm.id === method.id ? { ...pm, method_name: e.target.value } : pm))}
+                    className="bg-transparent border-none p-0 text-sm font-bold text-white tracking-tight focus:ring-0 w-fit"
+                  />
+                </div>
+              </div>
 
-                {/* Inline Forms - Compact & Mobile Safe */}
-                {method.is_enabled && (
-                  <div className="mt-8 pt-8 border-t border-gray-800/80 animate-fadeIn">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                      {method.id === 'transferencia' && (
-                        <>
-                          <div>
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Banco Emisor</label>
-                            <input
-                              type="text"
-                              value={method.config_data.bankName || ''}
-                              onChange={(e) => updatePaymentDetails(method.id, 'bankName', e.target.value)}
-                              className="w-full bg-[#0f131b]/50 border border-gray-800 rounded-xl px-4 py-3 text-white text-sm font-bold focus:border-indigo-500/50 focus:ring-0 transition-all transition-all"
-                              placeholder="Ej: Banesco"
-                            />
-                          </div>
-                          <div className="lg:col-span-2">
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Cuenta Clave (20 dígitos)</label>
-                            <input
-                              type="text"
-                              value={method.config_data.accountNumber || ''}
-                              onChange={(e) => updatePaymentDetails(method.id, 'accountNumber', e.target.value)}
-                              className="w-full bg-[#0f131b]/50 border border-gray-800 rounded-xl px-4 py-3 text-white text-sm font-bold focus:border-indigo-500/50 focus:ring-0 transition-all font-mono"
-                              placeholder="0134 0000 0000 0000 0000"
-                            />
-                          </div>
-                        </>
-                      )}
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={method.is_enabled}
+                  onChange={() => togglePaymentMethod(method.id, !method.is_enabled)}
+                  className={`${method.is_enabled ? 'bg-indigo-600' : 'bg-gray-800'} relative inline-flex h-5 w-9 items-center rounded-full transition-colors`}
+                >
+                  <span className={`${method.is_enabled ? 'translate-x-5' : 'translate-x-1'} inline-block h-3 w-3 transform rounded-full bg-white transition-transform`} />
+                </Switch>
 
-                      {method.id === 'pago_movil' && (
-                        <>
-                          <div>
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Teléfono Vinculado</label>
-                            <input
-                              type="tel"
-                              value={method.config_data.phone || ''}
-                              onChange={(e) => updatePaymentDetails(method.id, 'phone', e.target.value)}
-                              className="w-full bg-[#0f131b]/50 border border-gray-800 rounded-xl px-4 py-3 text-white text-sm font-bold focus:border-indigo-500/50 focus:ring-0 transition-all"
-                              placeholder="0424..."
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Documento (V/J/E)</label>
-                            <input
-                              type="text"
-                              value={method.config_data.ci || ''}
-                              onChange={(e) => updatePaymentDetails(method.id, 'ci', e.target.value)}
-                              className="w-full bg-[#0f131b]/50 border border-gray-800 rounded-xl px-4 py-3 text-white text-sm font-bold focus:border-indigo-500/50 focus:ring-0 transition-all"
-                              placeholder="V-12.345.678"
-                            />
-                          </div>
-                        </>
-                      )}
-
-                      {method.id === 'zelle' && (
-                        <div className="md:col-span-2">
-                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-2">Correo Electrónico Zelle</label>
-                          <input
-                            type="email"
-                            value={method.config_data.email || ''}
-                            onChange={(e) => updatePaymentDetails(method.id, 'email', e.target.value)}
-                            className="w-full bg-[#0f131b]/50 border border-gray-800 rounded-xl px-4 py-3 text-white text-sm font-bold focus:border-indigo-500/50 focus:ring-0 transition-all"
-                            placeholder="zelle@negocio.com"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                <button
+                  onClick={() => deleteMethod(method.id)}
+                  className="p-1.5 text-gray-600 hover:text-red-400 transition-colors"
+                >
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
               </div>
             </div>
+
+            {method.is_enabled && (
+              <div className="mt-4 pt-4 border-t border-gray-800/40 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* Logo Field */}
+                  <div className="md:col-span-2">
+                    <label className="text-[9px] font-bold text-gray-500 uppercase mb-1 block">URL Logo</label>
+                    <input
+                      type="url"
+                      value={method.config_data.logoUrl || ''}
+                      onChange={(e) => updatePaymentDetails(method.id, 'logoUrl', e.target.value)}
+                      className="w-full bg-[#0f131b]/30 border border-gray-800/50 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-700 focus:border-indigo-500/50 focus:ring-0 outline-none transition-all"
+                      placeholder="https://..."
+                    />
+                  </div>
+
+                  {/* Dynamic Fields */}
+                  {Object.entries(method.config_data).map(([key, value]) => {
+                    if (key === 'logoUrl') return null;
+
+                    const getFieldIcon = (fieldName) => {
+                      const lower = fieldName.toLowerCase();
+                      if (lower.includes('banco')) return <BuildingLibraryIcon className="w-3 h-3 text-blue-500" />;
+                      if (lower.includes('cedula') || lower.includes('id') || lower.includes('dni') || lower.includes('ci')) return <IdentificationIcon className="w-3 h-3 text-blue-400" />;
+                      if (lower.includes('titular') || lower.includes('nombre')) return <UserCircleIcon className="w-3 h-3 text-indigo-400" />;
+                      if (lower.includes('cuenta') || lower.includes('numero')) return <CreditCardIcon className="w-3 h-3 text-emerald-400" />;
+                      if (lower.includes('telefono') || lower.includes('celular') || lower.includes('movil') || lower.includes('phone')) return <DevicePhoneMobileIcon className="w-3 h-3 text-purple-400" />;
+                      if (lower.includes('correo') || lower.includes('email')) return <InboxIcon className="w-3 h-3 text-orange-400" />;
+                      return <InformationCircleIcon className="w-3 h-3 text-gray-500" />;
+                    };
+
+                    const getFieldLabel = (fieldName) => {
+                      const lower = fieldName.toLowerCase();
+                      if (lower.includes('banco')) return 'Banco';
+                      if (lower.includes('cedula') || lower.includes('id') || lower.includes('dni') || lower.includes('ci')) return 'Cédula de Identidad';
+                      if (lower.includes('titular')) return 'Titular de la Cuenta';
+                      if (lower.includes('nombre')) return 'Titular';
+                      if (lower.includes('cuenta') || (lower.includes('numero') && !lower.includes('cedula'))) return 'Número de Cuenta';
+                      if (lower.includes('telefono') || lower.includes('celular') || lower.includes('movil') || lower.includes('phone')) return 'Teléfono / WhatsApp';
+                      if (lower.includes('correo') || lower.includes('email')) return 'Correo Electrónico';
+                      return fieldName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    };
+
+                    return (
+                      <div key={key} className="relative group/field">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[9px] font-bold text-gray-400 flex items-center gap-1.5 uppercase tracking-wider">
+                            {getFieldIcon(key)}
+                            {getFieldLabel(key)}
+                          </label>
+                          <button onClick={() => removeField(method.id, key)} className="opacity-0 group-hover/field:opacity-100 text-red-400 transition-opacity">
+                            <XMarkIcon className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={value || ''}
+                          onChange={(e) => updatePaymentDetails(method.id, key, e.target.value)}
+                          className="w-full bg-[#0f131b]/30 border border-gray-800/50 rounded-lg px-3 py-1.5 text-xs text-white focus:border-indigo-500/50 focus:ring-0 outline-none transition-all"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => addField(method.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/5 hover:bg-indigo-500/10 text-indigo-400/80 rounded-lg border border-indigo-500/10 text-[9px] font-bold uppercase transition-all"
+                  >
+                    <PlusIcon className="w-3 h-3" /> Campo
+                  </button>
+                  {['titular', 'cedula', 'telefono', 'numero_cuenta', 'banco'].map(sug => (
+                    !method.config_data.hasOwnProperty(sug) && (
+                      <button
+                        key={sug}
+                        onClick={() => updatePaymentDetails(method.id, sug, '')}
+                        className="text-[8px] font-bold text-gray-600 hover:text-gray-400 bg-gray-800/40 px-2 py-1 rounded transition-all"
+                      >
+                        + {sug.replace(/_/g, ' ')}
+                      </button>
+                    )
+                  ))}
+                  <div className="flex-1"></div>
+                  {!method.is_default && (
+                    <button
+                      onClick={() => setDefaultMethod(method.id)}
+                      className="text-[8px] font-black uppercase text-amber-500/60 hover:text-amber-500"
+                    >
+                      Hacer Principal
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
 
-      {/* Action Footer */}
-      <div className="mt-8">
-        <button
-          onClick={savePaymentMethods}
-          disabled={saving}
-          className="w-full h-14 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-black uppercase tracking-[2px] text-sm rounded-2xl hover:brightness-110 active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center shadow-xl shadow-indigo-600/20 group"
-        >
-          {saving ? (
-            <ArrowPathIcon className="w-5 h-5 animate-spin" />
-          ) : (
-            <>
-              <CheckIcon className="w-5 h-5 mr-3 group-hover:scale-125 transition-transform" />
-              <span>Sincronizar Pasarelas</span>
-            </>
-          )}
-        </button>
-      </div>
+      <button
+        onClick={savePaymentMethods}
+        disabled={saving}
+        className="w-full h-10 bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-indigo-600/10 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+      >
+        {saving ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <><CheckIcon className="w-4 h-4" /> Guardar Cambios</>}
+      </button>
 
       {saveMessage.text && (
-        <div className={`mt-4 p-4 rounded-2xl text-[11px] font-black uppercase tracking-[1px] text-center animate-fadeIn ${saveMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : saveMessage.type === 'error' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'}`}>
+        <div className={`mt-2 p-3 rounded-lg text-center text-[9px] font-bold uppercase border animate-fadeIn ${saveMessage.type === 'success' ? 'bg-emerald-500/5 text-emerald-400 border-emerald-500/10' : 'bg-red-500/5 text-red-500 border-red-500/10'}`}>
           {saveMessage.text}
         </div>
       )}
@@ -892,7 +933,13 @@ function Configuracion() {
   const { empresaId } = useAuth();
 
   // State for company data
-  const [empresa, setEmpresa] = useState({ nombre_empresa: '', direccion_empresa: '', logo_url: '', logo_hash: '' });
+  const [empresa, setEmpresa] = useState({
+    nombre_empresa: '',
+    direccion_empresa: '',
+    logo_url: '',
+    logo_hash: '',
+    contactos: []
+  });
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
   const [dragActive, setDragActive] = useState(false);
@@ -998,6 +1045,7 @@ function Configuracion() {
           direccion_empresa: empresa.direccion_empresa,
           logo_url: logoUrlToSave,
           logo_hash: logoHashToSave,
+          contactos: empresa.contactos || []
         })
         .eq('id_empresa', empresaId);
 
@@ -1181,10 +1229,11 @@ function Configuracion() {
         </div>
       </div>
 
-      {/* Menú de Navegación - Reducido y Minimalista */}
-      <div className="mb-8 grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+      {/* Menú de Navegación - Horizontal y Compacto */}
+      <div className="mb-6 grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
         {[
           { key: 'empresa', label: 'Empresa', badge: 'Perfil', icon: BuildingOffice2Icon },
+          { key: 'payment', label: 'Pasarelas', badge: 'Pagos', icon: CreditCardIcon },
           { key: 'recordatorios', label: 'Recordatorios', badge: 'Mensajes', icon: ChatBubbleLeftRightIcon },
           { key: 'backup', label: 'Seguridad', badge: 'Respaldos', icon: CloudArrowDownIcon }
         ].map(tab => {
@@ -1194,25 +1243,22 @@ function Configuracion() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-300 group active:scale-[0.98] ${isActive
+              className={`flex items-center gap-3 p-2.5 rounded-xl border transition-all duration-300 group active:scale-[0.98] ${isActive
                 ? 'bg-[#1e2235] border-indigo-500/40 shadow-lg shadow-indigo-500/5'
                 : 'bg-[#131722]/40 border-gray-800/30 hover:border-gray-700'
                 }`}
             >
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${isActive ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-600 group-hover:text-gray-500'}`}>
-                  <Icon className="w-4 h-4" />
-                </div>
-                <div className="text-left">
-                  <p className={`text-[8px] font-black uppercase tracking-[1px] leading-tight ${isActive ? 'text-indigo-400' : 'text-gray-700'}`}>
-                    {tab.badge}
-                  </p>
-                  <p className={`text-[11px] font-bold leading-tight ${isActive ? 'text-white' : 'text-gray-400'}`}>
-                    {tab.label}
-                  </p>
-                </div>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${isActive ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-600 group-hover:text-gray-500'}`}>
+                <Icon className="w-4 h-4" />
               </div>
-              <div className={`w-1 h-1 rounded-full transition-all duration-500 ${isActive ? 'bg-indigo-500 shadow-[0_0_6px_rgba(99,102,241,0.6)] scale-110' : 'bg-transparent'}`}></div>
+              <div className="text-left min-w-0">
+                <p className={`text-[7px] font-black uppercase tracking-[1px] leading-tight truncate ${isActive ? 'text-indigo-400' : 'text-gray-700'}`}>
+                  {tab.badge}
+                </p>
+                <p className={`text-[10px] font-bold leading-tight truncate ${isActive ? 'text-white' : 'text-gray-400'}`}>
+                  {tab.label}
+                </p>
+              </div>
             </button>
           );
         })}
@@ -1267,6 +1313,16 @@ function Configuracion() {
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'payment' && (
+        <div className="mt-4 sm:mt-6 animate-fadeIn">
+          <div className="bg-[#181c24] border border-gray-800/50 rounded-[40px] shadow-2xl overflow-hidden">
+            <div className="p-4 sm:p-8">
+              <PaymentMethodsConfig />
             </div>
           </div>
         </div>
