@@ -71,18 +71,33 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
-      const { data: user, error: userError } = await supabase
-        .from('t_usuarios')
-        .select('email, empresa_id')
-        .eq('username', username)
-        .single();
+      let email = "";
 
-      if (userError || !user) {
-        throw new Error('Usuario no encontrado');
+      // 1. Try to get email via Secure RPC Function (Recommended for Zero Trust)
+      const { data: emailFromRpc, error: rpcError } = await supabase
+        .rpc('get_user_email_by_username', { p_username: username });
+
+      if (!rpcError && emailFromRpc) {
+        email = emailFromRpc;
+        console.log("Email retrieved via Secure RPC");
+      } else {
+        // 2. Fallback: Try direct query (Will fail if RLS is strict and no policy allows public read)
+        console.warn("RPC failed or not found, attempting direct query (may fail with 406 if RLS is strict)", rpcError);
+        const { data: user, error: userError } = await supabase
+          .from('t_usuarios')
+          .select('email')
+          .eq('username', username)
+          .single();
+
+        if (userError || !user) {
+          throw new Error('Usuario no encontrado o acceso denegado por políticas de seguridad.');
+        }
+        email = user.email;
       }
 
+      // 3. Authenticate directly with Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: user.email,
+        email,
         password,
       });
 
@@ -90,11 +105,32 @@ export const AuthProvider = ({ children }) => {
         throw error;
       }
 
-      localStorage.setItem('empresa_id', user.empresa_id);
-      setEmpresaId(user.empresa_id);
+      if (!data.session) {
+        throw new Error('No se pudo establecer la sesión.');
+      }
+
+      // 4. Once authenticated, fetch the user profile securely (RLS allows reading own row)
+      const { data: userProfile, error: profileError } = await supabase
+        .from('t_usuarios')
+        .select('empresa_id')
+        .eq('auth_id', data.user.id) // Use the auth_id from the session
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError);
+        throw new Error('No se pudo cargar el perfil del usuario.');
+      }
+
+      if (!userProfile?.empresa_id) {
+        throw new Error('El usuario no tiene una empresa asignada.');
+      }
+
+      localStorage.setItem('empresa_id', userProfile.empresa_id);
+      setEmpresaId(userProfile.empresa_id);
       toast.success('¡Inicio de sesión exitoso!');
       return { data };
     } catch (error) {
+      console.error("Login error:", error);
       toast.error(error.message || 'Error al iniciar sesión');
       return { error };
     }
