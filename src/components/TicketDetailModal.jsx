@@ -564,25 +564,28 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
         if (ticketIds.length > 0) {
             const { data: payments, error } = await supabase
                 .from('t_pagos')
-                .select('monto')
+                .select('ticket_id, monto')
                 .in('ticket_id', ticketIds);
 
-            if (!error && payments && payments.length > 0) {
-                totalPaid = payments.reduce((sum, pago) => sum + (parseFloat(pago.monto) || 0), 0);
-            } else {
-                // Si no hay pagos en el historial, calcular basado en el estado de los tickets
-                totalPaid = playerTickets.reduce((sum, t) => {
-                    if (t.estado_ticket === 'pagado') {
-                        return sum + (parseFloat(t.precio_ticket) || pricePerTicket);
-                    } else if (t.monto_pagado) {
-                        return sum + parseFloat(t.monto_pagado);
-                    } else if (t.saldo_pendiente !== undefined && t.saldo_pendiente !== null) {
-                        const ticketPrice = parseFloat(t.precio_ticket) || pricePerTicket;
-                        return sum + (ticketPrice - parseFloat(t.saldo_pendiente));
-                    }
-                    return sum;
-                }, 0);
-            }
+            totalPaid = playerTickets.reduce((sum, t) => {
+                const isPagado = t.estado_ticket === 'pagado' || t.estado === 'pagado';
+                if (isPagado) {
+                    return sum + (parseFloat(t.precio_ticket) || pricePerTicket);
+                }
+
+                const ticketPayments = !error && payments ? payments.filter(p => p.ticket_id === t.id) : [];
+                if (ticketPayments.length > 0) {
+                    return sum + ticketPayments.reduce((acc, p) => acc + (parseFloat(p.monto) || 0), 0);
+                }
+
+                if (t.monto_pagado) {
+                    return sum + parseFloat(t.monto_pagado);
+                } else if (t.saldo_pendiente !== undefined && t.saldo_pendiente !== null) {
+                    const ticketPrice = parseFloat(t.precio_ticket) || pricePerTicket;
+                    return sum + (ticketPrice - parseFloat(t.saldo_pendiente));
+                }
+                return sum;
+            }, 0);
         }
 
         const pendingAmount = Math.max(0, totalAmount - totalPaid);
