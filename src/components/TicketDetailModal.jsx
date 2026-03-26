@@ -833,8 +833,7 @@ export function TicketDetailModal({ isOpen, onClose, ticket, playerGroup, rifa, 
                                         'pagado': '✅',
                                         'abonado': '🔵',
                                         'apartado': '⏳',
-                                        'disponible': '❌',
-                                        'abonado': '👨‍👩‍👧‍👦'
+                                        'disponible': '❌'
                                     }[t.estado_ticket] || '❓';
 
                                     return (

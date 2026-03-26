@@ -14,6 +14,7 @@ const countryOptions = [
   { name: 'Peru', code: '+51', flag: '🇵🇪', placeholder: '912 345 678' },
   { name: 'Brazil', code: '+55', flag: '🇧🇷', placeholder: '(11) 91234-5678' },
   { name: 'Uruguay', code: '+598', flag: '🇺🇾', placeholder: '91 234 567' },
+  { name: 'Panama', code: '+507', flag: '🇵🇦', placeholder: '6123-4567' },
   { name: 'Alemania', code: '+49', flag: '🇩🇪', placeholder: '151 12345678' }
 ];
 
@@ -192,6 +193,8 @@ const applyPhoneMask = (value, countryCode) => {
       return digits.slice(0, 11).replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
     case '+598': // Uruguay: 91 234 567 (8 digits)
       return digits.slice(0, 8).replace(/(\d{2})(\d{3})(\d{3})/, '$1 $2 $3');
+    case '+507': // Panama: 6123-4567 (8 digits)
+      return digits.slice(0, 8).replace(/(\d{4})(\d{4})/, '$1-$2');
     case '+49': // Germany: 151 12345678 (up to 11 digits)
       return digits.slice(0, 11).replace(/(\d{3})(\d+)/, '$1 $2');
     default:
@@ -227,6 +230,8 @@ const formatPhoneForDatabase = (phoneDigits, countryCode) => {
       return digits.length >= 8 ? `${countryCode} ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)}` : `${countryCode}${digits}`;
     case '+49': // Germany: +49 151 12345678
       return digits.length >= 10 ? `${countryCode} ${digits.slice(0, 3)} ${digits.slice(3)}` : `${countryCode}${digits}`;
+    case '+507': // Panama: +507 6123-4567
+      return digits.length >= 8 ? `${countryCode} ${digits.slice(0, 4)}-${digits.slice(4, 8)}` : `${countryCode}${digits}`;
     default:
       return `${countryCode}${digits}`;
   }

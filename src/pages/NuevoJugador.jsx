@@ -17,6 +17,7 @@ const countryOptions = [
   { name: 'Peru', code: '+51', flag: '🇵🇪' },
   { name: 'Brazil', code: '+55', flag: '🇧🇷' },
   { name: 'Uruguay', code: '+598', flag: '🇺🇾' },
+  { name: 'Panama', code: '+507', flag: '🇵🇦' },
   { name: 'Alemania', code: '+49', flag: '🇩🇪' }
 ];
 
